@@ -48,3 +48,43 @@ def test_runner_end_to_end_and_unique_ids():
     assert "ALL" in res and res["ALL"]["signals"] == len(df)
     # funnel reconciles: every signal is triggered or not
     assert res["ALL"]["triggered"] + res["ALL"]["not_triggered"] == res["ALL"]["signals"]
+
+
+def _frames(n=5000):
+    out = {}
+    for i, sym in enumerate(["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"]):
+        d = synth(n, seed=10 + i)
+        d.index = pd.date_range("2023-01-01", periods=n, freq="4h", tz="UTC")
+        out[sym] = d
+    return out
+
+
+def test_e1_e2_signals_causal():
+    from fxengine.setups import v2
+    fr = _frames()
+    k = 3800
+    full = {s: prepare(d) for s, d in fr.items()}
+    cut = {s: prepare(d.iloc[: k + 1]) for s, d in fr.items()}
+    a1, b1 = v2.strength_signals(full), v2.strength_signals(cut)
+    tot = 0
+    for s in fr:
+        a = a1[s][a1[s].pos <= k].reset_index(drop=True)
+        pd.testing.assert_frame_equal(a, b1[s].reset_index(drop=True), check_dtype=False)
+        tot += len(a)
+        a2 = v2.donchian_trend(full[s]); a2 = a2[a2.pos <= k].reset_index(drop=True)
+        pd.testing.assert_frame_equal(a2, v2.donchian_trend(cut[s]).reset_index(drop=True), check_dtype=False)
+    assert tot > 0
+
+
+def test_e1_e2_run_end_to_end():
+    from fxengine.setups import v2
+    bt.TF = pd.Timedelta(hours=4)
+    fr = {s: prepare(d) for s, d in _frames().items()}
+    sig = v2.strength_signals(fr)
+    rows = []
+    for s, d in fr.items():
+        rows += bt.run_signals(s, d, "E1_strength", sig[s])
+        rows += bt.run_signals(s, d, "E2_donchian", v2.donchian_trend(d))
+    bt.TF = pd.Timedelta(minutes=15)
+    df = pd.DataFrame(rows)
+    assert len(df) > 10 and df.triggered.sum() > 0

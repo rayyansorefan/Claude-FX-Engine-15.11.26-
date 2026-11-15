@@ -14,7 +14,7 @@ def main():
         if m5.empty:
             continue
         rep[sym] = {"M5": quality(m5, "M5")}
-        for tf in ("M15", "H1"):
+        for tf in ("M15", "H1", "H4"):
             out = resample(m5, tf, base="M5")
             store.merge_save(sym, tf, out)
             rep[sym][tf] = quality(out, tf)

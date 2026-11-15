@@ -42,25 +42,32 @@ def track(setup, arr, pos0, cost):
     return t
 
 
+def run_signals(symbol, d, stype, sig, arr=None):
+    """Track a precomputed signal frame for one pair/type (cooldown: one open setup at a time)."""
+    arr = arr or (d.index, d.bid_o.values, d.bid_h.values, d.bid_l.values, d.bid_c.values)
+    rows = []
+    free_until = pd.Timestamp.min.tz_localize("UTC")
+    for row in sig.itertuples():
+        created = d.index[row.pos] + TF
+        if created < free_until:
+            continue
+        s = make_setup(d, row, symbol, stype)
+        ts, tf_ = track(s, arr, row.pos, STRESSED), track(s, arr, row.pos, FREE)
+        free_until = ts.events[-1]["ts"]
+        o, of = ts.outcome, tf_.outcome
+        rows.append(dict(symbol=symbol, type=stype, created=created, reason=o.reason if o else "OPEN",
+                         net_r=o.net_r if o else 0.0, net_r_free=of.net_r if of else 0.0,
+                         gross_r=o.gross_r if o else 0.0, bars=o.bars_held if o else 0,
+                         halfway=any("HALFWAY" in e["detail"] for e in ts.events),
+                         triggered=ts.fill is not None))
+    return rows
+
+
 def run_pair(symbol, d, types=v1.TYPES):
     arr = (d.index, d.bid_o.values, d.bid_h.values, d.bid_l.values, d.bid_c.values)
     rows = []
     for stype in types:
-        sig = v1.GENERATORS[stype](d)
-        free_until = pd.Timestamp.min.tz_localize("UTC")
-        for row in sig.itertuples():
-            created = d.index[row.pos] + TF
-            if created < free_until:
-                continue
-            s = make_setup(d, row, symbol, stype)
-            ts, tf_ = track(s, arr, row.pos, STRESSED), track(s, arr, row.pos, FREE)
-            free_until = ts.events[-1]["ts"]
-            o, of = ts.outcome, tf_.outcome
-            rows.append(dict(symbol=symbol, type=stype, created=created, reason=o.reason if o else "OPEN",
-                             net_r=o.net_r if o else 0.0, net_r_free=of.net_r if of else 0.0,
-                             gross_r=o.gross_r if o else 0.0, bars=o.bars_held if o else 0,
-                             halfway=any("HALFWAY" in e["detail"] for e in ts.events),
-                             triggered=ts.fill is not None))
+        rows += run_signals(symbol, d, stype, v1.GENERATORS[stype](d), arr)
     return rows
 
 
