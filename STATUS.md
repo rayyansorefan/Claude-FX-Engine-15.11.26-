@@ -21,8 +21,15 @@
   Bonferroni, gate_b), research/split.py (walk-forward + enforced holdout), research/trials.py,
   docs/GATES.md LOCKED.
 
+## Phase 3 (v1 setups) built, 34 tests pass
+- features/indicators.py, setups/v1.py (asia_breakout, trend_pullback, range_reversion; FROZEN params),
+  backtest/run.py (shared Tracker, cooldown per pair/type, stressed+normal cost, holdout hidden).
+- Data: full 3y M5 for 10 pairs on Rayyan's Mac (data/ gitignored). Cloud OANDA proxy route failed (401), so research runs on Mac:
+  `PYTHONPATH=src .venv/bin/python -m fxengine.backtest.run`
+- Pause rule + cadence agreed in principle: daily pause check, weekly report, 2-weekly version changes (add to GATES.md).
+
 ## Blocker
-Waiting on cTrader Open API app approval + keys. No history downloaded yet. Dukascopy datafeed rate-limits (429/reset) and its official
+(Resolved: OANDA practice data downloaded on Mac.) Dukascopy datafeed rate-limits (429/reset) and its official
 bulk route is Requester-Pays (costs money). See docs/DATA_SOURCES.md.
 
 ## Waiting on Rayyan
