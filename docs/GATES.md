@@ -39,3 +39,6 @@ If B passes, report plainly to Rayyan. Trading real money is his decision, outsi
 
 ## Change log
 - 2026-11-15: created.
+- 2026-11-15 (TIGHTENED, from white-paper audit): Gate B counts INDEPENDENT scored pair-days: at most one scored setup
+  per pair per day (the first fill), at least 100 of them across at least 20 distinct scored days; the bootstrap is
+  clustered by day. Previous "100 setups" wording is superseded by this stricter rule. Receipt after expiry = late.
