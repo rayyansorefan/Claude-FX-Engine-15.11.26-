@@ -7,6 +7,7 @@
 **Dashboard v3 (multi-tab: overview, research, charts, positions, performance, journal, system) built; review prompt in docs/REVIEW_PROMPT.md.**
 **Live dashboard server:** `start_dashboard.command` (double-click) or `python -m fxengine.dashboard.serve --open --refresh --auto 60` -> http://localhost:8787, rebuilds on every refresh.
 **Audit prompt for an independent reviewer: docs/AUDIT_PROMPT.md. VM install (deploy/install_vm.sh) awaiting Rayyan's Step 1-3.**
+**LIVE 2026-11-15:** VM fx-engine (GCP e2-micro us-central1) runs engine+dashboard+watchdog via systemd; dashboard http://100.78.194.103:8787 over Tailscale; research_once.sh started manually (check data/research_once.log). GCP free trial ends ~day 90: Rayyan must decide on upgrade (flag at day ~80). Waiting on Astra/Fable review feedback.
 **Current phase:** 2 machinery DONE (no real-data results yet); Phase 1 data BLOCKED on cTrader keys (app status: 'Submitted')
 **Last updated:** 2026-11-15
 
