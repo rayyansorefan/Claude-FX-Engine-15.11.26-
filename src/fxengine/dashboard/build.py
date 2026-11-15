@@ -9,6 +9,7 @@ import pandas as pd
 from ..data import store
 from ..engine.costs import pip
 from ..research import stats
+from . import journal as J
 
 PAIRS = ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD", "EURGBP", "EURJPY", "GBPJPY"]
 TOK = {"S1": "#3987e5", "S2": "#d95926", "GOOD": "#0ca30c", "WARN": "#fab219", "CRIT": "#d03b3b"}
@@ -302,6 +303,8 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
 <div class='card c7'><h3>Cumulative hypothetical R after stressed costs · backtest</h3>{line_chart(curves, 'R') if curves else "<p class='muted'>No backtest files found.</p>"}</div>
 <div class='card c5'><h3>Funnel · backtest</h3>{funnel(base) if base is not None else "<p class='muted'>No backtest files found.</p>"}</div>
 <div class='card c7'><h3>Results by setup type · backtest</h3>{by_type(base) if base is not None else "<p class='muted'>No backtest files found.</p>"}</div>
+<div class='card c12'><h3>Your paper trades · behaviour &amp; discipline</h3>{J.panel(J.load())}</div>
+<div class='card c7'><h3>Reality check</h3><p style='margin:4px 0'>Broker risk warnings in the UK and EU typically show <b>about 70–80%</b> of retail CFD and forex accounts losing money (figures vary by broker, roughly 50–90%). Independent evidence that AI tools raise retail profitability is thin; the few positive claims are vendor-reported. What does hold up: costs matter, over-trading hurts, and untested rules usually fail. This engine measures all three.</p></div>
 <div class='card c5'><h3>Reliability · live cycles &amp; data freshness</h3><div class='cyc'>{"<i></i>" * 24}</div>
 <p class='muted'>No live cycles recorded yet. This panel fills in once the live loop runs. It is never filled with made-up numbers.</p></div>
 </div></div>{JS}</body></html>"""

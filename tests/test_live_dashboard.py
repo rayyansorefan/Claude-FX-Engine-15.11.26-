@@ -43,3 +43,15 @@ def test_dashboard_builds_without_and_with_research_files(tmp_path, monkeypatch)
     out = db.build(root=tmp_path, out=tmp_path / "d" / "index.html", now=end)
     html = open(out).read()
     assert "Reliability" in html and "no edge found" in html and "Data age" in html
+
+
+def test_journal_analytics_and_panel(tmp_path):
+    from fxengine.dashboard import journal as J
+    rows = []
+    for i in range(12):
+        rows.append(dict(opened=f"2026-11-{10 + i // 6} {8 + i % 6}:00", closed=f"2026-11-{10 + i // 6} {9 + i % 6}:00", pair="EURUSD",
+                         direction="long", lots=0.1, entry=1.1, exit=1.1, pnl_gbp=(20 if i % 3 == 0 else -9), run_id=("r%d" % i if i % 2 else ""), note=""))
+    p = tmp_path / "j.csv"; pd.DataFrame(rows).to_csv(p, index=False)
+    a = J.analyse(J.load(p))
+    assert a["n"] == 12 and a["n_off"] == 6 and 0 < a["on_plan"] < 1 and a["worst_streak"] >= 2
+    assert "Plan adherence" in J.panel(J.load(p)) and "No trades logged" in J.panel(None)

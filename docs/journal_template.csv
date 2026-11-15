@@ -1,0 +1,3 @@
+opened,closed,pair,direction,lots,entry,exit,pnl_gbp,run_id,note
+2026-11-16 08:15,2026-11-16 11:40,EURUSD,long,0.10,1.0850,1.0872,15.20,live-E1_strength-EURUSD-202611160800,followed plan
+2026-11-16 14:05,2026-11-16 14:50,GBPJPY,short,0.05,190.10,190.40,-9.80,,took it off-plan on a hunch
