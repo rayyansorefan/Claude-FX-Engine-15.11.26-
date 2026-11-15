@@ -103,11 +103,11 @@ def sparkline(vals, color):
     return f"<svg viewBox='0 0 100 24' class='spark' preserveAspectRatio='none'><polyline points='{pts}' fill='none' stroke='{color}' stroke-width='1.6'/></svg>"
 
 
-def line_chart(series, ylabel):
+def line_chart(series, ylabel, pre="", suf="R", base=0.0):
     """series: list of (name, color_var, pd.Series indexed by time). Crosshair tooltip via inline JS."""
     W, Hh, L, B, R = 560, 220, 44, 22, 84
     allv = np.concatenate([s.values for _, _, s in series])
-    lo, hi = min(allv.min(), 0), max(allv.max(), 0)
+    lo, hi = min(allv.min(), base), max(allv.max(), base)
     pad = (hi - lo) * .06 or 1
     lo, hi = lo - pad, hi + pad
     t0 = min(s.index[0] for _, _, s in series); t1 = max(s.index[-1] for _, _, s in series)
@@ -120,9 +120,9 @@ def line_chart(series, ylabel):
     step = next(m * mag for m in (1, 2, 2.5, 5, 10) if m * mag >= raw)
     v = np.ceil(lo / step) * step
     while v <= hi:
-        g += f"<line x1='{L}' x2='{W - R + 6}' y1='{y(v):.1f}' y2='{y(v):.1f}' class='grid'/><text x='{L - 6}' y='{y(v) + 3:.1f}' class='ax' text-anchor='end'>{v:.0f}</text>"
+        g += f"<line x1='{L}' x2='{W - R + 6}' y1='{y(v):.1f}' y2='{y(v):.1f}' class='grid'/><text x='{L - 6}' y='{y(v) + 3:.1f}' class='ax' text-anchor='end'>{pre}{v:,.0f}</text>"
         v += step
-    g += f"<line x1='{L}' x2='{W - R + 6}' y1='{y(0):.1f}' y2='{y(0):.1f}' class='zero'/>"
+    g += f"<line x1='{L}' x2='{W - R + 6}' y1='{y(base):.1f}' y2='{y(base):.1f}' class='zero'/>"
     for k in range(4):
         t = t0 + (t1 - t0) * k / 3
         g += f"<text x='{x(t):.1f}' y='{Hh - 6}' class='ax' text-anchor='middle'>{t:%b %y}</text>"
@@ -132,10 +132,10 @@ def line_chart(series, ylabel):
         ss = s.iloc[idx]
         pts = " ".join(f"{x(t):.1f},{y(v):.1f}" for t, v in ss.items())
         lines += f"<polyline points='{pts}' fill='none' stroke='var({col})' stroke-width='2' stroke-linejoin='round'/>"
-        lines += f"<text x='{x(ss.index[-1]) + 6:.1f}' y='{y(ss.iloc[-1]) + 4:.1f}' class='lbl'>{e(name)} {ss.iloc[-1]:.0f}R</text>"
+        lines += f"<text x='{x(ss.index[-1]) + 6:.1f}' y='{y(ss.iloc[-1]) + 4:.1f}' class='lbl'>{e(name)} {pre}{ss.iloc[-1]:,.0f}{suf}</text>"
         data.append(dict(n=name, c=col, t=[f"{t:%d %b %Y}" for t in ss.index], v=[round(float(v), 1) for v in ss.values], x=[round(x(t), 1) for t in ss.index]))
     legend = "".join(f"<span><i style='background:var({c})'></i>{e(n)}</span>" for n, c, _ in series)
-    return (f"<div class='lc' data-j='{e(json.dumps(data))}'><div class='legend'>{legend}</div>"
+    return (f"<div class='lc' data-pre='{pre}' data-suf='{suf}' data-j='{e(json.dumps(data))}'><div class='legend'>{legend}</div>"
             f"<svg viewBox='0 0 {W} {Hh}' class='chart'>{g}{lines}<line class='cross' y1='8' y2='{Hh - B}' x1='0' x2='0'/></svg><div class='tip'></div></div>")
 
 
@@ -212,21 +212,162 @@ def by_type(df):
     return ("<table class='tbl'><tr><th>Setup type</th><th class='r'>Trades</th><th class='r'>Win</th><th class='r'>Net R / trade</th><th>95% range (±0.7R)</th></tr>" + rows + "</table>")
 
 
+# ---------- extra data ----------
+import re, sqlite3
+
+START = 2500.0
+RISK = 20.0
+STRATS = {
+    "asia_breakout": ("Asian-range breakout", "Trade the first close beyond the overnight range during London's first hours. Stop 1.5 ATR, target 2R."),
+    "trend_pullback": ("Trend pullback", "In an EMA50>EMA200 trend, buy when price dips to the EMA20 and closes back above it (mirror for shorts)."),
+    "range_reversion": ("Range reversion", "In a flat market, fade a close 2 ATR away from the EMA20, aiming back to the average."),
+    "E1_strength": ("Currency-strength momentum", "Trade the pair whose two currencies have diverged most over 5 days, in the direction of the momentum."),
+    "E2_donchian": ("Donchian trend breakout", "Buy a close above the 55-bar high in an uptrend (mirror for shorts). Wide stop 3 ATR, target 2R."),
+    "E4": ("Donchian + trailing exit", "Same entries as the breakout, but let winners run behind a 20-bar trailing stop."),
+    "E5": ("Strength momentum + trailing exit", "Same entries as currency-strength momentum, exit by 20-bar trailing stop."),
+}
+TA = [("EMA 20 / 50 / 200 trend", "trend pullback, breakout", "Tested: no edge after costs"),
+      ("ATR (14) stops and targets", "all setups", "Sizing tool, not a signal"),
+      ("Donchian 55-bar channel breakout", "breakout, trailing exit", "Tested: no edge"),
+      ("Asian-range breakout (session structure)", "Asian breakout", "Tested: no edge"),
+      ("Z-score mean reversion", "range reversion", "Tested: no edge"),
+      ("Currency-strength momentum (5-day)", "strength momentum", "Tested: no edge"),
+      ("Trailing-stop exits (let winners run)", "E4, E5", "Tested: no edge"),
+      ("Session / time-of-day filter", "pre-registered filter", "Not run: no strategy was promising enough"),
+      ("Market structure / key levels", "-", "NOT tested yet"),
+      ("Scheduled-news blackout", "-", "NOT tested yet (needs a free calendar source)"),
+      ("RSI / MACD oscillators", "-", "Not tested: overlap with trend and ATR families")]
+
+
+def parse_batch_md():
+    out = {}
+    for f in ("docs/results/experiments_summary.md", "docs/results/batch2_summary.md"):
+        if not Path(f).exists():
+            continue
+        for line in open(f):
+            m = re.match(r"- (E\d)[^:]*: n=(\d+) exp=([-\d.]+)R penalised-low=([-\w.]+)(?:.*?win=(\d+)%)?", line.strip())
+            if m:
+                out[m.group(1)] = dict(n=int(m.group(2)), exp=float(m.group(3)), lo=m.group(4), win=m.group(5), fail="FAIL" in line)
+    return out
+
+
+def research_rows(res, n_trials):
+    rows = []
+    for tf in ("M15", "H1"):
+        if tf not in res:
+            continue
+        sc = res[tf][res[tf].triggered]
+        for t, g in sc.groupby("type"):
+            r = g.net_r.values
+            gb = stats.gate_b(r, 100, n_trials)
+            rows.append((STRATS[t][0], tf, len(r), (r > 0).mean() * 100, r.mean(), gb["ci_lo"], gb["pass"]))
+    bm = parse_batch_md()
+    for key, name, tf in (("E1", "E1_strength", "H4"), ("E2", "E2_donchian", "H4"), ("E4", "E4", "H4"), ("E5", "E5", "H4")):
+        if key in bm:
+            b = bm[key]
+            try:
+                lo = float(b["lo"])
+            except ValueError:
+                lo = float("nan")
+            rows.append((STRATS[name][0], tf, b["n"], float(b["win"]) if b["win"] else float("nan"), b["exp"], lo, not b["fail"]))
+    return rows
+
+
+def live_db(path="data/engine.db"):
+    if not Path(path).exists():
+        return None
+    c = sqlite3.connect(path)
+    c.row_factory = sqlite3.Row
+    return c
+
+
+def live_record(c):
+    rows = c.execute("""SELECT s.run_id, s.created_at, s.pair, s.type, s.tf, s.record, o.reason, o.net_r,
+        (SELECT to_state FROM events e WHERE e.run_id=s.run_id ORDER BY idx DESC LIMIT 1) AS state
+        FROM setups s LEFT JOIN outcomes o USING(run_id) ORDER BY s.created_at DESC""").fetchall()
+    return [dict(r) | {"rec": json.loads(r["record"])} for r in rows]
+
+
+def balance_series(df):
+    sc = df[df.triggered].sort_values("created")
+    bal = START + (sc.net_r * RISK).cumsum()
+    ruin = bal[bal <= 0]
+    if len(ruin):
+        bal = bal.copy()
+        bal[bal.index >= ruin.index[0]] = 0.0
+    return bal.set_axis(pd.to_datetime(sc.created.values, utc=True)), (len(ruin) and int((sc.net_r * RISK).cumsum().le(-START).values.argmax()) + 1) or None
+
+
+def donut(parts, size=120):
+    tot = sum(v for _, v, _ in parts) or 1
+    a0, out = -np.pi / 2, ""
+    for name, v, col in parts:
+        a1 = a0 + v / tot * 2 * np.pi
+        if v / tot > .9999:
+            out += f"<circle cx='60' cy='60' r='44' fill='none' stroke='{col}' stroke-width='16'/>"
+        elif v > 0:
+            x0, y0, x1, y1 = 60 + 44 * np.cos(a0), 60 + 44 * np.sin(a0), 60 + 44 * np.cos(a1), 60 + 44 * np.sin(a1)
+            out += f"<path d='M{x0:.1f},{y0:.1f} A44,44 0 {1 if a1 - a0 > np.pi else 0} 1 {x1:.1f},{y1:.1f}' fill='none' stroke='{col}' stroke-width='16'><title>{name}: {v:,}</title></path>"
+        a0 = a1
+    leg = "".join(f"<div><i style='background:{c}'></i>{n} <b class='mono'>{v:,}</b> <span class='muted'>({v / tot * 100:.0f}%)</span></div>" for n, v, c in parts)
+    return f"<div class='donut'><svg viewBox='0 0 120 120' width='{size}' height='{size}'>{out}</svg><div class='dl'>{leg}</div></div>"
+
+
+def hist(r):
+    bins = np.linspace(-1.6, 2.6, 22)
+    h, _ = np.histogram(np.clip(r, -1.6, 2.6), bins=bins)
+    m = h.max() or 1
+    bars = "".join(f"<rect x='{4 + i * 24:.0f}' y='{110 - v / m * 100:.0f}' width='20' height='{v / m * 100:.0f}' rx='2' "
+                   f"fill='{TOK['CRIT'] if bins[i] < 0 else TOK['GOOD']}' opacity='.85'><title>{bins[i]:+.1f}R to {bins[i + 1]:+.1f}R: {v:,} trades</title></rect>" for i, v in enumerate(h))
+    return (f"<svg viewBox='0 0 520 130' class='chart'>{bars}<text x='4' y='125' class='ax'>-1.6R</text><text x='236' y='125' class='ax'>0</text>"
+            f"<text x='470' y='125' class='ax'>+2.6R</text></svg>")
+
+
+def group_table(sc, key, label):
+    g = sc.groupby(key).net_r.agg(["count", lambda x: (x > 0).mean() * 100, "mean"])
+    rows = "".join(f"<tr><td>{k}</td><td class='num'>{int(c):,}</td><td class='num'>{w:.0f}%</td><td class='num {'up' if m > 0 else 'dn'}'>{m:+.2f}R</td></tr>" for k, (c, w, m) in g.iterrows())
+    return f"<table class='tbl'><tr><th>{label}</th><th class='r'>Trades</th><th class='r'>Win</th><th class='r'>Net R</th></tr>{rows}</table>"
+
+
+def candle_data(root):
+    out = {}
+    for sym in PAIRS:
+        out[sym] = {}
+        m5 = store.load(sym, "M5", root)
+        srcs = {"H1": store.load(sym, "H1", root), "H4": store.load(sym, "H4", root)}
+        if len(m5):
+            from ..data.resample import resample
+            srcs["M15"] = resample(m5.tail(30000), "M15", base="M5")
+        for tf, d in srcs.items():
+            if d.empty:
+                continue
+            c = d.bid_c
+            e = {n: c.ewm(span=n, adjust=False, min_periods=n).mean() for n in (20, 50, 200)}
+            t = d.tail(110)
+            rd = lambda s: [None if pd.isna(v) else round(float(v), 5) for v in s.loc[t.index]]
+            out[sym][tf] = dict(t=[f"{i:%d %b %H:%M}" for i in t.index], o=rd(t.bid_o), h=rd(t.bid_h), l=rd(t.bid_l), c=rd(t.bid_c),
+                                e20=rd(e[20]), e50=rd(e[50]), e200=rd(e[200]))
+    return out
+
+
 # ---------- page ----------
 CSS = """
 :root{--bg:#111110;--card:#1a1a19;--line:#2c2c2a;--ink:#f0efec;--ink2:#c3c2b7;--mute:#8d8c84;--s1:#3987e5;--s2:#d95926;--good:#0ca30c;--warn:#fab219;--crit:#d03b3b}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 -apple-system,'Inter','Segoe UI',sans-serif}
-.wrap{max-width:1320px;margin:0 auto;padding:14px 16px 40px}
-.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:6px 0 14px;border-bottom:1px solid var(--line)}
+.wrap{max-width:1360px;margin:0 auto;padding:14px 16px 40px}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:6px 0 10px}
 .brand{font-weight:700;letter-spacing:.14em;font-size:13px}.chip{border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:11px;color:var(--ink2)}
 .pill{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:4px 12px;font-weight:700;font-size:12px;letter-spacing:.06em;color:#fff}
 .pill.good{background:#0a6e0a}.pill.warn{background:#8a5f00}.pill.crit{background:#9c2b2b}
 .sp{flex:1}.mono,.num{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-variant-numeric:tabular-nums}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0}
+.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);margin-bottom:12px}
+.tabs button{background:none;border:0;color:var(--ink2);padding:9px 14px;font:600 12px inherit;font-family:inherit;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--s1)}.tab{display:none}.tab.on{display:block}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 12px}
 .kpi,.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
 .kpi small{color:var(--mute);text-transform:uppercase;letter-spacing:.08em;font-size:10px}.kpi b{display:block;font:600 22px ui-monospace,Menlo,monospace;margin-top:2px}
 .kpi span{color:var(--mute);font-size:11px}
-.verdict{border:1px solid var(--crit);background:color-mix(in srgb,var(--crit) 12%,var(--card));border-radius:10px;padding:10px 14px;margin:0 0 14px}
+.verdict{border:1px solid var(--crit);background:color-mix(in srgb,var(--crit) 12%,var(--card));border-radius:10px;padding:10px 14px;margin:0 0 12px}
 h3{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink2);font-weight:600}
 .grid{display:grid;gap:12px;grid-template-columns:repeat(12,1fr)}.c12{grid-column:span 12}.c8{grid-column:span 8}.c7{grid-column:span 7}.c6{grid-column:span 6}.c5{grid-column:span 5}.c4{grid-column:span 4}
 @media(max-width:900px){.c8,.c7,.c6,.c5,.c4{grid-column:span 12}}
@@ -237,28 +378,57 @@ h3{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.1em;co
 .meta{color:var(--mute);font-size:11px;margin-top:4px}.warnt{color:var(--warn);font-weight:600}
 @media(max-width:700px){.setup{grid-template-columns:1fr}}
 .mini{width:100%;height:96px;display:block;background:color-mix(in srgb,var(--bg) 60%,var(--card));border-radius:6px}.spark{width:100%;height:24px}
-.chart{width:100%;display:block}.ax{fill:var(--ink2);font-size:10px}.bt{fill:#fff;font-size:9px;font-weight:700;letter-spacing:.06em}.lbl{fill:var(--ink2);font-size:11px;font-weight:600}.grid{stroke:var(--line)}
+.chart{width:100%;display:block}.ax{fill:var(--ink2);font-size:10px}.bt{fill:#fff;font-size:9px;font-weight:700;letter-spacing:.06em}.lbl{fill:var(--ink2);font-size:11px;font-weight:600}
 svg .grid{stroke:var(--line);stroke-width:1}.zero{stroke:var(--mute);stroke-width:1}
-.legend{display:flex;gap:14px;margin-bottom:4px;color:var(--ink2);font-size:11px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
-.lc{position:relative}.cross{stroke:var(--mute);stroke-width:1;display:none}.tip{position:absolute;display:none;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:11px;pointer-events:none;white-space:nowrap;top:22px}
+.legend{display:flex;gap:14px;margin-bottom:4px;color:var(--ink2);font-size:11px;flex-wrap:wrap}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
+.lc,.cc{position:relative}.cross{stroke:var(--mute);stroke-width:1;display:none}.tip{position:absolute;display:none;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:11px;pointer-events:none;white-space:nowrap;top:22px;z-index:3}
 .heat{border-collapse:separate;border-spacing:2px;width:100%}.heat th{width:42px;text-align:left;color:var(--ink2);font-size:11px}.heat td{height:18px;border-radius:2px}.heat td.num{width:62px;background:none;text-align:right;font-size:11px}
 .scale{display:flex;align-items:center;gap:8px;color:var(--mute);font-size:10px;margin-top:6px}.scale i{flex:1;height:5px;border-radius:3px;background:linear-gradient(90deg,#d03b3b,#383835,#3987e5)}
 .up{color:#3fb950}.dn{color:#ec6a5e}.muted{color:var(--mute)}
 .frow{display:grid;grid-template-columns:130px 1fr 64px;gap:10px;align-items:center;margin:7px 0}.fbar{height:12px;background:var(--line);border-radius:3px}.fbar b{display:block;height:100%;background:var(--s1);border-radius:3px}.frow em{font:600 12px ui-monospace,Menlo,monospace;text-align:right;font-style:normal}
 .split{display:flex;gap:14px;margin:8px 0;color:var(--ink2);font-size:11px;flex-wrap:wrap}
-.tbl{width:100%;border-collapse:collapse}.tbl th{color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)}.tbl td{padding:7px 6px;border-bottom:1px solid var(--line)}.tbl td.num,.tbl th.r{text-align:right}.ci{width:160px;height:14px;display:block}
-.card{overflow-x:auto}@media(max-width:700px){.ci{width:90px}.tbl td[style]{width:100px!important}.tbl th,.tbl td{padding:6px 3px}}.cyc{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0}.cyc i{width:16px;height:16px;border-radius:3px;border:1px dashed var(--line)}
+.tbl{width:100%;border-collapse:collapse}.tbl th{color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:5px 6px;border-bottom:1px solid var(--line)}.tbl td{padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top}.tbl td.num,.tbl th.r{text-align:right}.ci{width:160px;height:14px;display:block}
+.card{overflow-x:auto}.tag{display:inline-block;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700;letter-spacing:.06em}.tag.f{background:#9c2b2b;color:#fff}.tag.p{background:#0a6e0a;color:#fff}.tag.n{background:var(--line);color:var(--ink2)}
+.cyc{display:flex;gap:3px;flex-wrap:wrap;margin:8px 0}.cyc i{width:11px;height:16px;border-radius:2px;background:var(--line)}
+.donut{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.dl div{margin:3px 0}.dl i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
+.sel{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.sel button{background:var(--card);border:1px solid var(--line);color:var(--ink2);border-radius:6px;padding:4px 10px;font:600 11px inherit;font-family:inherit;cursor:pointer}.sel button.on{border-color:var(--s1);color:var(--ink)}
 .sample{background:var(--warn);color:#000;text-align:center;font-weight:700;padding:6px;border-radius:6px;margin-bottom:10px}
+p{margin:6px 0}
 """
 
 JS = """<script>
-document.querySelectorAll('.lc').forEach(function(el){var d=JSON.parse(el.dataset.j),svg=el.querySelector('svg'),cr=el.querySelector('.cross'),tp=el.querySelector('.tip');
+var tabs=document.querySelectorAll('.tabs button'),secs=document.querySelectorAll('.tab');
+function showTab(n){tabs.forEach(function(b){b.classList.toggle('on',b.dataset.t===n)});secs.forEach(function(s){s.classList.toggle('on',s.id===n)});history.replaceState(null,'','#'+n);if(n==='charts')draw()}
+tabs.forEach(function(b){b.onclick=function(){showTab(b.dataset.t)}});showTab((location.hash||'#overview').slice(1)||'overview');
+document.querySelectorAll('.lc').forEach(function(el){var d=JSON.parse(el.dataset.j),pre=el.dataset.pre||'',suf=el.dataset.suf||'',svg=el.querySelector('svg'),cr=el.querySelector('.cross'),tp=el.querySelector('.tip');
 svg.addEventListener('mousemove',function(ev){var r=svg.getBoundingClientRect(),px=(ev.clientX-r.left)/r.width*560,best=0,bd=1e9;d[0].x.forEach(function(x,i){var q=Math.abs(x-px);if(q<bd){bd=q;best=i}});
 cr.setAttribute('x1',d[0].x[best]);cr.setAttribute('x2',d[0].x[best]);cr.style.display='block';
-tp.innerHTML='<b>'+d[0].t[best]+'</b><br>'+d.map(function(s){var i=Math.round(best/(d[0].x.length-1)*(s.v.length-1));return s.n+': '+s.v[i]+'R'}).join('<br>');
-tp.style.display='block';tp.style.left=Math.min(ev.clientX-r.left+12,r.width-150)+'px'});
+tp.innerHTML='<b>'+d[0].t[best]+'</b><br>'+d.map(function(s){var i=Math.round(best/(d[0].x.length-1)*(s.v.length-1));return s.n+': '+pre+s.v[i].toLocaleString()+suf}).join('<br>');
+tp.style.display='block';tp.style.left=Math.min(ev.clientX-r.left+12,r.width-170)+'px'});
 svg.addEventListener('mouseleave',function(){cr.style.display='none';tp.style.display='none'})});
+var CD=JSON.parse(document.getElementById('cd').textContent),LV=JSON.parse(document.getElementById('lv').textContent),pair='EURUSD',tf='H1';
+function mk(id,items,cur,fn){var el=document.getElementById(id);el.innerHTML='';items.forEach(function(x){var b=document.createElement('button');b.textContent=x;if(x===cur)b.className='on';b.onclick=function(){fn(x)};el.appendChild(b)})}
+function draw(){var d=(CD[pair]||{})[tf];mk('psel',Object.keys(CD),pair,function(x){pair=x;draw()});mk('tsel',['M15','H1','H4'],tf,function(x){tf=x;draw()});
+var box=document.getElementById('cv');if(!d){box.innerHTML='<p class="muted">No data for this pair/timeframe.</p>';return}
+var W=920,H=400,L=58,R=66,T=12,B=26,n=d.c.length,all=d.h.concat(d.l),lv=LV[pair]||[];lv.forEach(function(q){all.push(q.v)});
+var lo=Math.min.apply(null,all),hi=Math.max.apply(null,all),pd=(hi-lo)*.06;lo-=pd;hi+=pd;var dp=pair.slice(3)==='JPY'?3:5;
+function y(v){return T+(hi-v)/(hi-lo)*(H-T-B)}var cw=(W-L-R)/n;function x(i){return L+i*cw+cw/2}var s='';
+for(var k=0;k<=5;k++){var v=lo+(hi-lo)*k/5;s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" class="grid"/><text x="'+(L-6)+'" y="'+(y(v)+3)+'" class="ax" text-anchor="end">'+v.toFixed(dp)+'</text>'}
+for(var k=0;k<5;k++){var i=Math.round(k*(n-1)/4);s+='<text x="'+x(i)+'" y="'+(H-8)+'" class="ax" text-anchor="middle">'+d.t[i]+'</text>'}
+for(var i=0;i<n;i++){var up=d.c[i]>=d.o[i],col=up?'#3fb950':'#ec6a5e';s+='<line x1="'+x(i)+'" x2="'+x(i)+'" y1="'+y(d.h[i])+'" y2="'+y(d.l[i])+'" stroke="'+col+'"/><rect x="'+(x(i)-cw*.33)+'" y="'+y(Math.max(d.o[i],d.c[i]))+'" width="'+(cw*.66)+'" height="'+Math.max(1,Math.abs(y(d.o[i])-y(d.c[i])))+'" fill="'+col+'"/>'}
+[['e20','#fab219'],['e50','#3987e5'],['e200','#d95926']].forEach(function(e){var p=[];for(var i=0;i<n;i++)if(d[e[0]][i]!=null)p.push(x(i)+','+y(d[e[0]][i]));if(p.length>1)s+='<polyline points="'+p.join(' ')+'" fill="none" stroke="'+e[1]+'" stroke-width="1.4"/>'});
+lv.forEach(function(q){var c={entry:'#3987e5',stop:'#d03b3b',target:'#0ca30c'}[q.k];s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(q.v)+'" y2="'+y(q.v)+'" stroke="'+c+'" stroke-dasharray="5 4" stroke-width="1.4"/><text x="'+(W-R+4)+'" y="'+(y(q.v)+3)+'" class="ax" fill="'+c+'">'+q.k+'</text>'});
+s+='<line id="xh" class="cross" y1="'+T+'" y2="'+(H-B)+'" x1="0" x2="0"/>';
+box.innerHTML='<div class="legend"><span><i style="background:#fab219"></i>EMA 20</span><span><i style="background:#3987e5"></i>EMA 50</span><span><i style="background:#d95926"></i>EMA 200</span>'+(lv.length?'<span>dashed = published setup levels</span>':'')+'</div><div class="cc"><svg id="csv" viewBox="0 0 '+W+' '+H+'" class="chart">'+s+'</svg><div class="tip" id="ctp"></div></div>';
+var sv=document.getElementById('csv'),xh=document.getElementById('xh'),tp=document.getElementById('ctp');
+sv.addEventListener('mousemove',function(ev){var r=sv.getBoundingClientRect(),px=(ev.clientX-r.left)/r.width*W,i=Math.max(0,Math.min(n-1,Math.floor((px-L)/cw)));xh.setAttribute('x1',x(i));xh.setAttribute('x2',x(i));xh.style.display='block';
+tp.innerHTML='<b>'+d.t[i]+'</b><br>O '+d.o[i].toFixed(dp)+' H '+d.h[i].toFixed(dp)+'<br>L '+d.l[i].toFixed(dp)+' C '+d.c[i].toFixed(dp);tp.style.display='block';tp.style.left=Math.min(ev.clientX-r.left+12,r.width-150)+'px'});
+sv.addEventListener('mouseleave',function(){xh.style.display='none';tp.style.display='none'})}
 </script>"""
+
+
+def tag(ok, label=None):
+    return f"<span class='tag {'p' if ok else 'f'}'>{label or ('PASS' if ok else 'FAIL')}</span>"
 
 
 def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
@@ -271,43 +441,110 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     res = research()
     base = res.get("H1") if res.get("H1") is not None else (next(iter(res.values())) if res else None)
     sc = base[base.triggered] if base is not None else None
+    dbc = live_db()
+    live = live_record(dbc) if dbc else []
+    live_net = sum(r["net_r"] or 0 for r in live if r["reason"] in ("TARGET", "STOP", "TIMEOUT"))
+    jr = J.load()
+    j_bal = START + (jr.pnl_gbp.sum() if jr is not None else 0)
     icon = {"good": "●", "warn": "◐", "crit": "▲"}[state]
-    kp = [("Data age", "n/a" if age is None else f"{age:.0f} min", "limit 15 min in session"),
-          ("Next cycle", "—", "live loop not running yet"),
-          ("Setups today", f"{len(cands)} / 5", "cap 5 · none is valid"),
-          ("Backtest net R / trade", "n/a" if sc is None else f"{sc.net_r.mean():+.2f}R", "stressed costs, H1" if sc is not None else ""),
-          ("Tests run", str(trials), "multiple-testing penalty applied")]
+    # --- account
+    bal = ruin_at = None
+    if base is not None:
+        bal, ruin_at = balance_series(base)
+    bt_end = None if bal is None else float(bal.iloc[-1])
+    win = None if sc is None else (sc.net_r > 0).mean() * 100
+    kp = [("Paper account (assumed)", f"£{START:,.0f}", f"£{RISK:.0f} risk per trade = {RISK / START * 100:.1f}%"),
+          ("If every backtest setup was taken", "n/a" if bt_end is None else f"£{bt_end:,.0f}", "" if ruin_at is None else f"account empty after {ruin_at:,} trades"),
+          ("Engine balance (live, hypothetical)", f"£{START + live_net * RISK:,.0f}", f"{len(live)} setups published so far"),
+          ("Your journal balance", f"£{j_bal:,.0f}" if jr is not None else "—", "log trades in data/journal.csv"),
+          ("Win rate · loss rate (backtest)", "n/a" if win is None else f"{win:.0f}% · {100 - win:.0f}%", "triggered setups, stressed costs"),
+          ("Strategies tested", "7", f"0 passed · {trials} logged tests")]
     kpis = "".join(f"<div class='kpi'><small>{a}</small><b>{b}</b><span>{c}</span></div>" for a, b, c in kp)
-    setups = ""
+    # --- positions
+    levels, cards = {}, ""
     for c in cands:
         left = max(0, (pd.Timestamp(c["expires"]) - now).total_seconds() / 3600)
-        setups += (f"<div class='setup'><div><span class='pair'>{c['pair']}</span><span class='dir {c['direction']}'>{c['direction'].upper()}</span>"
-                   f"<div class='meta'><span class='st'>PENDING</span> {e(c['type'])} · {c['tf']}</div></div>{mini_chart(c, root)}"
-                   f"<div class='mono'>entry {px(c['pair'], c['entry'])}<br>stop {px(c['pair'], c['stop'])} <span class='muted'>({c['stop_pips']}p)</span><br>target {px(c['pair'], c['target'])}"
-                   f"<div class='meta'>{c['lots_for_20gbp_risk']} lots = £20 · {left:.1f}h left · score {c['score']}<br><span class='warnt'>UNPROVEN</span></div></div></div>")
-    if not setups:
-        setups = "<p class='muted' style='padding:18px 0'><b style='color:var(--ink)'>No setups right now.</b> That is a valid outcome. The scan runs when the market is open.</p>"
-    curves = [(n, c, d[d.triggered].sort_values("created").set_index("created").net_r.cumsum())
-              for (n, d), c in zip(sorted(res.items()), ("--s2", "--s1"))]
+        risk = abs(c["entry"] - c["stop"]); rew = abs(c["target"] - c["entry"])
+        levels.setdefault(c["pair"], []).extend([{"k": "entry", "v": c["entry"]}, {"k": "stop", "v": c["stop"]}, {"k": "target", "v": c["target"]}])
+        cards += (f"<div class='setup'><div><span class='pair'>{c['pair']}</span><span class='dir {c['direction']}'>{c['direction'].upper()}</span>"
+                  f"<div class='meta'><span class='st'>PENDING</span> {e(STRATS.get(c['type'], (c['type'],))[0])} · {c['tf']}</div></div>{mini_chart(c, root)}"
+                  f"<div class='mono'>entry {px(c['pair'], c['entry'])} ({c['entry_kind']})<br>stop {px(c['pair'], c['stop'])} <span class='muted'>({c['stop_pips']}p)</span><br>target {px(c['pair'], c['target'])}"
+                  f"<div class='meta'>{c['lots_for_20gbp_risk']} lots · risk £{RISK:.0f} · reward £{RISK * rew / risk:.0f} (1:{rew / risk:.1f})<br>{left:.1f}h left · score {c['score']} · <span class='warnt'>UNPROVEN</span></div></div></div>")
+    if not cards:
+        cards = "<p class='muted' style='padding:14px 0'><b style='color:var(--ink)'>No setups right now.</b> A valid outcome. The scan runs when the market is open.</p>"
+    # live record table
+    done = [r for r in live if r["reason"]]
+    wins, losses = sum(r["reason"] == "TARGET" for r in done), sum(r["reason"] in ("STOP",) for r in done)
+    lr = "".join(f"<tr><td class='mono'>{r['created_at'][5:16]}</td><td>{r['pair']} {r['rec']['direction'].upper()}</td><td>{e(STRATS.get(r['type'], (r['type'],))[0])}</td>"
+                 f"<td>{e(r['reason'] or r['state'] or 'PENDING')}</td><td class='num {'up' if (r['net_r'] or 0) > 0 else 'dn'}'>{'' if r['net_r'] is None else f'{r['net_r'] * RISK:+.0f} GBP'}</td></tr>" for r in live[:15])
+    livetbl = (f"<p class='muted'>Published {len(live)} · resolved {len(done)} · target {wins} · stop {losses} · "
+               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><table class='tbl'><tr><th>Created (UTC)</th><th>Setup</th><th>Rule</th><th>Outcome</th><th class='r'>P&amp;L</th></tr>{lr}</table>"
+              if live else "<p class='muted'>No live setups recorded yet. This fills in once the live loop publishes its first setup.</p>")
+    # --- research
+    rr = research_rows(res, max(trials, 1))
+    rtab = "".join(f"<tr><td><b>{e(n)}</b></td><td>{tfm}</td><td class='num'>{k:,}</td><td class='num'>{'—' if pd.isna(w) else f'{w:.0f}%'}</td>"
+                   f"<td class='num {'up' if m > 0 else 'dn'}'>{m:+.2f}R</td><td class='num'>{'—' if pd.isna(lo) else f'{lo:+.2f}R'}</td><td>{tag(ok)}</td></tr>" for n, tfm, k, w, m, lo, ok in rr)
+    strat = "".join(f"<tr><td><b>{e(v[0])}</b></td><td>{e(v[1])}</td></tr>" for v in STRATS.values())
+    ta = "".join(f"<tr><td>{a}</td><td>{b}</td><td>{tag(c.startswith('Sizing'), 'TOOL') if c.startswith('Sizing') else (tag(False, 'NO EDGE') if c.startswith('Tested') else tag(True, 'TO DO').replace('p','n'))} <span class='muted'>{c}</span></td></tr>" for a, b, c in TA)
+    # --- performance
+    perf = "<p class='muted'>No backtest files found. Run the backtests on your Mac first.</p>"
+    if sc is not None:
+        sc2 = sc.copy()
+        sc2["weekday"] = sc2.created.dt.day_name().str[:3]
+        sc2["hour"] = sc2.created.dt.hour.map(lambda h: f"{h:02d}:00")
+        notrig = int((~base.triggered).sum())
+        perf = (f"<div class='grid'><div class='card c6'><h3>Success and loss rate · backtest ({len(sc):,} trades)</h3>"
+                f"{donut([('Winners', int((sc.net_r > 0).sum()), TOK['GOOD']), ('Losers', int((sc.net_r <= 0).sum()), TOK['CRIT']), ('Never triggered', notrig, '#5a5a56')])}</div>"
+                f"<div class='card c6'><h3>Result per trade (R) · distribution</h3>{hist(sc.net_r.values)}</div>"
+                f"<div class='card c6'><h3>By setup type</h3>{by_type(base)}</div><div class='card c6'><h3>By pair</h3>{group_table(sc2, 'symbol', 'Pair')}</div>"
+                f"<div class='card c6'><h3>By weekday</h3>{group_table(sc2, 'weekday', 'Day')}</div><div class='card c6'><h3>Exits</h3>{funnel(base)}</div></div>")
+    curves = [(n, c, balance_series(d)[0]) for (n, d), c in zip(sorted(res.items()), ("--s2", "--s1"))]
     curves = [x for x in curves if len(x[2]) > 2]
+    acct = (line_chart(curves, "£", pre="£", suf="", base=START) if curves else "<p class='muted'>No backtest files found.</p>")
+    # --- system
+    sysc = "<p class='muted'>No live cycles recorded yet. This panel fills in once the live loop runs. It is never filled with made-up numbers.</p>"
+    if dbc:
+        cy = dbc.execute("SELECT ts, ok, status, data_age_min FROM cycles ORDER BY ts DESC LIMIT 288").fetchall()[::-1]
+        if cy:
+            colr = {"OK": TOK["GOOD"], "CLOSED": "#4a4a46", "STALE": TOK["WARN"], "ERROR": TOK["CRIT"]}
+            sq = "".join(f"<i style='background:{colr.get(r['status'], '#4a4a46')}' title='{r['ts'][5:16]} {r['status']}'></i>" for r in cy)
+            sess_ok = [r for r in cy if r["status"] != "CLOSED"]
+            okp = (sum(r["ok"] for r in sess_ok) / len(sess_ok) * 100) if sess_ok else 100
+            lat = dbc.execute("SELECT COUNT(*) n, SUM(late) l, MAX(latency_s) m, AVG(latency_s) a FROM alerts").fetchone()
+            from ..audit.run import audit_text
+            sysc = (f"<div class='kpis'><div class='kpi'><small>Cycle success (24h)</small><b>{okp:.1f}%</b><span>gate A target 99%</span></div>"
+                    f"<div class='kpi'><small>Alerts sent</small><b>{lat['n']}</b><span>{lat['l'] or 0} late</span></div>"
+                    f"<div class='kpi'><small>Avg alert latency</small><b>{(lat['a'] or 0):.0f}s</b><span>worst {(lat['m'] or 0):.0f}s</span></div></div>"
+                    f"<div class='legend'><span><i style='background:{TOK['GOOD']}'></i>ok</span><span><i style='background:{TOK['WARN']}'></i>stale data</span>"
+                    f"<span><i style='background:{TOK['CRIT']}'></i>error</span><span><i style='background:#4a4a46'></i>market closed</span></div><div class='cyc'>{sq}</div>"
+                    f"<pre class='mono muted' style='white-space:pre-wrap'>{e(audit_text(dbc, now))}</pre>")
+    cd = json.dumps(candle_data(root)).replace("</", "<\\/")
     page = f"""<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <title>FX Engine</title><style>{CSS}</style></head><body><div class='wrap'>{banner}
-<div class='top'><span class='brand'>FX ENGINE</span><span class='pill {state}'>{icon} {label}</span><span class='chip'>RESEARCH ONLY · NO ORDERS</span>
+<div class='top'><span class='brand'>FX ENGINE</span><span class='pill {state}'>{icon} {label}</span><span class='chip'>data age {'n/a' if age is None else f'{age:.0f} min'}</span><span class='chip'>RESEARCH ONLY · NO ORDERS</span>
 <span class='sp'></span><span class='mono muted'>{now:%a %d %b %Y %H:%M} UTC</span></div>
-<div class='kpis'>{kpis}</div>
-<div class='verdict'><b>Research verdict: no edge found.</b> Every tested setup rule lost money after stressed costs in backtests. Anything shown below is UNPROVEN and for research only.</div>
-<div class='grid'>
-<div class='card c12'><h3>Today's setups</h3>{setups}</div>
-<div class='card c7'><h3>Currency strength · 5-day momentum, last 24 four-hour bars</h3>{heat(strength(root))}</div>
-<div class='card c5'><h3>Sessions &amp; typical volatility by hour (UTC)</h3>{sessions(vol_by_hour(root))}</div>
-<div class='card c7'><h3>Cumulative hypothetical R after stressed costs · backtest</h3>{line_chart(curves, 'R') if curves else "<p class='muted'>No backtest files found.</p>"}</div>
-<div class='card c5'><h3>Funnel · backtest</h3>{funnel(base) if base is not None else "<p class='muted'>No backtest files found.</p>"}</div>
-<div class='card c7'><h3>Results by setup type · backtest</h3>{by_type(base) if base is not None else "<p class='muted'>No backtest files found.</p>"}</div>
-<div class='card c12'><h3>Your paper trades · behaviour &amp; discipline</h3>{J.panel(J.load())}</div>
-<div class='card c7'><h3>Reality check</h3><p style='margin:4px 0'>Broker risk warnings in the UK and EU typically show <b>about 70–80%</b> of retail CFD and forex accounts losing money (figures vary by broker, roughly 50–90%). Independent evidence that AI tools raise retail profitability is thin; the few positive claims are vendor-reported. What does hold up: costs matter, over-trading hurts, and untested rules usually fail. This engine measures all three.</p></div>
-<div class='card c5'><h3>Reliability · live cycles &amp; data freshness</h3><div class='cyc'>{"<i></i>" * 24}</div>
-<p class='muted'>No live cycles recorded yet. This panel fills in once the live loop runs. It is never filled with made-up numbers.</p></div>
-</div></div>{JS}</body></html>"""
+<div class='tabs'><button data-t='overview'>Overview</button><button data-t='research'>Research</button><button data-t='charts'>Charts</button><button data-t='positions'>Positions</button><button data-t='performance'>Performance</button><button data-t='journal'>Journal</button><button data-t='system'>System</button></div>
+<div class='tab' id='overview'><div class='kpis'>{kpis}</div>
+<div class='verdict'><b>Research verdict: no edge found.</b> Seven strategy ideas, five timeframes and rules combinations, {trials} logged tests: none beat stressed costs. Candidates are UNPROVEN and research only.</div>
+<div class='grid'><div class='card c7'><h3>Account balance if every backtest setup was taken · start £{START:,.0f}, £{RISK:.0f} risk each</h3>{acct}</div>
+<div class='card c5'><h3>Currency strength · 5-day momentum</h3>{heat(strength(root))}</div>
+<div class='card c12'><h3>Today's potential positions</h3>{cards}</div>
+<div class='card c6'><h3>Sessions &amp; typical volatility by hour (UTC)</h3>{sessions(vol_by_hour(root))}</div>
+<div class='card c6'><h3>Reality check</h3><p>Broker risk warnings in the UK and EU typically show <b>about 70–80%</b> of retail CFD and forex accounts losing money (roughly 50–90% by broker). Independent evidence that AI tools raise retail profitability is thin; the positive claims are vendor-reported. What holds up: costs matter, over-trading hurts, untested rules usually fail. This engine measures all three.</p></div></div></div>
+<div class='tab' id='research'><div class='grid'>
+<div class='card c12'><h3>Every strategy tested · 2023-11 to 2026-05 · stressed costs · last 6 months held back untouched</h3>
+<table class='tbl'><tr><th>Strategy</th><th>Timeframe</th><th class='r'>Trades</th><th class='r'>Win</th><th class='r'>Net R / trade</th><th class='r'>Penalised low</th><th>Verdict</th></tr>{rtab or "<tr><td colspan='7' class='muted'>No result files found on this machine.</td></tr>"}</table>
+<p class='muted'>R = one planned stop distance (your £{RISK:.0f}). Penalised low = lower end of the 95% range after the multiple-testing penalty ({trials} tests). A strategy passes only if that number is above zero, with at least 100 trades, positive in at least 3 calendar years and not carried by one pair.</p></div>
+<div class='card c6'><h3>What each strategy does</h3><table class='tbl'>{strat}</table></div>
+<div class='card c6'><h3>Technical analysis tested</h3><table class='tbl'><tr><th>Indicator / idea</th><th>Used in</th><th>Status</th></tr>{ta}</table></div>
+<div class='card c12'><h3>How the testing works</h3><p>• Real bid and ask prices from OANDA practice, 10 pairs, 3 years. • Candle close = open + timeframe, so no peeking at unfinished candles (unit-tested). • Costs: spread ×2, commission, slippage on stop fills, overnight swap. • Stop wins if stop and target are both touched in one candle. • Rules were fixed and written down before each run; nothing was tuned. • The last six months of data are sealed and have never been opened. • Every variant is counted, and the penalty grows with the number of tests.</p></div></div></div>
+<div class='tab' id='charts'><div class='card'><h3>Price charts · {'bid prices, last 110 candles'}</h3><div class='sel' id='psel'></div><div class='sel' id='tsel'></div><div id='cv'></div></div></div>
+<div class='tab' id='positions'><div class='grid'><div class='card c12'><h3>Potential positions from the frozen rules (UNPROVEN)</h3>{cards}</div>
+<div class='card c12'><h3>Live record · every published setup, scored as a hypothetical</h3>{livetbl}</div></div></div>
+<div class='tab' id='performance'>{perf}</div>
+<div class='tab' id='journal'><div class='card'><h3>Your paper trades · behaviour &amp; discipline</h3>{J.panel(jr)}</div></div>
+<div class='tab' id='system'><div class='card'><h3>Reliability · live cycles, freshness, alert latency, audit</h3>{sysc}</div></div>
+</div><script type='application/json' id='cd'>{cd}</script><script type='application/json' id='lv'>{json.dumps(levels)}</script>{JS}</body></html>"""
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     Path(out).write_text(page)
     return out

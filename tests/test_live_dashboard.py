@@ -42,7 +42,7 @@ def test_dashboard_builds_without_and_with_research_files(tmp_path, monkeypatch)
     monkeypatch.chdir(tmp_path)
     out = db.build(root=tmp_path, out=tmp_path / "d" / "index.html", now=end)
     html = open(out).read()
-    assert "Reliability" in html and "no edge found" in html and "Data age" in html
+    assert "Reliability" in html and "no edge found" in html and "data age" in html
 
 
 def test_journal_analytics_and_panel(tmp_path):
