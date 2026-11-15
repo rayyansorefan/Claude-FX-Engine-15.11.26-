@@ -64,6 +64,7 @@ WantedBy=timers.target
 UNIT
 sudo systemctl daemon-reload && sudo systemctl enable --now fxengine.service fxdash.service fxwatchdog.timer
 # one-time research history (3 years of prices + all backtests) so the Research and Performance tabs fill in; runs in the background
+mkdir -p data
 nohup bash deploy/research_once.sh > data/research_once.log 2>&1 &
 echo "Installed. Dashboard: http://$TSIP:8787  (open it from any device signed in to your Tailscale)."
 echo "The Research tab fills in after ~20-30 minutes (see data/research_once.log)."
