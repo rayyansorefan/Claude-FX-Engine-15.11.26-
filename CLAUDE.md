@@ -26,7 +26,7 @@ No code reused from the old ChatGPT engine.
 - Never loosen a gate without telling Rayyan. Report negative results plainly.
 
 ## Key decisions (Phase 0, 2026-11-15)
-- Account £2,500 paper. Risk per trade = £20 (1R). Lot size computed from stop distance.
+- Account: treat as £2,500 (real demo is £5,000 GBP on Pepperstone cTrader UK DEMO; login kept out of git). Risk per trade = £20 (1R). Lot size computed from stop distance.
 - Halfway check: at −0.5R send one HOLD/EXIT message from a pre-set rule. Must beat
   plain holding in backtest, else labelled "unproven".
 - Universe: EURUSD GBPUSD USDJPY USDCHF AUDUSD USDCAD NZDUSD EURGBP EURJPY GBPJPY.

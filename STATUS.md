@@ -15,8 +15,9 @@ No M1 bid/ask history yet. Dukascopy datafeed rate-limits (429/reset) and its of
 bulk route is Requester-Pays (costs money). See docs/DATA_SOURCES.md.
 
 ## Waiting on Rayyan
-- Create free Pepperstone demo account (cTrader) so we get Pepperstone-matching history
-  and live prices — steps to be given by Claude.
+- cTrader demo CREATED (GBP, £5,000; engine assumes £2,500). Next: Rayyan registers an Open API app
+  (openapi.ctrader.com), grants READ-ONLY (accounts) scope, pastes keys into private `.env` on Mac/VM.
+  Open API is TCP port 5035 (not HTTPS) so the cloud sandbox cannot reach it: data pulls run on Mac/VM.
 - Google Cloud card yes/no (needed before Phase 4).
 - `/usage` figure.
 
