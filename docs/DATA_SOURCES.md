@@ -28,3 +28,7 @@
   Fetch runs on Mac/VM: `python -m fxengine.data.fetch --years 3`. Resumable.
 - `data/ctrader.py` is UNVERIFIED against the live server until keys exist.
 - Read-only by design; a test fails if any order/trading message name appears in src/.
+
+## Update 2026-11-15
+- cTrader Open API abandoned for now (identity verification required). Dukascopy M1 bid+ask via `fxengine.data.dukascopy_cli` from the user's Mac: real ask/bid, so spread is measured not assumed. `dukascopy.py` format UNVERIFIED until first Mac run.
+- Dukascopy has no live feed (history only up to ~yesterday): live source for Phase 4 still to choose (free options to verify).

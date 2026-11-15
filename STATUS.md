@@ -1,5 +1,6 @@
 # STATUS
 
+**DATA SOURCE CHANGE 2026-11-15:** cTrader Open API dropped (needs KYC; Rayyan's submitted details were not genuine -> will not pass; not to be circumvented). Using Dukascopy M1 bid+ask run from Rayyan's Mac (cloud sandbox IP is rate-limited). Live feed TBD (Phase 4).
 **Current phase:** 2 machinery DONE (no real-data results yet); Phase 1 data BLOCKED on cTrader keys (app status: 'Submitted')
 **Last updated:** 2026-11-15
 
