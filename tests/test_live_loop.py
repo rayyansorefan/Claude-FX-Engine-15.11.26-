@@ -95,3 +95,61 @@ def test_failed_send_is_retried(tmp_path):
     state["up"] = True
     loop.run_cycle(conn, {}, now, send=flaky, root=tmp_path, refresh_fn=lambda: None, scan_fn=lambda: [])
     assert conn.execute("SELECT COUNT(*) FROM alerts WHERE ok=0").fetchone()[0] == 0 and len(state["got"]) >= 2
+
+
+def test_freshness_uses_oldest_pair_and_stale_threshold(tmp_path):
+    d = make_store(tmp_path)
+    # a second pair that stopped 30 minutes earlier makes the whole feed stale, even though EURUSD is fresh
+    store.merge_save("GBPUSD", "M5", d.iloc[:-6], tmp_path)
+    now = d.index[-1] + pd.Timedelta(minutes=6)
+    assert loop.data_age_min(tmp_path, now) > 30
+    conn = DB.connect(str(tmp_path / "e.db"))
+    bag = Bag()
+    assert loop.run_cycle(conn, {}, now, send=bag, root=tmp_path, refresh_fn=lambda: None, scan_fn=lambda: []) == "STALE"
+    # 10 minutes old is fine (threshold 12 min, so one slow fetch does not flip STALE/RECOVERED)
+    store.merge_save("GBPUSD", "M5", d, tmp_path)
+    assert loop.run_cycle(conn, {}, d.index[-1] + pd.Timedelta(minutes=15), send=bag, root=tmp_path, refresh_fn=lambda: None, scan_fn=lambda: []) == "OK"
+
+
+def test_error_alerts_at_three_then_every_three_hours_and_recovery(tmp_path):
+    make_store(tmp_path)
+    conn = DB.connect(str(tmp_path / "e.db"))
+    bag = Bag()
+    now = T0 + pd.Timedelta(hours=2)
+
+    def boom():
+        raise RuntimeError("OANDA HTTP 401")
+    for _ in range(loop.ERR_ALERT_EVERY * 2):
+        loop.run_cycle(conn, {}, now, send=bag, root=tmp_path, refresh_fn=boom)
+    errs = [m for m in bag.msgs if "ENGINE ERROR" in m]
+    assert len(errs) == 3 and "x3" in errs[0] and "alive" in errs[0] and "x72" in errs[-1]
+    loop.run_cycle(conn, {}, now, send=bag, root=tmp_path, refresh_fn=lambda: None, scan_fn=lambda: [])
+    assert any("RECOVERED" in m for m in bag.msgs)
+    assert conn.execute("SELECT status FROM cycles ORDER BY rowid DESC LIMIT 1").fetchone()["status"] == "OK"
+
+
+def test_scan_result_is_persisted_and_new_alert_carries_reason_and_cancel(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    d = make_store(tmp_path)
+    now = d.index[-1] + pd.Timedelta(minutes=6)
+    conn = DB.connect(str(tmp_path / "e.db"))
+    bag = Bag()
+    c = dict(cand(d.index[40] + pd.Timedelta(minutes=5)), invalidation=1.0995, reason="Strength gap z=+1.7\nStop 2 ATR")
+    loop.run_cycle(conn, {}, now, send=bag, root=tmp_path, refresh_fn=lambda: None, scan_fn=lambda: dict(candidates=[c], status="OK"))
+    import json
+    assert json.load(open(tmp_path / "data" / "latest_scan.json"))["candidates"][0]["pair"] == "EURUSD"
+    new = [m for m in bag.msgs if m.startswith("🟢 NEW")][0]
+    assert "Strength gap" in new and "Cancel if close <= 1.09950" in new and len(new.split("\n")) == 3
+
+
+def test_halfway_advice_uses_only_bars_closed_at_the_event(tmp_path):
+    d = make_store(tmp_path)
+    c = dict(cand(d.index[40] + pd.Timedelta(minutes=5)), run_id="x")
+    conn = DB.connect(str(tmp_path / "e.db"))
+    DB.add_setup(conn, "x", c)
+    t, m5 = loop.replay(c, tmp_path)
+    at = d.index[60]
+    a_event, _ = loop.advice(t, m5, at)
+    a_now, _ = loop.advice(t, m5, m5.index[-1] + pd.Timedelta(minutes=5))
+    assert a_event in ("HOLD", "EXIT") and a_now in ("HOLD", "EXIT")
+    assert loop.advice(t, m5, at) == loop.advice(t, m5.iloc[:70], at)       # later bars change nothing

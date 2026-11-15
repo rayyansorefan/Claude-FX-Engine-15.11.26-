@@ -1,29 +1,28 @@
 """LIVE RESEARCH LOOP: one supervised process. Every 5 min in market hours: refresh data -> gate freshness -> publish
-(<=5/day, one per pair) -> replay every active setup through the SAME Tracker -> alert on state changes only.
-Zero Claude. Never places orders. State lives in SQLite; setups are re-derived by deterministic replay so a restart loses nothing.
+(<=5/day, one per pair) -> replay every active setup through the SAME Tracker driver as the research rerun -> alert on
+state changes only. Zero Claude. Never places orders. State lives in SQLite; setups are re-derived by deterministic
+replay so a restart loses nothing.
 PYTHONPATH=src python -m fxengine.live.loop"""
 from __future__ import annotations
-import json, logging, time, traceback
+import json, logging, math, time, traceback
 from pathlib import Path
 import pandas as pd
 import requests
 from ..envfile import load_env
+from ..calendar import market_closed
 from ..data import store, oanda
 from ..data.resample import resample
 from ..engine.costs import CostModel
-from ..engine.tracker import Setup, Bar, Tracker, RESOLVED
+from ..engine.tracker import Setup, Tracker, RESOLVED, bar_arrays, track_arrays
 from . import db as DB, messages as M, telegram, scan as SC
 
 log = logging.getLogger("loop")
 FIVE = pd.Timedelta(minutes=5)
-MAX_PER_DAY, PUBLISH_HOURS, STALE_MIN = 5, (7, 20), 5.0
+MAX_PER_DAY, PUBLISH_HOURS, STALE_MIN = 5, (7, 20), 12.0     # 12 min: one slow fetch must not flip STALE/RECOVERED
+ERR_ALERT_EVERY = 36                                          # after the first alert at 3 errors, remind every 3 hours
 TFMIN = {"H1": 60, "H4": 240}
 HOLD = {"asia_breakout": 32, "trend_pullback": 32, "range_reversion": 24, "E1_strength": 12, "E2_donchian": 40}
-
-
-def market_closed(now) -> bool:
-    d, h = now.day_of_week, now.hour
-    return d == 5 or (d == 6 and h < 22) or (d == 4 and h >= 22)
+SCAN_FILE = Path("data/latest_scan.json")
 
 
 def refresh(token, root=store.ROOT, start=None):
@@ -39,33 +38,40 @@ def refresh(token, root=store.ROOT, start=None):
 
 
 def data_age_min(root, now):
-    m5 = store.load("EURUSD", "M5", root)
-    return None if m5.empty else (now - (m5.index[-1] + FIVE)).total_seconds() / 60
+    """Age of the OLDEST pair's last closed M5 candle: every stored pair must be fresh, not just EURUSD."""
+    ages = []
+    for sym in SC.PAIRS:
+        m5 = store.load(sym, "M5", root)
+        if len(m5):
+            ages.append((now - (m5.index[-1] + FIVE)).total_seconds() / 60)
+    return max(ages) if ages else None
+
+
+def _num(v):
+    return None if v is None or (isinstance(v, float) and math.isnan(v)) else float(v)
 
 
 def to_setup(c) -> Setup:
     ratio = TFMIN[c["tf"]] // 5
     return Setup(run_id=c["run_id"], symbol=c["pair"], direction=c["direction"], setup_type=c["type"], version="live-v1",
                  created_at=pd.Timestamp(c["created"]), entry=c["entry"], entry_kind=c["entry_kind"], stop=c["stop"], target=c["target"],
-                 expires_at=pd.Timestamp(c["expires"]), max_hold_bars=HOLD[c["type"]] * ratio, score=c["score"], reason=c["type"])
+                 expires_at=pd.Timestamp(c["expires"]), max_hold_bars=HOLD[c["type"]] * ratio, invalidation=_num(c.get("invalidation")),
+                 score=c["score"], reason=c.get("reason", c["type"]))
 
 
 def replay(c, root, cost=CostModel(True)):
-    """Deterministic replay of one setup over stored M5 bars (identical code path to the backtests)."""
+    """Deterministic replay of one setup over stored M5 bars: the same track_arrays driver as the research rerun."""
     m5 = store.load(c["pair"], "M5", root)
     m5 = m5[m5.index + FIVE > pd.Timestamp(c["created"])]
-    t = Tracker(to_setup(c), cost)
-    for ot, r in m5.iterrows():
-        t.on_bar(Bar(ot, ot + FIVE, r.bid_o, r.bid_h, r.bid_l, r.bid_c))
-        if not t.active:
-            break
+    t = track_arrays(to_setup(c), bar_arrays(m5), FIVE, cost)
     return t, m5
 
 
-def advice(t, m5):
-    """Pre-set halfway rule (UNPROVEN): EXIT if the last 3 M5 closes are all beyond the halfway level, else HOLD."""
+def advice(t, m5, at):
+    """Pre-set halfway rule (UNPROVEN): EXIT if the last 3 M5 closes AT THE TIME OF THE EVENT are all beyond the halfway
+    level, else HOLD. Only bars closed by `at` are used, so a replay after an outage gives the same advice."""
     half = t.fill - 0.5 * t.s.risk if t.s.direction == "long" else t.fill + 0.5 * t.s.risk
-    last = m5.bid_c.iloc[-3:]
+    last = m5[m5.index + FIVE <= pd.Timestamp(at)].bid_c.iloc[-3:]
     beyond = (last < half).all() if t.s.direction == "long" else (last > half).all()
     return ("EXIT", "price keeps closing against you") if beyond else ("HOLD", "price has not settled beyond halfway")
 
@@ -106,12 +112,12 @@ def track(conn, env, send, root, now):
                 continue
             conn.execute("INSERT INTO events VALUES(?,?,?,?,?,?)", (c["run_id"], idx, str(ev["ts"]), ev["frm"], ev["to"], ev["detail"]))
             if idx == 0:
-                _alert(conn, env, send, c, 0, "NEW", M.new(c), ev["ts"], now)       # published alert is sent by publish flow
+                _alert(conn, env, send, c, 0, "NEW", M.new(c), ev["ts"], now)
                 continue
             if ev["to"] == "TRIGGERED":
                 txt, kind = M.triggered(c, t.fill), "TRIGGERED"
             elif "HALFWAY" in ev["detail"]:
-                a, why = advice(t, m5)
+                a, why = advice(t, m5, ev["ts"])
                 txt, kind = M.halfway(c, a, why), "HALFWAY"
             elif ev["to"] == RESOLVED:
                 o = t.outcome
@@ -130,6 +136,14 @@ def retry_unsent(conn, env, send, now):
         if send(env, r["text"]):
             conn.execute("UPDATE alerts SET ok=1, sent_at=? WHERE run_id=? AND idx=?", (str(now), r["run_id"], r["idx"]))
     conn.commit()
+
+
+def _save_scan(res, now):
+    try:
+        SCAN_FILE.parent.mkdir(exist_ok=True)
+        SCAN_FILE.write_text(json.dumps(dict(res, generated=str(now)), indent=1, default=str))
+    except OSError as e:
+        log.warning("could not write %s: %s", SCAN_FILE, e)
 
 
 def run_cycle(conn, env, now, send=telegram.send, root=store.ROOT, refresh_fn=None, scan_fn=None):
@@ -153,21 +167,26 @@ def run_cycle(conn, env, now, send=telegram.send, root=store.ROOT, refresh_fn=No
                 DB.kv_set(conn, "stale", 0)
             key = str(store.last_open("EURUSD", "H1", root))
             if DB.kv_get(conn, "last_scan") != key:
-                cands = (scan_fn or (lambda: SC.scan(root, now=now)["candidates"]))()
+                res = (scan_fn or (lambda: SC.scan(root, now=now)))()
+                if isinstance(res, dict):
+                    _save_scan(res, now)
+                    cands = res["candidates"]
+                else:
+                    cands = res
                 publish(conn, env, send, cands, now)
                 DB.kv_set(conn, "last_scan", key)
             track(conn, env, send, root, now)
             retry_unsent(conn, env, send, now)
-    except requests.HTTPError as e:
-        ok, status, note = 0, "ERROR", f"http {e}"
     except Exception as e:                                   # fail loudly in the ledger, keep the loop alive
         ok, status, note = 0, "ERROR", f"{type(e).__name__}: {e}"
         log.error(traceback.format_exc())
         n = int(DB.kv_get(conn, "consec_err", 0)) + 1
         DB.kv_set(conn, "consec_err", n)
-        if n == 3:
-            send(env, f"🔴 ENGINE ERROR x3 · {note[:80]}\nWatchdog will restart it if it stays down.")
+        if n == 3 or n % ERR_ALERT_EVERY == 0:
+            send(env, f"🔴 ENGINE ERROR x{n} · {note[:80]}\nLoop is alive but failing: no new setups until this is fixed.")
     else:
+        if int(DB.kv_get(conn, "consec_err", 0)) >= 3:
+            send(env, "🟢 ENGINE RECOVERED · cycles are succeeding again")
         DB.kv_set(conn, "consec_err", 0)
     conn.execute("INSERT INTO cycles VALUES(?,?,?,?,?,?)", (str(now), ok, status, age, round(time.time() - t0, 2), note))
     conn.commit()
@@ -178,6 +197,8 @@ def run_cycle(conn, env, now, send=telegram.send, root=store.ROOT, refresh_fn=No
 
 
 def ping(env, ok):
+    """Off-host dead-man switch (free healthchecks.io): HC_PING_URL in .env. Pinged every cycle; '/fail' on bad cycles.
+    If the VM, the network or this process dies, healthchecks.io emails/Telegrams you after its grace period."""
     url = env.get("HC_PING_URL")
     if url:
         try:
@@ -191,6 +212,8 @@ def main():
     env = load_env()
     if not env.get("OANDA_TOKEN"):
         raise SystemExit("OANDA_TOKEN missing from .env")
+    if not env.get("HC_PING_URL"):
+        log.warning("HC_PING_URL not set: no off-host dead-man alert. Add a free healthchecks.io ping URL to .env.")
     conn = DB.connect()
     from . import schedule
     log.info("live loop started")

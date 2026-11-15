@@ -32,3 +32,6 @@
 ## Update 2026-11-15
 - cTrader Open API abandoned for now (identity verification required). Dukascopy M1 bid+ask via `fxengine.data.dukascopy_cli` from the user's Mac: real ask/bid, so spread is measured not assumed. `dukascopy.py` format UNVERIFIED until first Mac run.
 - Dukascopy has no live feed (history only up to ~yesterday): live source for Phase 4 still to choose (free options to verify).
+
+## Update 2026-11-15 (later)
+- cTrader and Dukascopy code REMOVED (never verified, unused). OANDA practice is the only source. Spread is measured from the data (ask-bid) in the R0 cost mode.

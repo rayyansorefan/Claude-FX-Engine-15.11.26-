@@ -10,11 +10,10 @@ give copy-paste blocks, never paste secrets, never tell him to run things on his
 - Mac has an old copy at ~/fx (not needed).
 
 ## Known open items (priority order)
-1. Awaiting independent reviews (Fable, Astra). Prompts: docs/AUDIT_PROMPT.md, docs/ASTRA_PROMPT.md. Implement valid findings.
+0. Astra review 2026-11-15 implemented in code (see STATUS.md top line). Left for Rayyan: run `bash deploy/update_vm.sh` on the VM, then R0 (`PYTHONPATH=src nohup .venv/bin/python -m fxengine.backtest.run_m5 > data/r0.log 2>&1 &`), add HC_PING_URL to .env, decide on repo privacy, copy docs/trials.jsonl + docs/results/* from the VM into git.
+1. Fable review still pending. Prompts: docs/AUDIT_PROMPT.md, docs/ASTRA_PROMPT.md.
 2. Confirm research_once.sh finished on the VM (data/research_once.log says "research done"); dashboard Research/Performance tabs depend on it.
-3. Backtest validity worry: commission 0.7 pip is added on top of OANDA spreads that are already wide (1.3-3.3 pips); stressed x2 spread
-   on top. This may over-penalise. A re-test with measured OANDA ask-bid (real spread from the data) and no extra commission is the
-   single cheapest way to check whether "no edge" is robust. Log it as a new trial if run.
+3. Cost-validity worry: ADDRESSED by R0's 'measured' cost mode (real OANDA ask-bid, no commission), logged as one trial. Read the R0 table on the Research tab.
 4. Live loop has never seen a market session: watch the first Monday (alerts, ledger, audit). Fix anything that breaks.
 5. Untested ideas: market structure/key levels, news blackout (needs free calendar), E3 filters.
 6. GCP free trial ends ~day 90 (~mid Feb 2027): remind Rayyan ~day 80 about the upgrade decision (billed account risk vs moving host).

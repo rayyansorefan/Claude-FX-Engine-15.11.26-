@@ -2,13 +2,14 @@
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-from .v1 import _frame, WARMUP
+from .v1 import _frame, _fmt, WARMUP
 
 LOOKBACK, ZWIN, ZMIN, ZTOP = 30, 500, 1.5, 3
 
 
 def donchian_trend(d: pd.DataFrame) -> pd.DataFrame:
-    """E2: close above prior-55-bar high with EMA50>EMA200 (mirror for shorts). Stop 3 ATR, target 6 ATR."""
+    """E2: close above prior-55-bar high with EMA50>EMA200 (mirror for shorts). Stop 3 ATR, target 6 ATR.
+    Invalid if a close comes back inside the channel before entry."""
     hh = d.bid_h.rolling(55).max().shift(1)
     ll = d.bid_l.rolling(55).min().shift(1)
     ok = d.atr.notna() & (np.arange(len(d)) >= WARMUP)
@@ -18,9 +19,12 @@ def donchian_trend(d: pd.DataFrame) -> pd.DataFrame:
     long = up[s.index].values
     sign = np.where(long, 1, -1)
     e = s.bid_c.values
+    lvl = np.where(long, hh[s.index], ll[s.index])
+    reason = [f"Close {'above' if lg else 'below'} the 55-bar {'high' if lg else 'low'} {_fmt(v)} with EMA50 {'above' if lg else 'below'} EMA200\n"
+              f"Stop 3 ATR, target 6 ATR (2R); cancel if a close returns inside the channel" for lg, v in zip(long, lvl)]
     return _frame(d, d.index.get_indexer(s.index), np.where(long, "long", "short"), e, "stop",
                   e - sign * 3 * s.atr.values, e + sign * 6 * s.atr.values,
-                  (np.abs(s.bid_c - np.where(long, hh[s.index], ll[s.index])) / s.atr).values, 3, 40)
+                  (np.abs(s.bid_c - lvl) / s.atr).values, 3, 40, invalidation=lvl, reason=reason)
 
 
 def strength_signals(frames: dict) -> dict:
@@ -45,8 +49,12 @@ def strength_signals(frames: dict) -> dict:
         long = (zz[ok] > 0).values
         sign = np.where(long, 1, -1)
         e = s.bid_c.values
+        stop = e - sign * 2 * s.atr.values
+        reason = [f"{sym[:3]} vs {sym[3:]} 5-day strength gap z={zv:+.1f}, top-{ZTOP} across the 10 pairs\n"
+                  f"Enter {'long' if lg else 'short'} at the close, stop 2 ATR, target 4 ATR (2R), 2-bar expiry"
+                  for lg, zv in zip(long, zz[ok].values)]
         out[sym] = _frame(d, d.index.get_indexer(s.index), np.where(long, "long", "short"), e, "stop",
-                          e - sign * 2 * s.atr.values, e + sign * 4 * s.atr.values, zz[ok].abs().values, 2, 12)
+                          stop, e + sign * 4 * s.atr.values, zz[ok].abs().values, 2, 12, invalidation=stop, reason=reason)
     return out
 
 

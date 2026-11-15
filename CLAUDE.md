@@ -17,10 +17,10 @@ No code reused from the old ChatGPT engine.
 - One phase per session. Keep this file < 100 lines. Write big outputs to files.
 - Never commit secrets (tokens, keys, account IDs). Repo may be public. Use `.env` (gitignored).
 - Candle close time = open time + timeframe. Never use a candle before its close.
-- Stale data fails loudly. Dashboard always shows data age.
+- Stale data fails loudly (oldest pair > 12 min). Dashboard always shows data age. Market hours in New York time (`fxengine.calendar`).
 - Live loop = one supervised long-running process. GitHub Actions only as backup.
 - Every setup: immutable record, one run_id from creation → alerts → outcome.
-- Same code path for backtest, replay and live.
+- Same code path for backtest, replay and live: `engine.tracker.track_arrays` on M5 bars (research rerun R0 and live loop).
 - Parameters frozen per version. One change at a time. Adapt only at scheduled
   offline walk-forward reviews.
 - Never loosen a gate without telling Rayyan. Report negative results plainly.
@@ -32,7 +32,7 @@ No code reused from the old ChatGPT engine.
 - Universe: EURUSD GBPUSD USDJPY USDCHF AUDUSD USDCAD NZDUSD EURGBP EURJPY GBPJPY.
 - Runtime (LIVE since 2026-11-15): Google Cloud e2-micro free tier, us-central1, Debian 13, systemd services
   `fxengine` (live loop), `fxdash` (dashboard), `fxwatchdog.timer`. Private access via Tailscale only
-  (dashboard http://100.78.194.103:8787). Installer: deploy/install_vm.sh. GCP free trial ends ~90 days: Rayyan must
+  (dashboard on port 8787 at the VM's Tailscale IP; never write that IP into the repo). Installer: deploy/install_vm.sh. GCP free trial ends ~90 days: Rayyan must
   decide on upgrading (billed account) around day 80; flag it. Never open public ports.
 - Alerts: Telegram bot, max 3 lines per message.
 - Dashboard: dashboard/build.py renders one self-contained HTML (inline SVG, 7 tabs); dashboard/serve.py rebuilds it
@@ -42,7 +42,7 @@ No code reused from the old ChatGPT engine.
 
 ## Status of research (2026-11-15)
 - 7 strategy variants ALL failed (docs/REJECTED.md). Holdout (>=2026-05-15) never opened. Live setups are labelled UNPROVEN.
-- Next work is in docs/HANDOVER.md. Run tests: `PYTHONPATH=src .venv/bin/pytest -q` (49 pass).
+- Next work is in docs/HANDOVER.md. Run tests: `PYTHONPATH=src .venv/bin/pytest -q` (56 pass). Update the VM: `bash deploy/update_vm.sh`.
 
 ## Layout
 - `src/fxengine/` package: data/, features/, setups/, engine/, backtest/, live/,
@@ -54,4 +54,4 @@ No code reused from the old ChatGPT engine.
 ## Workflow
 - Work on branch `engine`; commit often with tests passing.
 - Update STATUS.md at the end of every session and at every checkpoint.
-- Python 3.11+, pandas, numpy, pyarrow, sqlite3, matplotlib, pytest. Keep deps minimal.
+- Python 3.11+, pandas, numpy, pyarrow, requests, sqlite3, pytest. Keep deps minimal.

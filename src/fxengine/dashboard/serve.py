@@ -2,7 +2,8 @@
 Only reachable from this computer (127.0.0.1) unless you choose otherwise. No cloud, no public URL, nothing uploaded.
 PYTHONPATH=src python -m fxengine.dashboard.serve [--port 8787] [--open] [--auto 60] [--refresh]
   --auto N     the page reloads itself every N seconds
-  --refresh    on each page load, first fetch the newest prices from OANDA (rate-limited to once a minute)"""
+  --refresh    on each page load, first fetch the newest prices from OANDA (rate-limited to once a minute)
+  --cache N    serve the same page for N seconds (the VM uses 30: a rebuild loads every pair on a 1-vCPU machine)"""
 from __future__ import annotations
 import argparse, threading, time, traceback, webbrowser
 from html import escape
@@ -10,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ..envfile import load_env
 from .build import build
 
-STATE = {"last_refresh": 0.0, "auto": 0, "refresh": False, "lock": threading.Lock()}
+STATE = {"last_refresh": 0.0, "auto": 0, "refresh": False, "lock": threading.Lock(), "html": None, "built": 0.0, "cache": 0}
 
 
 def render() -> str:
@@ -24,7 +25,10 @@ def render() -> str:
                     STATE["last_refresh"] = time.time()
                 except Exception as e:                     # show it, don't hide it
                     note = f"<div class='sample' style='background:#d03b3b;color:#fff'>Could not fetch newest prices: {escape(str(e))[:160]}</div>"
-    html = build(out=None, banner=note)
+    with STATE["lock"]:
+        if STATE["html"] is None or time.time() - STATE["built"] > STATE["cache"] or note:
+            STATE["html"], STATE["built"] = build(out=None, banner=note), time.time()
+        html = STATE["html"]
     if STATE["auto"]:
         html = html.replace("<head>", f"<head><meta http-equiv='refresh' content='{STATE['auto']}'>", 1)
     return html
@@ -60,8 +64,9 @@ def main():
     ap.add_argument("--open", action="store_true")
     ap.add_argument("--auto", type=int, default=0)
     ap.add_argument("--refresh", action="store_true")
+    ap.add_argument("--cache", type=int, default=0)
     a = ap.parse_args()
-    STATE.update(auto=a.auto, refresh=a.refresh)
+    STATE.update(auto=a.auto, refresh=a.refresh, cache=a.cache)
     srv = make_server(a.host, a.port)
     url = f"http://localhost:{a.port}"
     print(f"Dashboard running at {url}  (refresh the page to update; press Ctrl+C to stop)")

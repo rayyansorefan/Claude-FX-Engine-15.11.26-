@@ -36,3 +36,9 @@ Trials: 8 so far; +2 = 10; penalised alpha = 0.05/10. Same data/costs/holdout/de
 - Initial stop 2 ATR. Target 10 ATR (practical none). Trail 20 bars as above. Expiry 2 bars. Max hold 60 bars.
 ## Decision rule: identical to batch 1. If both fail: "no edge found" is final for this search; no further ideas
 ## will be tested without Rayyan proposing one.
+
+# R0 — M5-resolution rescoring, pre-registered 2026-11-15 (NOT a new idea; the seven frozen rule sets are unchanged)
+Why: the original runners resolved fills/stops/targets on the signal bar (M15/H1/H4). The live loop resolves them on M5 bars. On a 4-hour bar the conservative rules ('stop beats target in the same bar', 'no target on the entry bar') bite far harder, so the H4 verdicts carry an unknown pessimistic bias, and live scores would never be comparable with research scores.
+How: `python -m fxengine.backtest.run_m5`. Same data window, holdout untouched, same cooldown. Costs: stressed (headline), normal, measured (OANDA ask-bid from the data, no commission). Cluster bootstrap by pair-day. Random-entry challenger (3,000 random setups per variant with the same mechanics). MDE printed.
+Decision rule: a variant is a CANDIDATE only if, under STRESSED costs, the penalised cluster-bootstrap lower bound > 0 AND its mean beats the challenger's 95th percentile AND 3 of 4 years positive AND positive without its best pair. A candidate then goes to the holdout under docs/GATES.md. Otherwise the 2026-11-15 'no edge found' verdict stands, now stated as 'no edge above the printed MDE'.
+Counts as 1 trial (alpha becomes 0.05/11). Runtime: roughly 1-3 hours on the e2-micro VM.

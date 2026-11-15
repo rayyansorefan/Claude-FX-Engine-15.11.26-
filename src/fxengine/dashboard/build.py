@@ -6,6 +6,7 @@ import html as H, json
 from pathlib import Path
 import numpy as np
 import pandas as pd
+from ..calendar import market_closed
 from ..data import store
 from ..engine.costs import pip
 from ..research import stats
@@ -24,16 +25,23 @@ def px(sym, v):
 
 
 # ---------- data ----------
+STALE_MIN = 12.0     # same threshold as the live loop (live/loop.py)
+
+
 def health(root, now):
-    m5 = store.load("EURUSD", "M5", root)
-    age = None if m5.empty else (now - (m5.index[-1] + pd.Timedelta(minutes=5))).total_seconds() / 60
-    dow, hr = now.day_of_week, now.hour
-    closed = dow == 5 or (dow == 6 and hr < 22) or (dow == 4 and hr >= 22)
+    """Age of the OLDEST pair's last closed M5 candle (same rule as the live loop); market hours in New York time."""
+    ages = []
+    for s in PAIRS:
+        m5 = store.load(s, "M5", root)
+        if len(m5):
+            ages.append((now - (m5.index[-1] + pd.Timedelta(minutes=5))).total_seconds() / 60)
+    age = max(ages) if ages else None
+    closed = market_closed(now)
     if age is None:
         return "crit", "NO DATA", age, closed
     if closed:
         return "warn", "MARKET CLOSED", age, closed
-    return ("good", "DATA FRESH", age, closed) if age <= 15 else ("crit", "DATA STALE", age, closed)
+    return ("good", "DATA FRESH", age, closed) if age <= STALE_MIN else ("crit", "DATA STALE", age, closed)
 
 
 def strength(root):
@@ -281,6 +289,26 @@ def live_db(path="data/engine.db"):
     return c
 
 
+def live_candidates(c):
+    """Setups the live loop has published and not yet resolved, straight from the ledger (never from a scan file)."""
+    rows = c.execute("""SELECT s.run_id, s.record, (SELECT to_state FROM events e WHERE e.run_id=s.run_id ORDER BY idx DESC LIMIT 1) AS state
+        FROM setups s WHERE s.run_id NOT IN (SELECT run_id FROM outcomes) ORDER BY s.created_at DESC""").fetchall()
+    return [json.loads(r["record"]) | {"run_id": r["run_id"], "state": r["state"] or "PENDING"} for r in rows]
+
+
+def m5_rerun_rows():
+    f = Path("docs/results/m5_rerun.json")
+    if not f.exists():
+        return []
+    res = json.load(open(f))
+    rows = []
+    for v, modes in res["summary"].items():
+        for k, m in modes.items():
+            if m["scored"]:
+                rows.append((v, k, m["scored"], m["pair_days"], m["win"] * 100, m["exp_r"], m["penalised_lo"], m["mde_r"], m["challenger_p95"], m["challenger_pct"], m["passes"]))
+    return rows
+
+
 def live_record(c):
     rows = c.execute("""SELECT s.run_id, s.created_at, s.pair, s.type, s.tf, s.record, o.reason, o.net_r,
         (SELECT to_state FROM events e WHERE e.run_id=s.run_id ORDER BY idx DESC LIMIT 1) AS state
@@ -437,17 +465,25 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     now = pd.Timestamp.now(tz="UTC") if now is None else pd.Timestamp(now)
     state, label, age, closed = health(root, now)
     scan = json.load(open("data/latest_scan.json")) if Path("data/latest_scan.json").exists() else {}
-    cands = scan.get("candidates", [])
+    dbc = live_db()
+    cands = live_candidates(dbc) if dbc else []
+    cand_src = "published by the live loop (ledger)" if dbc else "no ledger yet"
+    if not cands and not dbc:
+        cands, cand_src = scan.get("candidates", []), "last manual scan (no live loop ledger found)"
     trials = sum(1 for _ in open("docs/trials.jsonl")) if Path("docs/trials.jsonl").exists() else 0
     res = research()
     base = res.get("H1") if res.get("H1") is not None else (next(iter(res.values())) if res else None)
     sc = base[base.triggered] if base is not None else None
-    dbc = live_db()
     live = live_record(dbc) if dbc else []
     live_net = sum(r["net_r"] or 0 for r in live if r["reason"] in ("TARGET", "STOP", "TIMEOUT"))
     jr = J.load()
     j_bal = START + (jr.pnl_gbp.sum() if jr is not None else 0)
     icon = {"good": "●", "warn": "◐", "crit": "▲"}[state]
+    # --- research rows first: the KPI counts are derived from them, never typed in
+    rr = research_rows(res, max(trials, 1))
+    m5rows = m5_rerun_rows()
+    n_strats = len({(n, tfm) for n, tfm, *_ in rr}) or (7 if trials else 0)
+    n_pass = sum(1 for *_, ok in rr if ok) + sum(1 for r in m5rows if r[-1])
     # --- account
     bal = ruin_at = None
     if base is not None:
@@ -459,7 +495,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
           ("Engine balance (live, hypothetical)", f"£{START + live_net * RISK:,.0f}", f"{len(live)} setups published so far"),
           ("Your journal balance", f"£{j_bal:,.0f}" if jr is not None else "—", "log trades in data/journal.csv"),
           ("Win rate · loss rate (backtest)", "n/a" if win is None else f"{win:.0f}% · {100 - win:.0f}%", "triggered setups, stressed costs"),
-          ("Strategies tested", "7", f"0 passed · {trials} logged tests")]
+          ("Strategies tested", f"{n_strats}", f"{n_pass} passed · {trials} logged tests")]
     kpis = "".join(f"<div class='kpi'><small>{a}</small><b>{b}</b><span>{c}</span></div>" for a, b, c in kp)
     # --- positions
     levels, cards = {}, ""
@@ -468,7 +504,8 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
         risk = abs(c["entry"] - c["stop"]); rew = abs(c["target"] - c["entry"])
         levels.setdefault(c["pair"], []).extend([{"k": "entry", "v": c["entry"]}, {"k": "stop", "v": c["stop"]}, {"k": "target", "v": c["target"]}])
         cards += (f"<div class='setup'><div><span class='pair'>{c['pair']}</span><span class='dir {c['direction']}'>{c['direction'].upper()}</span>"
-                  f"<div class='meta'><span class='st'>PENDING</span> {e(STRATS.get(c['type'], (c['type'],))[0])} · {c['tf']}</div></div>{mini_chart(c, root)}"
+                  f"<div class='meta'><span class='st'>{e(c.get('state', 'PENDING'))}</span> {e(STRATS.get(c['type'], (c['type'],))[0])} · {c['tf']}</div>"
+                  f"<div class='meta'>{e(str(c.get('reason', '')).split(chr(10))[0])}</div></div>{mini_chart(c, root)}"
                   f"<div class='mono'>entry {px(c['pair'], c['entry'])} ({c['entry_kind']})<br>stop {px(c['pair'], c['stop'])} <span class='muted'>({c['stop_pips']}p)</span><br>target {px(c['pair'], c['target'])}"
                   f"<div class='meta'>{c['lots_for_20gbp_risk']} lots · risk £{RISK:.0f} · reward £{RISK * rew / risk:.0f} (1:{rew / risk:.1f})<br>{left:.1f}h left · score {c['score']} · <span class='warnt'>UNPROVEN</span></div></div></div>")
     if not cards:
@@ -482,7 +519,9 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
                f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><table class='tbl'><tr><th>Created (UTC)</th><th>Setup</th><th>Rule</th><th>Outcome</th><th class='r'>P&amp;L</th></tr>{lr}</table>"
               if live else "<p class='muted'>No live setups recorded yet. This fills in once the live loop publishes its first setup.</p>")
     # --- research
-    rr = research_rows(res, max(trials, 1))
+    m5tab = "".join(f"<tr><td><b>{e(v)}</b></td><td>{k}</td><td class='num'>{n:,}</td><td class='num'>{pdays:,}</td><td class='num'>{w:.0f}%</td>"
+                    f"<td class='num {'up' if m > 0 else 'dn'}'>{m:+.3f}R</td><td class='num'>{lo:+.3f}R</td><td class='num'>{mde:.3f}R</td>"
+                    f"<td class='num'>{p95:+.3f}R / {pct:.0f}%</td><td>{tag(ok)}</td></tr>" for v, k, n, pdays, w, m, lo, mde, p95, pct, ok in m5rows)
     rtab = "".join(f"<tr><td><b>{e(n)}</b></td><td>{tfm}</td><td class='num'>{k:,}</td><td class='num'>{'—' if pd.isna(w) else f'{w:.0f}%'}</td>"
                    f"<td class='num {'up' if m > 0 else 'dn'}'>{m:+.2f}R</td><td class='num'>{'—' if pd.isna(lo) else f'{lo:+.2f}R'}</td><td>{tag(ok)}</td></tr>" for n, tfm, k, w, m, lo, ok in rr)
     strat = "".join(f"<tr><td><b>{e(v[0])}</b></td><td>{e(v[1])}</td></tr>" for v in STRATS.values())
@@ -526,21 +565,24 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
 <span class='sp'></span><span class='mono muted'>{now:%a %d %b %Y %H:%M} UTC</span></div>
 <div class='tabs'><button data-t='overview'>Overview</button><button data-t='research'>Research</button><button data-t='charts'>Charts</button><button data-t='positions'>Positions</button><button data-t='performance'>Performance</button><button data-t='journal'>Journal</button><button data-t='system'>System</button></div>
 <div class='tab' id='overview'><div class='kpis'>{kpis}</div>
-<div class='verdict'><b>Research verdict: no edge found.</b> Seven strategy ideas, five timeframes and rules combinations, {trials} logged tests: none beat stressed costs. Candidates are UNPROVEN and research only.</div>
+<div class='verdict'><b>Research verdict: no edge found.</b> {n_strats} strategy/timeframe combinations, {trials} logged tests, {n_pass} passed. {'The M5-resolution rerun (R0) is below.' if m5rows else 'The M5-resolution rerun (R0) has not been run yet, so the four H4 verdicts rest on 4h-bar scoring only.'} Candidates are UNPROVEN and research only.</div>
 <div class='grid'><div class='card c7'><h3>Account balance if every backtest setup was taken · start £{START:,.0f}, £{RISK:.0f} risk each</h3>{acct}</div>
 <div class='card c5'><h3>Currency strength · 5-day momentum</h3>{heat(strength(root))}</div>
-<div class='card c12'><h3>Today's potential positions</h3>{cards}</div>
+<div class='card c12'><h3>Open setups · {e(cand_src)}</h3>{cards}</div>
 <div class='card c6'><h3>Sessions &amp; typical volatility by hour (UTC)</h3>{sessions(vol_by_hour(root))}</div>
 <div class='card c6'><h3>Reality check</h3><p>Broker risk warnings in the UK and EU typically show <b>about 70–80%</b> of retail CFD and forex accounts losing money (roughly 50–90% by broker). Independent evidence that AI tools raise retail profitability is thin; the positive claims are vendor-reported. What holds up: costs matter, over-trading hurts, untested rules usually fail. This engine measures all three.</p></div></div></div>
 <div class='tab' id='research'><div class='grid'>
 <div class='card c12'><h3>Every strategy tested · 2023-11 to 2026-05 · stressed costs · last 6 months held back untouched</h3>
 <table class='tbl'><tr><th>Strategy</th><th>Timeframe</th><th class='r'>Trades</th><th class='r'>Win</th><th class='r'>Net R / trade</th><th class='r'>Penalised low</th><th>Verdict</th></tr>{rtab or "<tr><td colspan='7' class='muted'>No result files found on this machine.</td></tr>"}</table>
+<div class='card c12'><h3>R0 · same rules rescored on 5-minute bars (the live loop's method), three cost models, random-entry challenger</h3>
+<table class='tbl'><tr><th>Variant</th><th>Costs</th><th class='r'>Trades</th><th class='r'>Pair-days</th><th class='r'>Win</th><th class='r'>Net R</th><th class='r'>Penalised low</th><th class='r'>MDE</th><th class='r'>Challenger p95 / real pct</th><th>Verdict</th></tr>{m5tab or "<tr><td colspan='10' class='muted'>Not run yet: PYTHONPATH=src .venv/bin/python -m fxengine.backtest.run_m5 on the VM.</td></tr>"}</table>
+<p class='muted'>MDE = the smallest real edge this sample could have detected. "No edge" means "no edge above the MDE". Challenger = the same stop/target rules at random times; a strategy must beat its 95th percentile.</p></div>
 <p class='muted'>R = one planned stop distance (your £{RISK:.0f}). Penalised low = lower end of the 95% range after the multiple-testing penalty ({trials} tests). A strategy passes only if that number is above zero, with at least 100 trades, positive in at least 3 calendar years and not carried by one pair.</p></div>
 <div class='card c6'><h3>What each strategy does</h3><table class='tbl'>{strat}</table></div>
 <div class='card c6'><h3>Technical analysis tested</h3><table class='tbl'><tr><th>Indicator / idea</th><th>Used in</th><th>Status</th></tr>{ta}</table></div>
 <div class='card c12'><h3>How the testing works</h3><p>• Real bid and ask prices from OANDA practice, 10 pairs, 3 years. • Candle close = open + timeframe, so no peeking at unfinished candles (unit-tested). • Costs: spread ×2, commission, slippage on stop fills, overnight swap. • Stop wins if stop and target are both touched in one candle. • Rules were fixed and written down before each run; nothing was tuned. • The last six months of data are sealed and have never been opened. • Every variant is counted, and the penalty grows with the number of tests.</p></div></div></div>
 <div class='tab' id='charts'><div class='card'><h3>Price charts · {'bid prices, last 110 candles'}</h3><div class='sel' id='psel'></div><div class='sel' id='tsel'></div><div id='cv'></div></div></div>
-<div class='tab' id='positions'><div class='grid'><div class='card c12'><h3>Potential positions from the frozen rules (UNPROVEN)</h3>{cards}</div>
+<div class='tab' id='positions'><div class='grid'><div class='card c12'><h3>Open setups from the frozen rules (UNPROVEN) · {e(cand_src)}</h3>{cards}</div>
 <div class='card c12'><h3>Live record · every published setup, scored as a hypothetical</h3>{livetbl}</div></div></div>
 <div class='tab' id='performance'>{perf}</div>
 <div class='tab' id='journal'><div class='card'><h3>Your paper trades · behaviour &amp; discipline</h3>{J.panel(jr)}</div></div>

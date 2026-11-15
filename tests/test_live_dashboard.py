@@ -81,3 +81,23 @@ def test_server_rebuilds_on_every_request(tmp_path, monkeypatch):
             assert e.code == 404
     finally:
         srv.shutdown()
+
+
+def test_dashboard_shows_setups_from_the_ledger_not_a_scan_file(tmp_path, monkeypatch):
+    import json
+    from fxengine.dashboard.build import build
+    from fxengine.live import db as DB
+    monkeypatch.chdir(tmp_path)
+    _store(tmp_path / "data" / "candles")
+    (tmp_path / "data" / "latest_scan.json").write_text(json.dumps({"candidates": [dict(pair="GBPUSD", type="E1_strength", tf="H1", direction="short",
+        entry_kind="stop", entry=1.3, stop=1.31, target=1.28, created="2025-06-03 09:00+00:00", expires="2025-06-03 15:00+00:00", stop_pips=100, lots_for_20gbp_risk=0.02, score=1)]}))
+    conn = DB.connect(str(tmp_path / "data" / "engine.db"))
+    rec = dict(pair="EURUSD", type="E1_strength", tf="H1", direction="long", entry_kind="stop", entry=1.1010, stop=1.0990, target=1.1030,
+               created="2025-06-03 09:00+00:00", expires="2025-06-03 15:00+00:00", stop_pips=20.0, lots_for_20gbp_risk=0.1, score=2.0,
+               reason="Strength gap z=+1.7\nStop 2 ATR", invalidation=1.0995)
+    DB.add_setup(conn, "live-1", rec)
+    conn.execute("INSERT INTO events VALUES('live-1',0,'t',NULL,'PUBLISHED','p')"); conn.execute("INSERT INTO events VALUES('live-1',1,'t','PUBLISHED','TRIGGERED','f')"); conn.commit()
+    html = build(root=tmp_path / "data" / "candles", out=None, now=pd.Timestamp("2025-06-03 10:00", tz="UTC"))
+    assert "EURUSD" in html and "TRIGGERED" in html and "Strength gap" in html and "published by the live loop" in html
+    assert "GBPUSD</span><span class='dir short'>" not in html          # the stale scan file is ignored once a ledger exists
+    assert "Strategies tested" in html and "Seven strategy ideas" not in html

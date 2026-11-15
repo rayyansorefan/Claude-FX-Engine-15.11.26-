@@ -2,12 +2,15 @@
 CLOSED bars one at a time (never a forming bar). Decisions are stamped with the bar CLOSE time.
 Executable-side prices: long entry/exit use ask/bid; short use bid/ask (ask = bid + spread).
 Conservative same-bar rule: stop beats target; on the entry bar only the stop can fire.
-States: PUBLISHED -> TRIGGERED -> (ADJUSTED) -> RESOLVED(reason)."""
+States: PUBLISHED -> TRIGGERED -> (ADJUSTED) -> RESOLVED(reason).
+`track_arrays` is the ONE driver used by the M5 research rerun and by the live loop's replay, so research and live
+score a setup on the same bars with the same rules."""
 from __future__ import annotations
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass
 from typing import Optional
+import numpy as np
 import pandas as pd
-from .costs import CostModel, pip, rollover_nights
+from .costs import CostModel, rollover_nights
 
 PUBLISHED, TRIGGERED, ADJUSTED, RESOLVED = "PUBLISHED", "TRIGGERED", "ADJUSTED", "RESOLVED"
 TARGET, STOP, EXPIRED, INVALIDATED, TIMEOUT = "TARGET", "STOP", "EXPIRED", "INVALIDATED", "TIMEOUT"
@@ -44,6 +47,7 @@ class Bar:
     h: float
     l: float
     c: float                      # BID prices
+    spread: Optional[float] = None   # measured ask-bid at the open (used only by CostModel(measured=True))
 
 
 @dataclass
@@ -84,8 +88,8 @@ class Tracker:
     def _long(self):
         return self.s.direction == "long"
 
-    def _ask(self, b, x):  # convert a BID price on bar b to the ask side
-        return x + self.cost.spread(self.s.symbol, b.open_time)
+    def _sp(self, b: Bar) -> float:
+        return self.cost.spread(self.s.symbol, b.open_time, b.spread)
 
     # ---- public
     def adjust(self, ts, stop=None, target=None, detail="adjusted"):
@@ -106,7 +110,7 @@ class Tracker:
 
     # ---- pre-trigger
     def _pre_trigger(self, b: Bar):
-        s, sp, slip = self.s, self.cost.spread(self.s.symbol, b.open_time), self.cost.slippage(self.s.symbol, b.open_time)
+        s, sp, slip = self.s, self._sp(b), self.cost.slippage(self.s.symbol, b.open_time)
         if b.close_time > s.expires_at:
             return self._resolve(s.expires_at, EXPIRED, None)
         if self._long():
@@ -130,7 +134,7 @@ class Tracker:
 
     # ---- live trade
     def _manage(self, b: Bar, entry_bar: bool):
-        s, sp, slip = self.s, self.cost.spread(self.s.symbol, b.open_time), self.cost.slippage(self.s.symbol, b.open_time)
+        s, sp, slip = self.s, self._sp(b), self.cost.slippage(self.s.symbol, b.open_time)
         risk = s.risk
         if not entry_bar:
             self.bars_held += 1
@@ -170,11 +174,29 @@ class Tracker:
         self._log(ts, RESOLVED, f"{reason} {detail}".strip())
 
 
-def run_setup(setup: Setup, bars: pd.DataFrame, tf_delta: pd.Timedelta, cost: CostModel) -> Tracker:
-    """Backtest/replay driver: bars = DataFrame (index = open time, cols bid_o,bid_h,bid_l,bid_c)."""
+def bar_arrays(df: pd.DataFrame):
+    """(open_times, o, h, l, c, spread) numpy arrays from a candle frame (index = open time, bid_* columns;
+    ask_o optional -> measured spread)."""
+    sp = (df.ask_o - df.bid_o).values if "ask_o" in df.columns else np.full(len(df), np.nan)
+    return (df.index, df.bid_o.values, df.bid_h.values, df.bid_l.values, df.bid_c.values, sp)
+
+
+def track_arrays(setup: Setup, arr, tf: pd.Timedelta, cost: CostModel, j0: int = 0, j1: Optional[int] = None,
+                 after_bar=None) -> Tracker:
+    """Feed closed bars arr[j0:j1] through a Tracker. `after_bar(tracker, j)` runs after each bar while active
+    (used for trailing stops). Identical driver for research (M5 rerun) and live replay."""
+    ot, o, h, l, c, sp = arr
     t = Tracker(setup, cost)
-    for ot, r in bars.iterrows():
+    j1 = len(ot) if j1 is None else min(j1, len(ot))
+    for j in range(j0, j1):
+        t.on_bar(Bar(ot[j], ot[j] + tf, o[j], h[j], l[j], c[j], sp[j] if sp is not None else None))
         if not t.active:
             break
-        t.on_bar(Bar(ot, ot + tf_delta, r.bid_o, r.bid_h, r.bid_l, r.bid_c))
+        if after_bar is not None:
+            after_bar(t, j)
     return t
+
+
+def run_setup(setup: Setup, bars: pd.DataFrame, tf_delta: pd.Timedelta, cost: CostModel) -> Tracker:
+    """Backtest/replay driver on a DataFrame (index = open time, cols bid_o,bid_h,bid_l,bid_c[, ask_o])."""
+    return track_arrays(setup, bar_arrays(bars), tf_delta, cost)

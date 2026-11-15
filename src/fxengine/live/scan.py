@@ -33,9 +33,11 @@ def _cands(sym, d, tf, kind, sig, now, px):
     for r in sig[sig.pos == last].itertuples():
         created = d.index[r.pos] + tf_delta(tf)
         lots, stop_pips = lots_for_risk(sym, r.entry, r.stop, px)
+        inv = getattr(r, "invalidation", float("nan"))
         out.append(dict(pair=sym, type=kind, tf=tf, direction=r.direction, entry_kind=r.kind,
                         entry=round(float(r.entry), 5), stop=round(float(r.stop), 5), target=round(float(r.target), 5),
                         created=str(created), expires=str(created + int(r.expiry_bars) * tf_delta(tf)),
+                        invalidation=None if inv != inv else round(float(inv), 5), reason=str(getattr(r, "reason", kind)),
                         stop_pips=round(stop_pips, 1), lots_for_20gbp_risk=lots, score=round(float(r.score), 2),
                         note=NOTE))
     return out
@@ -86,6 +88,7 @@ def main():
         print(f"{c['pair']} {c['direction'].upper()} [{c['type']} {c['tf']}] {c['entry_kind']} {c['entry']} | stop {c['stop']} "
               f"({c['stop_pips']} pips) | target {c['target']} | expires {c['expires'][11:16]} UTC | {c['lots_for_20gbp_risk']} lots = £20 risk")
     print(f"{res['total_found']} candidate(s) found; showing up to 5. {NOTE}")
+    print("NOTE: the live loop (fxengine.live.loop) does this every 5 minutes and writes the same file; this command is for a manual check.")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,9 @@
-"""Cost model v1 (FROZEN per version). Data is BID-only, so ask = bid + spread.
+"""Cost model v1 (FROZEN per version). Data is BID-only in the model, so ask = bid + spread.
 ALL numbers below are ASSUMPTIONS modelled on Pepperstone Razor (tight spread + commission),
-deliberately pessimistic. Replace with measured live spreads when recorded; log any change.
-Units: pips. STRESS multiplies spread/slippage; thin hours (21:00-23:59 UTC rollover) cost more."""
+deliberately pessimistic. Units: pips. STRESS multiplies spread/slippage; thin hours (21:00-23:59 UTC rollover) cost more.
+MEASURED mode (added 2026-11-15, logged in GATES.md): the spread is taken from the data's own ask-bid on every bar
+(OANDA practice pricing, which already includes the broker mark-up) and NO extra commission is charged. It answers
+"does the result survive with the real spread of the data source instead of a modelled one?"."""
 from __future__ import annotations
 from dataclasses import dataclass
 import pandas as pd
@@ -22,19 +24,26 @@ def pip(symbol: str) -> float:
 @dataclass(frozen=True)
 class CostModel:
     stressed: bool = True
+    measured: bool = False           # use the bar's own ask-bid spread, no commission
+
+    @property
+    def name(self) -> str:
+        return "measured" if self.measured else ("stressed" if self.stressed else "normal")
 
     def _mult(self, ts) -> float:
         m = STRESS if self.stressed else 1.0
         return m * (THIN_MULT if pd.Timestamp(ts).hour >= 21 else 1.0)
 
-    def spread(self, symbol, ts) -> float:
+    def spread(self, symbol, ts, bar_spread=None) -> float:
+        if self.measured and bar_spread is not None and bar_spread == bar_spread and bar_spread >= 0:
+            return float(bar_spread)
         return BASE_SPREAD_PIPS[symbol] * pip(symbol) * self._mult(ts)
 
     def slippage(self, symbol, ts) -> float:
         return SLIPPAGE_PIPS * pip(symbol) * self._mult(ts)
 
     def commission(self, symbol) -> float:
-        return COMMISSION_ROUND_TRIP_PIPS * pip(symbol)
+        return 0.0 if self.measured else COMMISSION_ROUND_TRIP_PIPS * pip(symbol)
 
     def swap_per_night(self, symbol) -> float:
         return SWAP_PIPS_PER_NIGHT * pip(symbol)

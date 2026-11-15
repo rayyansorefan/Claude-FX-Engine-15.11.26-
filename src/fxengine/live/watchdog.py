@@ -4,7 +4,7 @@ import pandas as pd
 from pathlib import Path
 from ..envfile import load_env
 from .telegram import send
-from .loop import market_closed
+from ..calendar import market_closed
 
 
 def main():

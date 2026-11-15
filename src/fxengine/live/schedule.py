@@ -1,4 +1,5 @@
-"""Daily jobs inside the loop: pre-London brief (06:45 UTC), end-of-day review (21:05), audits (07:00 and 19:00)."""
+"""Daily jobs inside the loop: pre-London brief (06:45 UTC), end-of-day review (21:05), one audit (07:00).
+These are the only scheduled messages; everything else is a state change."""
 import pandas as pd
 from . import db as DB, telegram
 from ..audit.run import audit_text
@@ -39,6 +40,5 @@ def daily_jobs(conn, env, now, send=telegram.send):
         send(env, brief(conn))
     if hm >= 21 * 60 + 5 and _once(conn, f"eod-{d}"):
         send(env, eod(conn, d))
-    for h in (7, 19):
-        if hm >= h * 60 and _once(conn, f"audit-{d}-{h}"):
-            send(env, audit_text(conn, now))
+    if hm >= 7 * 60 and _once(conn, f"audit-{d}-7"):
+        send(env, audit_text(conn, now))
