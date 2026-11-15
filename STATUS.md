@@ -2,6 +2,7 @@
 
 **DATA SOURCE CHANGE 2026-11-15:** cTrader Open API dropped (needs KYC; Rayyan's submitted details were not genuine -> will not pass; not to be circumvented). Using Dukascopy M1 bid+ask run from Rayyan's Mac (cloud sandbox IP is rate-limited). Live feed TBD (Phase 4).
 **RESEARCH VERDICT 2026-11-15: NO EDGE FOUND** (v1 M15, v1 H1, E1, E2 all failed; holdout never opened). Awaiting Rayyan's choice of next direction (see chat): scoreboard engine vs stop vs new research.
+**Built 2026-11-15:** live scanner (`python -m fxengine.live.scan`), sizing, institutional static dashboard (`python -m fxengine.dashboard.build` -> dashboard/index.html). Batch 2 (E4/E5) also FAILED. 42 tests pass.
 **Current phase:** 2 machinery DONE (no real-data results yet); Phase 1 data BLOCKED on cTrader keys (app status: 'Submitted')
 **Last updated:** 2026-11-15
 
