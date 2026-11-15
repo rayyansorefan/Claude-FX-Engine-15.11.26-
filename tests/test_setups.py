@@ -88,3 +88,28 @@ def test_e1_e2_run_end_to_end():
     bt.TF = pd.Timedelta(minutes=15)
     df = pd.DataFrame(rows)
     assert len(df) > 10 and df.triggered.sum() > 0
+
+
+def test_run_all_end_to_end(tmp_path):
+    from fxengine.data import store
+    from fxengine.backtest import run_all
+    for i, sym in enumerate(bt.PAIRS):
+        d = synth(6000, seed=30 + i)
+        d.index = pd.date_range("2023-11-01", periods=len(d), freq="4h", tz="UTC")
+        store.merge_save(sym, "H4", d, tmp_path / "c")
+    run_all.main(root=tmp_path / "c", reg=tmp_path / "t.jsonl", out=tmp_path / "res")
+    bt.TF = pd.Timedelta(minutes=15); bt.TFNAME = "M15"
+    txt = (tmp_path / "res" / "experiments_summary.md").read_text()
+    assert "VERDICT" in txt and "E1:" in txt and "E2:" in txt
+
+
+def test_verdict_rule_flags_failures():
+    from fxengine.backtest import run_all
+    rng = np.random.default_rng(0)
+    n = 600
+    df = pd.DataFrame(dict(symbol=rng.choice(["A", "B", "C"], n), type="x",
+                           created=pd.date_range("2023-11-01", periods=n, freq="30D", tz="UTC"),
+                           reason="STOP", net_r=rng.normal(-0.2, 1, n), net_r_free=0.0, gross_r=0.0, bars=1,
+                           halfway=False, triggered=True))
+    v = run_all.verdict(df, 8)
+    assert v["PASS"] is False and v["n"] == n
