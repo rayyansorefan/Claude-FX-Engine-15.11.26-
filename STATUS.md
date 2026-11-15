@@ -22,7 +22,7 @@ bulk route is Requester-Pays (costs money). See docs/DATA_SOURCES.md.
 - cTrader demo CREATED (GBP, £5,000; engine assumes £2,500). Next: Rayyan registers an Open API app
   (openapi.ctrader.com), grants READ-ONLY (accounts) scope, pastes keys into private `.env` on Mac/VM.
   Open API is TCP port 5035 (not HTTPS) so the cloud sandbox cannot reach it: data pulls run on Mac/VM.
-- Google Cloud: Rayyan says signed up (2026-11-15); £1 budget alert NOT yet confirmed. No server created yet (Phase 4).
+- Google Cloud: Rayyan says signed up (2026-11-15); £1 monthly budget alert CREATED (confirmed by Rayyan). No server created yet (Phase 4).
 - `/usage` figure.
 
 ## Exact next step
