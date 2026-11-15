@@ -15,6 +15,7 @@ from ..research import split, stats, trials
 from ..setups import v1
 
 TF = pd.Timedelta(minutes=15)
+TFNAME = "M15"
 PAIRS = list(BASE_SPREAD_PIPS)
 STRESSED, FREE = CostModel(True), CostModel(False)
 
@@ -22,8 +23,8 @@ STRESSED, FREE = CostModel(True), CostModel(False)
 def make_setup(d, row, symbol, stype) -> Setup:
     ot = d.index[row.pos]
     created = ot + TF
-    return Setup(run_id=f"{v1.VERSION}-{symbol}-{stype}-{created:%Y%m%d%H%M}", symbol=symbol,
-                 direction=row.direction, setup_type=stype, version=v1.VERSION, created_at=created,
+    return Setup(run_id=f"{v1.VERSION}{TFNAME}-{symbol}-{stype}-{created:%Y%m%d%H%M}", symbol=symbol,
+                 direction=row.direction, setup_type=stype, version=f"{v1.VERSION}-{TFNAME}", created_at=created,
                  entry=float(row.entry), entry_kind=row.kind, stop=float(row.stop), target=float(row.target),
                  expires_at=created + row.expiry_bars * TF, max_hold_bars=int(row.max_hold),
                  invalidation=None, score=float(row.score), reason=stype)
@@ -94,17 +95,21 @@ def spread_report(frames):
     return rep
 
 
-def main(root="data/candles"):
+def main(root="data/candles", tf="M15"):
+    global TF, TFNAME
+    TFNAME = tf
+    TF = pd.Timedelta(minutes={"M15": 15, "H1": 60}[tf])
     frames = {}
     for sym in PAIRS:
-        d = store.load(sym, "M15", Path(root))
+        d = store.load(sym, tf, Path(root))
         if d.empty:
             print("missing data for", sym)
             continue
         frames[sym] = split.research_view(d)
+    seen = {json.loads(l)["name"] for l in Path("docs/trials.jsonl").open()} if Path("docs/trials.jsonl").exists() else set()
     for stype in v1.TYPES:
-        if stype not in (json.loads(l)["name"] for l in Path("docs/trials.jsonl").open()) if Path("docs/trials.jsonl").exists() else True:
-            trials.log_trial(stype, {"version": v1.VERSION}, "phase3 first evaluation")
+        if f"{stype}@{tf}" not in seen:
+            trials.log_trial(f"{stype}@{tf}", {"version": v1.VERSION, "tf": tf}, "phase3 evaluation")
     n_trials = trials.count_trials()
     rows = []
     for sym, d in frames.items():
@@ -112,17 +117,17 @@ def main(root="data/candles"):
         rows += run_pair(sym, p)
         print(f"{sym}: {len(rows)} setups so far", flush=True)
     df = pd.DataFrame(rows)
-    res = dict(version=v1.VERSION, n_trials=n_trials, period=[str(min(f.index.min() for f in frames.values())),
+    res = dict(version=f"{v1.VERSION}-{tf}", n_trials=n_trials, period=[str(min(f.index.min() for f in frames.values())),
                str(max(f.index.max() for f in frames.values()))], summary=summarise(df, n_trials),
                spreads=spread_report(frames))
     Path("docs/results").mkdir(parents=True, exist_ok=True)
-    json.dump(res, open("docs/results/phase3_v1.json", "w"), indent=1, default=str)
-    df.to_parquet("data/phase3_v1_setups.parquet")
+    json.dump(res, open(f"docs/results/phase3_v1_{tf}.json", "w"), indent=1, default=str)
+    df.to_parquet(f"data/phase3_v1_{tf}_setups.parquet")
     print(render(res))
 
 
 def render(res) -> str:
-    L = [f"PHASE 3 v1 | {res['period'][0][:10]} -> {res['period'][1][:10]} (holdout hidden) | trials logged: {res['n_trials']}",
+    L = [f"PHASE 3 {res['version']} | {res['period'][0][:10]} -> {res['period'][1][:10]} (holdout hidden) | trials logged: {res['n_trials']}",
          "R = 1 planned stop distance (your £20). Costs: STRESSED.", ""]
     for k, v in res["summary"].items():
         L.append(f"[{k}] signals {v['signals']} | triggered {v['triggered']} | scored {v['scored']} | win {v['win_rate'] and round(v['win_rate'] * 100)}%")
@@ -135,4 +140,5 @@ def render(res) -> str:
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    main(tf=sys.argv[1] if len(sys.argv) > 1 else "M15")
