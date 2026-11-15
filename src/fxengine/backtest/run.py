@@ -30,19 +30,25 @@ def make_setup(d, row, symbol, stype) -> Setup:
                  invalidation=None, score=float(row.score), reason=stype)
 
 
-def track(setup, arr, pos0, cost):
-    """Feed closed bars after the signal bar through the shared Tracker."""
+def track(setup, arr, pos0, cost, trail=None):
+    """Feed closed bars after the signal bar through the shared Tracker.
+    trail=N: after each closed bar, ratchet the stop to the N-bar extreme (applied from the NEXT bar)."""
     t = Tracker(setup, cost)
     ot, o, h, l, c = arr
     end = min(len(ot), pos0 + 1 + (setup.expires_at - setup.created_at) // TF + setup.max_hold_bars + 3)
+    long = setup.direction == "long"
     for j in range(pos0 + 1, end):
         t.on_bar(Bar(ot[j], ot[j] + TF, o[j], h[j], l[j], c[j]))
         if not t.active:
             break
+        if trail and t.fill is not None and j - trail + 1 >= 0:
+            lvl = l[j - trail + 1:j + 1].min() if long else h[j - trail + 1:j + 1].max()
+            if (long and t.stop < lvl < c[j]) or (not long and c[j] < lvl < t.stop):
+                t.adjust(ot[j] + TF, stop=float(lvl), detail="trail")
     return t
 
 
-def run_signals(symbol, d, stype, sig, arr=None):
+def run_signals(symbol, d, stype, sig, arr=None, trail=None):
     """Track a precomputed signal frame for one pair/type (cooldown: one open setup at a time)."""
     arr = arr or (d.index, d.bid_o.values, d.bid_h.values, d.bid_l.values, d.bid_c.values)
     rows = []
@@ -52,7 +58,7 @@ def run_signals(symbol, d, stype, sig, arr=None):
         if created < free_until:
             continue
         s = make_setup(d, row, symbol, stype)
-        ts, tf_ = track(s, arr, row.pos, STRESSED), track(s, arr, row.pos, FREE)
+        ts, tf_ = track(s, arr, row.pos, STRESSED, trail), track(s, arr, row.pos, FREE, trail)
         free_until = ts.events[-1]["ts"]
         o, of = ts.outcome, tf_.outcome
         rows.append(dict(symbol=symbol, type=stype, created=created, reason=o.reason if o else "OPEN",

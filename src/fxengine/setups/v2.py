@@ -48,3 +48,14 @@ def strength_signals(frames: dict) -> dict:
         out[sym] = _frame(d, d.index.get_indexer(s.index), np.where(long, "long", "short"), e, "stop",
                           e - sign * 2 * s.atr.values, e + sign * 4 * s.atr.values, zz[ok].abs().values, 2, 12)
     return out
+
+
+def with_trailing(sig: pd.DataFrame, rr: float, max_hold: int) -> pd.DataFrame:
+    """Batch 2: same entries/stops, but the target is pushed out to rr x risk (practically never hit) and the
+    hold limit extended; the exit is the trailing stop applied by backtest.run.track(trail=20)."""
+    out = sig.copy()
+    risk = (out.entry - out.stop).abs()
+    sign = np.where(out.direction == "long", 1, -1)
+    out["target"] = out.entry + sign * rr * risk
+    out["max_hold"] = max_hold
+    return out

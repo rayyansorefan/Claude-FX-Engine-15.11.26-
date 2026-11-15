@@ -24,3 +24,15 @@ same 2023-11..2026-05 data, so a pass is only provisional until the untouched ho
 Pass = Gate-B maths on the research period (penalised lower CI > 0, n >= 100) AND positive in at least 3 of the
 4 calendar years AND not driven by one pair. Anything else = rejected and logged in docs/REJECTED.md.
 If E1, E2 (and E3 if run) all fail: report "no edge found in simple public-data FX setups".
+
+# BATCH 2 — pre-registered 2026-11-15 (before any result). FINAL cap: E4 and E5 only.
+Reason: batch 1 used only fixed 2R targets. Trend/momentum edges usually come from letting winners run.
+Trials: 8 so far; +2 = 10; penalised alpha = 0.05/10. Same data/costs/holdout/decision rule as batch 1.
+## E4 — E2 entries (H4 Donchian-55 + EMA50/200 filter) with a trailing exit
+- Initial stop 3 ATR. No practical target (15 ATR). Trail: after each closed bar, stop = best of (current stop,
+  lowest low of last 20 bars for longs / highest high for shorts), applied from the NEXT bar, never loosened.
+  Expiry 3 bars. Max hold 120 bars (~20 days). Swap charged (pessimistic model).
+## E5 — E1 entries (H4 currency-strength momentum) with the same trailing exit
+- Initial stop 2 ATR. Target 10 ATR (practical none). Trail 20 bars as above. Expiry 2 bars. Max hold 60 bars.
+## Decision rule: identical to batch 1. If both fail: "no edge found" is final for this search; no further ideas
+## will be tested without Rayyan proposing one.

@@ -113,3 +113,22 @@ def test_verdict_rule_flags_failures():
                            halfway=False, triggered=True))
     v = run_all.verdict(df, 8)
     assert v["PASS"] is False and v["n"] == n
+
+
+def test_trailing_stop_ratchets_never_loosens_and_locks_profit():
+    from fxengine.engine.tracker import Setup
+    from fxengine.engine.costs import CostModel
+    bt.TF = pd.Timedelta(hours=4)
+    n = 120
+    idx = pd.date_range("2024-01-01", periods=n, freq="4h", tz="UTC")
+    up = np.r_[np.linspace(1.10, 1.16, 60), np.linspace(1.16, 1.08, 60)]
+    o = np.r_[up[0], up[:-1]]
+    h, l = np.maximum(o, up) + 1e-4, np.minimum(o, up) - 1e-4
+    arr = (idx, o, h, l, up)
+    s = Setup("t", "EURUSD", "long", "x", "v", idx[2] + bt.TF, entry=float(up[2]), entry_kind="stop", stop=float(up[2]) - 0.006,
+              target=float(up[2]) + 0.06, expires_at=idx[2] + 4 * bt.TF, max_hold_bars=100)
+    t = bt.track(s, arr, 2, CostModel(False), trail=10)
+    bt.TF = pd.Timedelta(minutes=15)
+    stops = [float(e["detail"].split("stop=")[1].split()[0]) for e in t.events if "trail" in e["detail"]]
+    assert stops and stops == sorted(stops)                      # only ever tightens
+    assert t.outcome.reason == "STOP" and t.outcome.net_r > 2    # trailing locked in a large gain
