@@ -55,3 +55,29 @@ def test_journal_analytics_and_panel(tmp_path):
     a = J.analyse(J.load(p))
     assert a["n"] == 12 and a["n_off"] == 6 and 0 < a["on_plan"] < 1 and a["worst_streak"] >= 2
     assert "Plan adherence" in J.panel(J.load(p)) and "No trades logged" in J.panel(None)
+
+
+def test_server_rebuilds_on_every_request(tmp_path, monkeypatch):
+    import threading, urllib.request
+    from fxengine.dashboard import serve
+    monkeypatch.chdir(tmp_path)
+    _store(tmp_path / "data" / "candles")
+    srv = serve.make_server("127.0.0.1", 0)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        r = urllib.request.urlopen(f"http://127.0.0.1:{port}/")
+        a = r.read().decode()
+        assert r.headers["Cache-Control"] == "no-store" and "FX ENGINE" in a
+        # new data appears -> the next refresh shows it (no cached page)
+        (tmp_path / "data" / "journal.csv").write_text("opened,closed,pair,direction,lots,entry,exit,pnl_gbp,run_id,note\n"
+                                                       "2026-11-10 08:00,2026-11-10 09:00,EURUSD,long,0.1,1,1,50,,x\n")
+        b = urllib.request.urlopen(f"http://127.0.0.1:{port}/").read().decode()
+        assert "£2,550" in b and "£2,550" not in a
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/secret")
+            assert False
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
+    finally:
+        srv.shutdown()

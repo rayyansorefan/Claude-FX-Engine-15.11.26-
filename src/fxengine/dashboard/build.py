@@ -432,6 +432,7 @@ def tag(ok, label=None):
 
 
 def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
+    """out=None returns the HTML string instead of writing a file."""
     root = Path(root)
     now = pd.Timestamp.now(tz="UTC") if now is None else pd.Timestamp(now)
     state, label, age, closed = health(root, now)
@@ -545,6 +546,8 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
 <div class='tab' id='journal'><div class='card'><h3>Your paper trades · behaviour &amp; discipline</h3>{J.panel(jr)}</div></div>
 <div class='tab' id='system'><div class='card'><h3>Reliability · live cycles, freshness, alert latency, audit</h3>{sysc}</div></div>
 </div><script type='application/json' id='cd'>{cd}</script><script type='application/json' id='lv'>{json.dumps(levels)}</script>{JS}</body></html>"""
+    if out is None:
+        return page
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     Path(out).write_text(page)
     return out

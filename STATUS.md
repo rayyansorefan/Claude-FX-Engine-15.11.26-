@@ -5,6 +5,7 @@
 **Built 2026-11-15:** live scanner (`python -m fxengine.live.scan`), sizing, institutional static dashboard (`python -m fxengine.dashboard.build` -> dashboard/index.html). Batch 2 (E4/E5) also FAILED. 42 tests pass.
 **Built 2026-11-15 (later):** live loop (`fxengine.live.loop`), SQLite ledger, Telegram alerts, daily brief/EOD/audit, watchdog, deploy/install_vm.sh (UNTESTED on a real VM), trade-journal panel on dashboard. 48 tests pass. NOT yet run live: needs Telegram bot token + chat id.
 **Dashboard v3 (multi-tab: overview, research, charts, positions, performance, journal, system) built; review prompt in docs/REVIEW_PROMPT.md.**
+**Live dashboard server:** `start_dashboard.command` (double-click) or `python -m fxengine.dashboard.serve --open --refresh --auto 60` -> http://localhost:8787, rebuilds on every refresh.
 **Current phase:** 2 machinery DONE (no real-data results yet); Phase 1 data BLOCKED on cTrader keys (app status: 'Submitted')
 **Last updated:** 2026-11-15
 
