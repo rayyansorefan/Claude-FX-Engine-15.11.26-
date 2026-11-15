@@ -1,6 +1,6 @@
 # STATUS
 
-**Current phase:** 1 (Data) — partly done, BLOCKED on a history source
+**Current phase:** 2 machinery DONE (no real-data results yet); Phase 1 data BLOCKED on cTrader keys (app status: 'Submitted')
 **Last updated:** 2026-11-15
 
 ## Done
@@ -14,6 +14,12 @@
 - decode (trendbar→bid OHLC), Parquet store (idempotent merge), quality report, .env reader,
   read-only cTrader fetcher + CLI (`fxengine.data.fetch`) — fetcher UNVERIFIED live.
 
+## Phase 2 built (25 tests pass)
+- engine/costs.py (v1 stressed costs), engine/tracker.py (lifecycle state machine, same code for
+  backtest/replay/live, executable-side prices, halfway event), research/stats.py (bootstrap, Monte Carlo,
+  Bonferroni, gate_b), research/split.py (walk-forward + enforced holdout), research/trials.py,
+  docs/GATES.md LOCKED.
+
 ## Blocker
 Waiting on cTrader Open API app approval + keys. No history downloaded yet. Dukascopy datafeed rate-limits (429/reset) and its official
 bulk route is Requester-Pays (costs money). See docs/DATA_SOURCES.md.
@@ -25,7 +31,9 @@ bulk route is Requester-Pays (costs money). See docs/DATA_SOURCES.md.
 - Google Cloud: Rayyan says signed up (2026-11-15); £1 monthly budget alert CREATED (confirmed by Rayyan). No server created yet (Phase 4).
 - `/usage` figure.
 
-## Exact next step
+## Exact next step (once data exists: fetch -> quality report -> then Phase 3 setups)
+0. Remaining Phase 2 piece: backtest runner that loops signals->Tracker over real data + walk-forward report.
+
 1. Retry Dukascopy ONE request later (single, spaced). If it works, write bi5 parser
    + slow downloader (1 worker, 1 req/2s, resumable) and verify against a known candle.
 2. Otherwise build `data/ctrader.py` once Rayyan has Open API credentials, or OANDA practice.
