@@ -10,8 +10,12 @@
   (`data/timeframes.py`), no-look-ahead resampler (`data/resample.py`),
   stale-data gate (`data/freshness.py`).
 
+## Also built (12 tests pass)
+- decode (trendbar→bid OHLC), Parquet store (idempotent merge), quality report, .env reader,
+  read-only cTrader fetcher + CLI (`fxengine.data.fetch`) — fetcher UNVERIFIED live.
+
 ## Blocker
-No M1 bid/ask history yet. Dukascopy datafeed rate-limits (429/reset) and its official
+Waiting on cTrader Open API app approval + keys. No history downloaded yet. Dukascopy datafeed rate-limits (429/reset) and its official
 bulk route is Requester-Pays (costs money). See docs/DATA_SOURCES.md.
 
 ## Waiting on Rayyan

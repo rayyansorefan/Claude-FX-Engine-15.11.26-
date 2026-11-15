@@ -41,7 +41,7 @@ def test_resample_ohlc_values():
     out = resample(df, "M5").iloc[0]
     f = df.iloc[:5]
     assert out.bid_o == f.bid_o.iloc[0] and out.bid_c == f.bid_c.iloc[-1]
-    assert out.bid_h == f.bid_h.max() and out.bid_l == f.bid_l.min() and out.n_m1 == 5
+    assert out.bid_h == f.bid_h.max() and out.bid_l == f.bid_l.min() and out.n_base == 5
 
 
 def test_resample_does_not_change_when_future_appended():

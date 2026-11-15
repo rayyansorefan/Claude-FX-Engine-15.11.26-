@@ -20,3 +20,11 @@
 
 ## Known gaps (to complete once real data lands)
 - Weekend gaps, holiday thin sessions, Dukascopy hourly gaps, DST shifts of server time.
+
+## cTrader findings (2026-11-15)
+- Trendbars are BID-only. Ask/spread must be modelled: record live bid/ask spreads from
+  the demo feed going forward and use a conservative stressed spread for history.
+- Open API = TCP/TLS port 5035 (demo.ctraderapi.com): unreachable from the cloud sandbox.
+  Fetch runs on Mac/VM: `python -m fxengine.data.fetch --years 3`. Resumable.
+- `data/ctrader.py` is UNVERIFIED against the live server until keys exist.
+- Read-only by design; a test fails if any order/trading message name appears in src/.
