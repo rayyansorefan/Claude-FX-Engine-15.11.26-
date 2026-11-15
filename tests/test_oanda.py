@@ -21,3 +21,18 @@ def test_instrument_name_and_readonly():
     src = pathlib.Path(__file__).parent.parent / "src/fxengine/data/oanda.py"
     urls = re.findall(r'f"\{HOST\}([^"]+)"', src.read_text())
     assert all("/candles" in u for u in urls)       # only the candles endpoint is ever called
+
+
+def test_backfills_when_history_starts_late(tmp_path, monkeypatch):
+    from fxengine.data import oanda, store
+    seen = []
+    late = pd.DataFrame({c: 1.0 for c in oanda.COLS},
+                        index=pd.date_range("2026-11-01", periods=3, freq="5min", tz="UTC"))
+    store.merge_save("EURUSD", "M5", late, tmp_path)
+
+    def fake_page(sess, token, sym, gran, start, **kw):
+        seen.append(start)
+        return {"candles": []}
+    monkeypatch.setattr(oanda, "get_page", fake_page)
+    oanda.download("tok", ["EURUSD"], "M5", "2023-11-01", root=tmp_path)
+    assert seen[0] == pd.Timestamp("2023-11-01", tz="UTC")      # restarted from the requested start

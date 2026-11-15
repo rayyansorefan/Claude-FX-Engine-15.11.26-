@@ -52,8 +52,13 @@ def download(token, symbols, gran, start, root=store.ROOT, pause=0.2):
     sess = requests.Session()
     now = pd.Timestamp.now(tz="UTC")
     for sym in symbols:
-        last = store.last_open(sym, gran, root)
-        t = (last + pd.Timedelta(seconds=1)) if last is not None else pd.Timestamp(start, tz="UTC")
+        have = store.load(sym, gran, root)
+        want = pd.Timestamp(start, tz="UTC")
+        # resume after the last stored candle, but BACKFILL from `start` if history begins later
+        if len(have) and have.index.min() <= want + pd.Timedelta(days=7):
+            t = have.index.max() + pd.Timedelta(seconds=1)
+        else:
+            t = want
         total = 0
         while t < now:
             df = parse_candles(get_page(sess, token, sym, gran, t))
