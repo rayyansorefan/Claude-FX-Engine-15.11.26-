@@ -99,7 +99,8 @@ def test_dashboard_shows_setups_from_the_ledger_not_a_scan_file(tmp_path, monkey
     DB.add_setup(conn, "live-1", rec)
     conn.execute("INSERT INTO events VALUES('live-1',0,'t',NULL,'PUBLISHED','p')"); conn.execute("INSERT INTO events VALUES('live-1',1,'t','PUBLISHED','TRIGGERED','f')"); conn.commit()
     html = build(root=tmp_path / "data" / "candles", out=None, now=pd.Timestamp("2025-06-03 10:00", tz="UTC"))
-    assert "EURUSD" in html and "TRIGGERED" in html and "Strength gap" in html and "published by the live loop" in html
+    assert "EURUSD" in html and "Strength gap" in html and "class='trade " in html and "UNPROVEN" in html
+    assert "<span class='state'>PENDING</span>" in html or "<span class='state'>OPEN</span>" in html   # one complete card per trade
     assert "GBPUSD</span><span class='dir short'>" not in html          # the stale scan file is ignored once a ledger exists
     assert "Strategies tested" in html and "Seven strategy ideas" not in html
 
