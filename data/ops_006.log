@@ -1,0 +1,18 @@
+report generated 2026-11-16 14:25 UTC
+EURUSD M5: 18,879 rows 2026-08-17 -> 2026-11-16 14:15
+GBPUSD M5: 18,879 rows 2026-08-17 -> 2026-11-16 14:15
+USDJPY M5: 18,871 rows 2026-08-17 -> 2026-11-16 14:15
+USDCHF M5: 18,836 rows 2026-08-17 -> 2026-11-16 14:15
+AUDUSD M5: 18,873 rows 2026-08-17 -> 2026-11-16 14:15
+USDCAD M5: 18,878 rows 2026-08-17 -> 2026-11-16 14:15
+NZDUSD M5: 18,877 rows 2026-08-17 -> 2026-11-16 14:15
+EURGBP M5: 18,880 rows 2026-08-17 -> 2026-11-16 14:15
+EURJPY M5: 18,870 rows 2026-08-17 -> 2026-11-16 14:15
+GBPJPY M5: 18,879 rows 2026-08-17 -> 2026-11-16 14:15
+cycles total 236 ok 134 | setups 5 resolved 0 | alerts 14 unsent 0
+last cycle: ('2026-11-16 14:20:20.000314+00:00', 'OK', 0.33333856666666667, '')
+last cycle: ('2026-11-16 14:15:14.991911+00:00', 'ERROR', None, 'RuntimeError: OANDA HTTP 401: {"errorMessage":"Insufficient authorization to perform request."}')
+last cycle: ('2026-11-16 14:13:38.789940+00:00', 'ERROR', None, 'RuntimeError: OANDA HTTP 401: {"errorMessage":"Insufficient authorization to perform request."}')
+docs/results/m5_rerun.md: present
+docs/results/batch3.md: present
+services fxengine/fxdash: ['active', 'active']
