@@ -61,7 +61,7 @@ fxengine.live.loop, fxengine.ops.runner"` on the fetched tree (`git show origin/
 restart require `systemctl show -p NRestarts --value fxengine` to be 0 after 90 s.
 
 H4. **Memory: the three jobs do not fit next to the two services, and the guard is not in place.** Measured peaks (synthetic, 161k rows;
-VM ~1.4x): `data.build` 281 MB, `run_batch3 E6` 352 MB, `run_m5` above 467 MB and still climbing, dashboard build 324 MB, ONE live-loop
+VM ~1.4x): `data.build` 281 MB, `run_batch3 E6` 352 MB, `run_m5` 1,258 MB (more than the VM has), dashboard build 324 MB, ONE live-loop
 cycle 351 MB. The two services alone sit near 650 MB resident because `loop.data_age_min` (`live/loop.py:41-48`), `scan.scan`,
 `loop.replay` and five functions in `dashboard/build.py` each read the FULL M5 parquet of every pair just to look at the last rows.
 Add a research job and the box swaps, which is the freeze in DAY1_AUDIT. earlyoom is not installed (no ops_012.log), and with its
@@ -140,9 +140,12 @@ L5. HANDOVER records that the off-host dead-man was declined; the System tab sho
 | fxdash build | 324 MB | resident between builds; rebuilds every 30 s |
 | data.build | 281 MB | one pair at a time; fits |
 | run_batch3 E6 | 352 MB, 112 s | fits alone, not beside the two services |
-| run_m5 (R0) | > 467 MB after 3 min, still running | does not fit; on the VM expect 650 MB+ and hours |
-Conclusion: with both services resident (~650 MB on the VM) any research job pushes the box into swap. Do H4(a)-(c) before queuing R0
-again; with (c) the services drop to ~250 MB together and R0 under a 600 MB cap fits.
+| run_m5 (R0) | 1,258 MB, 537 s | exceeds the VM's whole RAM on its own; on 226k rows expect ~1.7 GB and well over an hour |
+Conclusion: R0 alone is larger than the VM's RAM; with both services resident (~650 MB) it was never going to run, and that is the
+5-hour freeze. A 600 MB cap would simply kill it. Smallest change to run_m5.py so it fits: load M5 and the prepared frames ONE PAIR AT A
+TIME inside `run_variant` (keep only the small H4 frames resident for E1's cross-sectional signal), build `bar_arrays` once per pair and
+reuse it for the challenger (today `run_m5.py:160` rebuilds it 9,000 times), downcast the OHLC columns to float32 after loading, and
+`del` each pair's frames before the next. Expect under 400 MB. Do H4(a)-(c) as well before queuing R0 again.
 
 ## 3. Batch 3 correctness
 - Daily bars (`data/daily.py`): DST-safe (wall-clock bucket keys, 17:00 never ambiguous), forming day dropped, first partial bucket dropped. Correct.
@@ -189,7 +192,7 @@ Then: phone chart fixes (H7), uptime definition (M9), batch 3 window (M10).
 ## Could not verify
 - Whether jobs survive the oneshot unit (H1): no systemd in the review sandbox. One `tests` job on the VM settles it.
 - The VM's current state after the reset: vm-results still ends at 14:36 UTC; no post-reset report yet.
-- Peak memory of R0 on the real 226k-row files (my run was still climbing past 467 MB on 161k rows when this was written).
+- Peak memory of R0 on the real 226k-row files; measured 1,258 MB on 161k rows, the 226k figure is an extrapolation.
 - Whether `docs/trials.jsonl` exists on the VM (absent from vm-results).
 - FRED fetch end to end (sandbox cannot reach FRED); the URL finding is from the documented endpoint, the series status from FRED's own pages.
 - The cause of the second OANDA 401.
