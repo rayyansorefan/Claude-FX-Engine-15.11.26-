@@ -2,3 +2,8 @@
 # Job names are fixed in src/fxengine/ops/runner.py (history, r0, batch3, rates, tests, full_research, report).
 # Results (docs/results/*, logs, report) are pushed to branch vm-results automatically.
 001 report
+002 report
+003 history
+004 r0
+005 batch3
+006 report
