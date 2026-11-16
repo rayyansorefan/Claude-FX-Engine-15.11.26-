@@ -62,6 +62,7 @@ def test_server_rebuilds_on_every_request(tmp_path, monkeypatch):
     import threading, urllib.request
     from fxengine.dashboard import serve
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setitem(serve.STATE, "cache", 0)                         # legacy mode: rebuild synchronously on every request
     _store(tmp_path / "data" / "candles")
     srv = serve.make_server("127.0.0.1", 0)
     port = srv.server_address[1]
@@ -142,3 +143,47 @@ def test_top_bar_shows_uptime_and_next_cycle(tmp_path, monkeypatch):
     assert "uptime 90.0% (10 cycles, 7d)" in html and "next cycle 10:05 UTC" in html
     sat = db.build(root=tmp_path / "data" / "candles", out=None, now=pd.Timestamp("2026-11-21 12:00", tz="UTC"))
     assert "market opens Sun 22:00 UTC" in sat
+
+
+def test_server_never_makes_a_visitor_wait_for_a_rebuild(monkeypatch):
+    """Stale-while-revalidate: the last finished page is served instantly even while a (slow) rebuild runs."""
+    import threading, time, urllib.request
+    from fxengine.dashboard import serve
+    gate = threading.Event()
+    built = []
+
+    def slow_build(out=None, banner="", **kw):
+        built.append(1)
+        if len(built) > 1:
+            gate.wait(5)                                                   # the rebuild is slow (e.g. waiting on the price-file lock)
+        return f"<html><body>PAGE v{len(built)}</body></html>"
+    monkeypatch.setattr(serve, "build", slow_build)
+    monkeypatch.setitem(serve.STATE, "cache", 1)
+    monkeypatch.setitem(serve.STATE, "html", None)
+    monkeypatch.setitem(serve.STATE, "building", False)
+    monkeypatch.setitem(serve.STATE, "built", 0.0)
+    srv = serve.make_server("127.0.0.1", 0)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    get = lambda: urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=3).read().decode()
+    try:
+        first = get()                                                      # nothing built yet: instant "building" page, no blocking
+        assert "Building the dashboard" in first
+        for _ in range(50):                                                # the background build finishes
+            if "PAGE v1" in get():
+                break
+            time.sleep(0.05)
+        time.sleep(1.2)                                                    # cache is now stale -> triggers a slow background rebuild
+        t0 = time.time()
+        page = get()
+        assert "PAGE v1" in page and time.time() - t0 < 1.0                # served the OLD page immediately
+        assert "Page built" in page
+        gate.set()
+        for _ in range(60):
+            if "PAGE v2" in get():
+                break
+            time.sleep(0.05)
+        assert "PAGE v2" in get()
+    finally:
+        gate.set()
+        srv.shutdown()

@@ -1,9 +1,11 @@
-"""Private live dashboard: a tiny web server on YOUR machine. Every page refresh rebuilds the dashboard from the latest data.
-Only reachable from this computer (127.0.0.1) unless you choose otherwise. No cloud, no public URL, nothing uploaded.
-PYTHONPATH=src python -m fxengine.dashboard.serve [--port 8787] [--open] [--auto 60] [--refresh]
+"""Private live dashboard: a tiny web server. Reachable only where you bind it (127.0.0.1, or the VM's Tailscale IP).
+No cloud, no public URL, nothing uploaded.
+PYTHONPATH=src python -m fxengine.dashboard.serve [--port 8787] [--open] [--auto 60] [--refresh] [--cache 30]
+  --cache N    SERVE THE LAST FINISHED PAGE INSTANTLY and rebuild in the background when it is older than N seconds
+               (default 30). A rebuild reads every pair's price files, which is slow on the 1-vCPU VM and can wait on the
+               price-file lock while a download runs, so a visitor must never wait for it. --cache 0 = rebuild on every request.
   --auto N     the page reloads itself every N seconds
-  --refresh    on each page load, first fetch the newest prices from OANDA (rate-limited to once a minute)
-  --cache N    serve the same page for N seconds (the VM uses 30: a rebuild loads every pair on a 1-vCPU machine)"""
+  --refresh    on each page load, first fetch the newest prices from OANDA (rate-limited to once a minute; Mac use only)"""
 from __future__ import annotations
 import argparse, threading, time, traceback, webbrowser
 from html import escape
@@ -11,24 +13,65 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ..envfile import load_env
 from .build import build
 
-STATE = {"last_refresh": 0.0, "auto": 0, "refresh": False, "lock": threading.Lock(), "html": None, "built": 0.0, "cache": 0}
+STATE = {"last_refresh": 0.0, "auto": 0, "refresh": False, "lock": threading.Lock(), "html": None, "built": 0.0, "cache": 30,
+         "building": False, "error": None}
+WAIT_PAGE = ("<!doctype html><meta charset='utf-8'><meta http-equiv='refresh' content='4'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+             "<body style='background:#111110;color:#f0efec;font:18px system-ui;padding:40px'><b>Building the dashboard…</b>"
+             "<p style='color:#8d8c84'>The first build after a restart takes a moment on the small server. This page reloads itself.</p></body>")
+
+
+def _rebuild(note: str = ""):
+    try:
+        html = build(out=None, banner=note)
+        with STATE["lock"]:
+            STATE["html"], STATE["built"], STATE["error"] = html, time.time(), None
+    except Exception:
+        with STATE["lock"]:
+            STATE["error"] = traceback.format_exc()
+    finally:
+        with STATE["lock"]:
+            STATE["building"] = False
+
+
+def _start_rebuild(note: str = "") -> bool:
+    with STATE["lock"]:
+        if STATE["building"]:
+            return False
+        STATE["building"] = True
+    threading.Thread(target=_rebuild, args=(note,), daemon=True).start()
+    return True
+
+
+def _fetch_prices() -> str:
+    if not STATE["refresh"] or time.time() - STATE["last_refresh"] <= 60:
+        return ""
+    try:
+        from ..live import loop
+        loop.refresh(load_env().get("OANDA_TOKEN"))
+        STATE["last_refresh"] = time.time()
+        return ""
+    except Exception as e:                                  # show it, don't hide it
+        return f"<div class='sample' style='background:#d03b3b;color:#fff'>Could not fetch newest prices: {escape(str(e))[:160]}</div>"
 
 
 def render() -> str:
-    note = ""
-    if STATE["refresh"]:
+    note = _fetch_prices()
+    if STATE["cache"] <= 0:                                 # legacy: rebuild synchronously on every request
+        html = build(out=None, banner=note)
+    else:
         with STATE["lock"]:
-            if time.time() - STATE["last_refresh"] > 60:
-                try:
-                    from ..live import loop
-                    loop.refresh(load_env().get("OANDA_TOKEN"))
-                    STATE["last_refresh"] = time.time()
-                except Exception as e:                     # show it, don't hide it
-                    note = f"<div class='sample' style='background:#d03b3b;color:#fff'>Could not fetch newest prices: {escape(str(e))[:160]}</div>"
-    with STATE["lock"]:
-        if STATE["html"] is None or time.time() - STATE["built"] > STATE["cache"] or note:
-            STATE["html"], STATE["built"] = build(out=None, banner=note), time.time()
-        html = STATE["html"]
+            html, age = STATE["html"], time.time() - STATE["built"]
+        if html is None:
+            _start_rebuild(note)
+            with STATE["lock"]:
+                err = STATE["error"]
+            if err:
+                raise RuntimeError(err)
+            return WAIT_PAGE
+        if age > STATE["cache"] or note:
+            _start_rebuild(note)
+        html = html.replace("</body>", f"<div style='text-align:center;color:#8d8c84;font:12px system-ui;padding:10px'>Page built {age:.0f}s ago · "
+                                       f"rebuilds in the background every {STATE['cache']}s · reload to see the newest</div></body>", 1)
     if STATE["auto"]:
         html = html.replace("<head>", f"<head><meta http-equiv='refresh' content='{STATE['auto']}'>", 1)
     return html
@@ -64,12 +107,14 @@ def main():
     ap.add_argument("--open", action="store_true")
     ap.add_argument("--auto", type=int, default=0)
     ap.add_argument("--refresh", action="store_true")
-    ap.add_argument("--cache", type=int, default=0)
+    ap.add_argument("--cache", type=int, default=30)
     a = ap.parse_args()
     STATE.update(auto=a.auto, refresh=a.refresh, cache=a.cache)
     srv = make_server(a.host, a.port)
     url = f"http://localhost:{a.port}"
-    print(f"Dashboard running at {url}  (refresh the page to update; press Ctrl+C to stop)")
+    print(f"Dashboard running at {url}  (press Ctrl+C to stop)")
+    if a.cache > 0:
+        _start_rebuild()                                    # warm the cache at start-up so the first visit is instant
     if a.open:
         webbrowser.open(url)
     try:
