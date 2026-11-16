@@ -15,7 +15,7 @@ Written for Rayyan. Blunt on purpose. Numbers marked (PENDING) are filled in fro
 1. **OANDA token invalidated twice (13:50-14:20 and again ~14:35).** One token only; any generate/revoke elsewhere kills the VM's. The engine kept erroring; the alert after 3 errors did not tell Rayyan what to do. Fix: retry on transient 401; alert text must say exactly what to click. Still open: find the cause of the second 401.
 2. **3-year price history never ran on the VM.** The installer's background run failed silently (log directory did not exist) and nobody checked. R0 therefore saw ~90 days, all inside the hidden holdout window, and printed "no data". Fix: the installer now creates the directory; jobs report success/failure by Telegram; health report job exists.
 3. **The job queue kept going after a failure.** A failed download was followed by a re-test on half-downloaded data (hours of wasted CPU, misleading output). Fix: a failed job now pauses the queue; I can kill a job remotely.
-4. **A heavy research job starved a 1 GB VM -> the whole server froze for ~5 hours.** The live engine, dashboard and update runner all died with it. This is my design mistake: no memory budget. Fix: heavy jobs run at lowest priority and an earlyoom watchdog kills the biggest process before the machine freezes (installs on next boot).
+4. **A heavy research job starved a 1 GB VM -> the whole server froze for ~5 hours.** The live engine, dashboard and update runner all died with it. This is my design mistake: no memory budget. Fix: heavy jobs run at lowest priority and an jobs now run in capped systemd units; the earlyoom/softdog hardening job (deploy/harden.sh) is queued but had NOT run when this was written.
 5. **The dashboard rebuilt from scratch on every visit** (the VM service had no cache). Slow and fragile. Fix: serve the last finished page instantly and rebuild in the background.
 6. **No off-host dead-man alert.** Rayyan declined it. Today's 5-hour silence is exactly what it catches; the decision stands, but it should be on the record that it would have turned a 5-hour blind spot into a 10-minute one.
 
@@ -37,3 +37,11 @@ Written for Rayyan. Blunt on purpose. Numbers marked (PENDING) are filled in fro
 4. Investigate the second 401 (ask Rayyan once whether the token was regenerated).
 5. Reliability numbers go in the weekly report: cycle success, longest outage, alert latency.
 6. Not before tomorrow: GCP free-trial decision (day ~80), repository privacy, dead-man alert (Rayyan's call).
+
+## Corrections after the independent review (Astra, 2026-11-16 evening)
+- The 57% cycle figure is optimistic: cycles are only written while the loop is alive, so the 5-hour freeze is invisible in it. The dashboard now reports
+  availability as OK cycles / cycles EXPECTED from the market calendar.
+- "The engine kept erroring" during the 401 period: the watchdog never acts on a dead token by design (401 cycles still write the heartbeat); the Telegram alert is the only signal.
+- The first dashboard memory claim ("instant load") only held with the cache; the real cost was whole-file price reads (~650 MB resident). Fixed with tail reads (store.load(..., tail=N)) and small row groups.
+- R0 and batch 3 had never run on real data (history missing) and logged trials anyway; now they refuse to run on an empty research window and log a trial only after a scored run. The trial registry is seeded (docs/trials.jsonl, 10 historical trials).
+- The runner was root-equivalent through a crafted job id (command injection) and ran jobs as children of a oneshot unit that systemd kills; both fixed (id validation, quoting, transient systemd job units, unit-tracked kill, pre-checked/rolled-back deploys that cannot loop).

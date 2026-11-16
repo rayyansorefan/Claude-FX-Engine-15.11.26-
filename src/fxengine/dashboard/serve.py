@@ -2,7 +2,7 @@
 No cloud, no public URL, nothing uploaded.
 PYTHONPATH=src python -m fxengine.dashboard.serve [--port 8787] [--open] [--auto 60] [--refresh] [--cache 30]
   --cache N    SERVE THE LAST FINISHED PAGE INSTANTLY and rebuild in the background when it is older than N seconds
-               (default 30). A rebuild reads every pair's price files, which is slow on the 1-vCPU VM and can wait on the
+               (default 120). A rebuild reads every pair's price files, which is slow on the 1-vCPU VM and can wait on the
                price-file lock while a download runs, so a visitor must never wait for it. --cache 0 = rebuild on every request.
   --auto N     the page reloads itself every N seconds
   --refresh    on each page load, first fetch the newest prices from OANDA (rate-limited to once a minute; Mac use only)"""
@@ -13,8 +13,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ..envfile import load_env
 from .build import build
 
-STATE = {"last_refresh": 0.0, "auto": 0, "refresh": False, "lock": threading.Lock(), "html": None, "built": 0.0, "cache": 30,
-         "building": False, "error": None}
+STATE = {"last_refresh": 0.0, "auto": 0, "refresh": False, "lock": threading.Lock(), "html": None, "built": 0.0, "cache": 120,
+         "building": False, "error": None, "error_at": 0.0}
 WAIT_PAGE = ("<!doctype html><meta charset='utf-8'><meta http-equiv='refresh' content='4'><meta name='viewport' content='width=device-width,initial-scale=1'>"
              "<body style='background:#111110;color:#f0efec;font:18px system-ui;padding:40px'><b>Building the dashboard…</b>"
              "<p style='color:#8d8c84'>The first build after a restart takes a moment on the small server. This page reloads itself.</p></body>")
@@ -27,7 +27,7 @@ def _rebuild(note: str = ""):
             STATE["html"], STATE["built"], STATE["error"] = html, time.time(), None
     except Exception:
         with STATE["lock"]:
-            STATE["error"] = traceback.format_exc()
+            STATE["error"], STATE["error_at"] = traceback.format_exc(), time.time()
     finally:
         with STATE["lock"]:
             STATE["building"] = False
@@ -61,15 +61,20 @@ def render() -> str:
     else:
         with STATE["lock"]:
             html, age = STATE["html"], time.time() - STATE["built"]
+        backoff = time.time() - STATE["error_at"] < 60                      # a failing build is retried at most once a minute
         if html is None:
-            _start_rebuild(note)
+            if not backoff:
+                _start_rebuild(note)
             with STATE["lock"]:
                 err = STATE["error"]
             if err:
                 raise RuntimeError(err)
             return WAIT_PAGE
-        if age > STATE["cache"] or note:
+        if (age > STATE["cache"] or note) and not backoff:
             _start_rebuild(note)
+        if STATE["error"]:
+            html = html.replace("<body>", "<body><div style='background:#d03b3b;color:#fff;padding:8px;text-align:center;font:13px system-ui'>"
+                                          "The latest dashboard rebuild failed; showing the last good page. The error is in the server log.</div>", 1)
         html = html.replace("</body>", f"<div style='text-align:center;color:#8d8c84;font:12px system-ui;padding:10px'>Page built {age:.0f}s ago · "
                                        f"rebuilds in the background every {STATE['cache']}s · reload to see the newest</div></body>", 1)
     if STATE["auto"]:
@@ -107,7 +112,7 @@ def main():
     ap.add_argument("--open", action="store_true")
     ap.add_argument("--auto", type=int, default=0)
     ap.add_argument("--refresh", action="store_true")
-    ap.add_argument("--cache", type=int, default=30)
+    ap.add_argument("--cache", type=int, default=120)
     a = ap.parse_args()
     STATE.update(auto=a.auto, refresh=a.refresh, cache=a.cache)
     srv = make_server(a.host, a.port)

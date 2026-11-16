@@ -1,5 +1,7 @@
-# Owner controls for the VM job runner (each line applies once): "kill <job-id>" stops that job if running; "resume <token>" un-pauses a halted queue.
+# Owner controls for the VM job runner (each line applies once, by its literal text).
+# "kill <job-id>" stops that job (the whole unit); "resume <token>" un-pauses a halted queue (use a NEW token each time).
 kill 008
 kill 009
 kill 010
 resume 1
+resume 2

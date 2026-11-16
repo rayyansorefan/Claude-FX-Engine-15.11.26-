@@ -111,3 +111,24 @@ def test_run_experiment_end_to_end_and_challenger():
     assert len(pool["stressed"]) > 5 and set(pool) == {"stressed", "normal", "measured"}
     res = B3.M.summarise(df, pool, 12)
     assert res["stressed"]["scored"] > 3 and res["measured"]["exp_r"] is not None
+
+
+def test_fred_html_is_rejected_and_url_is_the_csv_endpoint():
+    assert "fredgraph.csv" in R.URL
+    with pytest.raises(ValueError):
+        R.parse_fred("<!DOCTYPE html><html>blocked</html>")
+
+
+def test_runners_refuse_an_empty_research_window_and_do_not_log_trials(tmp_path):
+    from fxengine.data import store
+    import numpy as np
+    m5 = synth_m5("2026-06-01", "2026-06-20")                       # entirely inside the sealed holdout (>= 2026-05-15)
+    for s in B3.M.PAIRS:
+        store.merge_save(s, "M5", m5, tmp_path / "c")
+    reg = tmp_path / "t.jsonl"
+    with pytest.raises(SystemExit) as e:
+        B3.main("all", root=tmp_path / "c", reg=reg, out=tmp_path / "o")
+    assert "research window empty" in str(e.value) and not reg.exists()
+    with pytest.raises(SystemExit) as e:
+        B3.M.main(root=tmp_path / "c", reg=reg, out=tmp_path / "o")
+    assert "research window empty" in str(e.value) and not reg.exists()

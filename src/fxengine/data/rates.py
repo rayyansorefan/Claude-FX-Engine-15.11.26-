@@ -10,12 +10,14 @@ import pandas as pd
 
 SERIES = {"USD": "IR3TIB01USM156N", "EUR": "IR3TIB01EZM156N", "GBP": "IR3TIB01GBM156N", "JPY": "IR3TIB01JPM156N",
           "CHF": "IR3TIB01CHM156N", "AUD": "IR3TIB01AUM156N", "CAD": "IR3TIB01CAM156N", "NZD": "IR3TIB01NZM156N"}
-URL = "https://fred.stlouisfed.org/graph/fred.csv?id={}"
+URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={}"
 PATH = Path("data/rates.csv")
 LAG_DAYS = 45
 
 
 def parse_fred(text: str) -> pd.Series:
+    if text.lstrip().startswith("<"):
+        raise ValueError("FRED returned an HTML page, not CSV (wrong endpoint, blocked, or rate limited)")
     df = pd.read_csv(StringIO(text))
     df.columns = ["date", "v"]
     df["v"] = pd.to_numeric(df["v"], errors="coerce")          # FRED uses '.' for missing

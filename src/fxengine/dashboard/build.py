@@ -290,14 +290,20 @@ def live_db(path="data/engine.db"):
 
 
 def ops_chips(c, now):
-    """Uptime (share of scheduled, market-open cycles that completed OK, last 7 days) and the next scheduled cycle."""
+    """Availability = cycles that completed OK / cycles EXPECTED (every 5 minutes while the market is open, since the first recorded
+    cycle, last 7 days). A frozen or switched-off server writes no rows, so it now lowers this number. Plus the next scheduled cycle."""
     from ..calendar import market_closed, next_open
     up = "n/a"
     if c is not None:
-        since = str(now - pd.Timedelta(days=7))
-        rows = c.execute("SELECT ok FROM cycles WHERE ts>=? AND status!='CLOSED'", (since,)).fetchall()
-        if rows:
-            up = f"{sum(r['ok'] for r in rows) / len(rows) * 100:.1f}% ({len(rows)} cycles, 7d)"
+        since = max(now - pd.Timedelta(days=7), now)
+        first = c.execute("SELECT MIN(ts) FROM cycles").fetchone()[0]
+        if first:
+            since = max(now - pd.Timedelta(days=7), pd.Timestamp(first))
+            slots = pd.date_range(since.ceil("5min"), now, freq="5min")
+            expected = sum(1 for t in slots if not market_closed(t))
+            ok = c.execute("SELECT COUNT(*) FROM cycles WHERE ts>=? AND ok=1 AND status!='CLOSED'", (str(since),)).fetchone()[0]
+            if expected:
+                up = f"{min(ok, expected) / expected * 100:.1f}% ({min(ok, expected)} of {expected} cycles, 7d)"
     if market_closed(now):
         nxt = f"market opens {next_open(now):%a %H:%M} UTC"
     else:
@@ -373,7 +379,7 @@ def live_panel(lp):
         return ("<div class='card c12'><h3>Live profit &amp; loss · hypothetical</h3><p class='muted'>No live ledger on this machine yet. "
                 "It appears once the live loop has run.</p></div>")
     cls = lambda v: "up" if v > 0.005 else ("dn" if v < -0.005 else "muted")
-    tiles = [("Hypothetical balance", f"£{lp['balance']:,.0f}", f"start £{START:,.0f}", cls(lp["balance"] - START)),
+    tiles = [("Hypothetical balance", f"£{lp['balance']:,.0f}", f"start £{START:,.0f} · incl. open trades, before costs", cls(lp["balance"] - START)),
              ("Today", gbp(lp["today"]), "realised, closed trades", cls(lp["today"])),
              ("This week", gbp(lp["week"]), "since Monday", cls(lp["week"])),
              ("This month", gbp(lp["month"]), "", cls(lp["month"])),
@@ -700,7 +706,7 @@ const ln=(x1,x2,y1,y2,c,w,d)=>`<line x1="${x1}" x2="${x2}" y1="${y1}" y2="${y2}"
 const tx=(x,y,t,c,a,sz,b)=>`<text x="${x}" y="${y}" fill="${c||'#c3c2b7'}" font-size="${sz||12}" text-anchor="${a||'start'}"${b?' font-weight="700"':''}>${t}</text>`;
 function tag(x,y,t,bg,fg){const w=t.length*7.4+12;return `<rect x="${x}" y="${y-11}" width="${w}" height="22" rx="4" fill="${bg}"/>`+tx(x+6,y+4,t,fg||'#fff','start',12,true)}
 function chart(d,pair,lv,o){
- const W=Math.max(300,Math.floor(o.w)),H=o.h,sm=W<560,L=sm?54:66,R=sm?92:110,T=14,AX=30,RH=o.rsi?80:0,PH=H-T-AX-(RH?RH+14:0);
+ const W=Math.max(300,Math.floor(o.w)),H=o.h,sm=W<560,L=sm?54:66,R=sm?70:110,T=14,AX=30,RH=o.rsi?80:0,PH=H-T-AX-(RH?RH+14:0);
  const N=d.c.length,n0=Math.max(0,N-o.n),n=N-n0,dp=dpOf(pair),z=o.z;
  let hi=-1e9,lo=1e9;for(let i=n0;i<N;i++){hi=Math.max(hi,d.h[i]);lo=Math.min(lo,d.l[i])}
  const rg=hi-lo;if(z){[z.entry,z.stop,z.target].concat(z.fill?[z.fill]:[]).forEach(v=>{hi=Math.max(hi,v);lo=Math.min(lo,v)})}
@@ -709,27 +715,27 @@ function chart(d,pair,lv,o){
  const y=v=>T+(hi-v)/(hi-lo)*PH,cw=(W-L-R)/n,x=i=>L+(i-n0)*cw+cw/2,F=v=>v.toFixed(dp);let s='';
  if(o.sess)for(let i=n0;i<N;i++){const h=d.hr[i],xx=L+(i-n0)*cw;if(h<7)s+=rc(xx,T,cw+.5,PH,'#d95926',.08);if(h>=7&&h<16)s+=rc(xx,T,cw+.5,PH,'#3987e5',.10);if(h>=12&&h<21)s+=rc(xx,T,cw+.5,PH,'#0ca30c',.08)}
  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4;s+=ln(L,W-R,y(v),y(v),'#2c2c2a',1)+tx(L-8,y(v)+4,F(v),'#c3c2b7','end',sm?11:12)}
- for(let k=0;k<5;k++){const j=n0+Math.round(k*(n-1)/4);s+=tx(Math.min(Math.max(x(j),L+30),W-R-30),H-8,d.t[j],'#c3c2b7','middle',sm?11:12)}
+ const nl=sm?3:5;for(let k=0;k<nl;k++){const j=n0+Math.round(k*(n-1)/(nl-1));s+=tx(Math.min(Math.max(x(j),L+26),W-R-26),H-8,sm?d.t[j].slice(0,6):d.t[j],'#c3c2b7','middle',sm?11:12)}
  let x0=L;if(z){let si=n0;for(let i=n0;i<N;i++){if(d.ts[i]>=z.created){si=i;break}}x0=L+(si-n0)*cw;
   const yE=y(z.entry),yS=y(z.stop),yT=y(z.target);
   s+=rc(x0,Math.min(yE,yS),W-R-x0,Math.abs(yS-yE),'#d03b3b',.17)+rc(x0,Math.min(yE,yT),W-R-x0,Math.abs(yT-yE),'#0ca30c',.17)}
  for(let i=n0;i<N;i++){const up=d.c[i]>=d.o[i],c=up?'#3fb950':'#ef6a5e';s+=ln(x(i),x(i),y(d.h[i]),y(d.l[i]),c,1.4)+rc(x(i)-cw*.36,y(Math.max(d.o[i],d.c[i])),cw*.72,Math.max(2,Math.abs(y(d.o[i])-y(d.c[i]))),c,1)}
  if(o.ema){let em='';[['e20','#fab219'],['e50','#5aa0f0'],['e200','#e8793f']].forEach(e=>{const p=[];for(let i=n0;i<N;i++)if(d[e[0]][i]!=null)p.push(x(i)+','+y(d[e[0]][i]));if(p.length>1)em+=`<polyline points="${p.join(' ')}" fill="none" stroke="${e[1]}" stroke-width="1.8"/>`});
   const id='cp'+(chart.k=(chart.k||0)+1);s+=`<clipPath id="${id}"><rect x="${L}" y="${T}" width="${W-R-L}" height="${PH}"/></clipPath><g clip-path="url(#${id})">${em}</g>`}
- show.forEach(q=>{const c=LC[q.k]||['#b9b8ae',q.k];s+=ln(L,W-R,y(q.v),y(q.v),c[0],1.2,'3 5')+tx(W-R+6,y(q.v)+4,c[1],c[0],'start',sm?10:12)});
+ show.forEach(q=>{const c=LC[q.k]||['#b9b8ae',q.k];s+=ln(L,W-R,y(q.v),y(q.v),c[0],1.2,'3 5')+(sm?'':tx(W-R+6,y(q.v)+4,c[1],c[0],'start',12))});
  if(z){const yE=y(z.entry),yS=y(z.stop),yT=y(z.target);
   s+=ln(L,W-R,yE,yE,'#5aa0f0',2,'7 5')+ln(L,W-R,yS,yS,'#ef4444',2.4)+ln(L,W-R,yT,yT,'#22c55e',2.4);
   s+=tag(W-R+4,yE,'ENTRY '+(sm?'':F(z.entry)),'#2563eb')+tag(W-R+4,yS,'STOP '+(sm?'':F(z.stop)),'#b91c1c')+tag(W-R+4,yT,'TARGET '+(sm?'':F(z.target)),'#15803d');
   if(z.fill){const yF=y(z.fill);s+=ln(L,W-R,yF,yF,'#f0efec',1.4,'2 3')+tx(L+6,yF-5,'filled '+F(z.fill),'#f0efec','start',12,true)}
   s+=ln(x0,x0,T,T+PH,'#f0efec',1,'3 4')+tx(Math.min(x0+4,W-R-90),T+14,'published','#f0efec','start',12);
   if(z.fill_ts){let fi=n0;for(let i=n0;i<N;i++){if(d.ts[i]>=z.fill_ts){fi=i;break}}s+=ln(x(fi),x(fi),T,T+PH,'#fab219',1.2,'3 4')+tx(Math.min(x(fi)+4,W-R-70),T+30,'filled','#fab219','start',12)}}
- const last=d.c[N-1],yl=y(last);s+=ln(L,W-R,yl,yl,'#fff',1,'1 3')+tag(W-R+4,Math.min(Math.max(yl,T+12),T+PH-12),'NOW '+F(last),'#f0efec','#111');
+ const last=d.c[N-1],yl=y(last);s+=ln(L,W-R,yl,yl,'#fff',1,'1 3')+tag(W-R+4,Math.min(Math.max(yl,T+12),T+PH-12),(sm?'NOW':'NOW '+F(last)),'#f0efec','#111');
  if(RH){const r0=T+PH+14,yr=v=>r0+(100-v)/100*RH;s+=`<rect x="${L}" y="${r0}" width="${W-R-L}" height="${RH}" fill="none" stroke="#2c2c2a"/>`+ln(L,W-R,yr(70),yr(70),'#2c2c2a',1)+ln(L,W-R,yr(30),yr(30),'#2c2c2a',1)+tx(L-8,yr(70)+4,'70','#c3c2b7','end',12)+tx(L-8,yr(30)+4,'30','#c3c2b7','end',12)+tx(W-R+6,r0+14,'RSI 14','#c3c2b7','start',12);
   const p=[];for(let i=n0;i<N;i++)if(d.rsi[i]!=null)p.push(x(i)+','+yr(d.rsi[i]));s+=`<polyline points="${p.join(' ')}" fill="none" stroke="#a89cf5" stroke-width="1.8"/>`}
  for(let i=n0;i<N;i++)s+=`<rect x="${x(i)-cw/2}" y="${T}" width="${cw}" height="${PH}" fill="transparent"><title>${d.t[i]}  O ${F(d.o[i])}  H ${F(d.h[i])}  L ${F(d.l[i])}  C ${F(d.c[i])}${d.rsi[i]!=null?'  RSI '+d.rsi[i]:''}</title></rect>`;
  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" class="chart">${s}</svg>`}
 function renderTrades(){document.querySelectorAll('.tc').forEach(el=>{const t=TR[+el.dataset.i],P=CD[t.pair]||{},tf=t.tf==='H4'?'H1':'M15',d=P[tf];if(!d){el.innerHTML='<p class="muted">No price data for this pair yet.</p>';return}
- el.innerHTML=chart(d,t.pair,LV[t.pair]||[],{w:el.clientWidth,h:el.clientWidth<560?320:380,n:tf==='M15'?(el.clientWidth<560?70:96):100,ema:true,sess:true,lvl:true,z:t})})}
+ el.innerHTML=chart(d,t.pair,LV[t.pair]||[],{w:el.clientWidth,h:el.clientWidth<560?320:380,n:el.clientWidth<560?40:(tf==='M15'?96:100),ema:true,sess:true,lvl:true,z:t})})}
 function mk(id,items,cur,fn){const el=$('#'+id);if(!el)return;el.innerHTML='';items.forEach(x=>{const b=document.createElement('button');b.textContent=x[1];if(x[0]===cur)b.className='on';b.onclick=()=>fn(x[0]);el.appendChild(b)})}
 function pickPair(p){S.pair=p;S.mode='single';showTab('charts');window.scrollTo(0,0)}
 function renderCharts(){const cv=$('#cv');if(!cv||!cv.clientWidth)return;
@@ -740,9 +746,9 @@ function renderCharts(){const cv=$('#cv');if(!cv||!cv.clientWidth)return;
  const P=CD[S.pair]||{},lv=LV[S.pair]||[],w=cv.clientWidth,
  leg='<div class="legend"><span><i style="background:#fab219"></i>EMA 20</span><span><i style="background:#5aa0f0"></i>EMA 50</span><span><i style="background:#e8793f"></i>EMA 200</span><span><i style="background:#d95926;opacity:.6"></i>Asia</span><span><i style="background:#3987e5;opacity:.7"></i>London</span><span><i style="background:#0ca30c;opacity:.7"></i>New York (UTC)</span></div>';
  const tradeZ=TR.find(t=>t.pair===S.pair&&(t.state==='OPEN'||t.state==='PENDING'));
- if(S.mode==='mtf'){let h='';['H4','H1','M15'].forEach(t=>{if(P[t])h+=`<div style="margin-bottom:10px"><b style="font-size:15px">${S.pair} · ${t}</b>${chart(P[t],S.pair,lv,{w:w,h:300,n:Math.min(S.n,100),ema:S.ema,sess:S.sess&&t!=='H4',lvl:S.lvl,z:tradeZ||null})}</div>`});cv.innerHTML=leg+h;return}
+ if(S.mode==='mtf'){let h='';['H4','H1','M15'].forEach(t=>{if(P[t])h+=`<div style="margin-bottom:10px"><b style="font-size:15px">${S.pair} · ${t}</b>${chart(P[t],S.pair,lv,{w:w,h:300,n:Math.min(S.n,w<560?40:100),ema:S.ema,sess:S.sess&&t!=='H4',lvl:S.lvl,z:tradeZ||null})}</div>`});cv.innerHTML=leg+h;return}
  const d=P[S.tf];if(!d){cv.innerHTML='<p class="muted">No data for this pair/timeframe.</p>';return}
- cv.innerHTML=leg+chart(d,S.pair,lv,{w:w,h:w<560?430:560,n:S.n,rsi:true,ema:S.ema,sess:S.sess&&S.tf!=='H4',lvl:S.lvl,z:tradeZ||null})}
+ cv.innerHTML=leg+chart(d,S.pair,lv,{w:w,h:w<560?430:560,n:w<560?Math.min(S.n,60):S.n,rsi:true,ema:S.ema,sess:S.sess&&S.tf!=='H4',lvl:S.lvl,z:tradeZ||null})}
 function renderAll(){const on=document.querySelector('.tab.on');if(!on)return;if(on.id==='overview')renderTrades();if(on.id==='charts')renderCharts()}
 let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(renderAll,150)});
 showTab((location.hash||'#overview').slice(1)||'overview');
@@ -849,7 +855,8 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
             okp = (sum(r["ok"] for r in sess_ok) / len(sess_ok) * 100) if sess_ok else 100
             lat = dbc.execute("SELECT COUNT(*) n, SUM(late) l, MAX(latency_s) m, AVG(latency_s) a FROM alerts").fetchone()
             from ..audit.run import audit_text
-            sysc = (f"<div class='kpis'><div class='kpi'><small>Cycle success (24h)</small><b>{okp:.1f}%</b><span>gate A target 99%</span></div>"
+            sysc = ("<p class='warnt'>No external alert if this server dies (healthchecks.io was declined). The numbers below only cover the time the engine was alive; the uptime chip counts missing cycles as failures.</p>"
+            f"<div class='kpis'><div class='kpi'><small>Cycle success (24h)</small><b>{okp:.1f}%</b><span>gate A target 99%</span></div>"
                     f"<div class='kpi'><small>Alerts sent</small><b>{lat['n']}</b><span>{lat['l'] or 0} late</span></div>"
                     f"<div class='kpi'><small>Avg alert latency</small><b>{(lat['a'] or 0):.0f}s</b><span>worst {(lat['m'] or 0):.0f}s</span></div></div>"
                     f"<div class='legend'><span><i style='background:{TOK['GOOD']}'></i>ok</span><span><i style='background:{TOK['WARN']}'></i>stale data</span>"

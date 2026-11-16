@@ -24,7 +24,7 @@ def lines():
                    f"| setups {q('select count(*) from setups')} resolved {q('select count(*) from outcomes')} | alerts {q('select count(*) from alerts')} "
                    f"unsent {q('select count(*) from alerts where ok=0')}")
         last = c.execute("select ts,status,data_age_min,note from cycles order by ts desc limit 3").fetchall()
-        out += [f"last cycle: {r}" for r in last]
+        out += [f"last cycle: {r[0][:19]}  {r[1]:6}  data age {'n/a' if r[2] is None else f'{r[2]:.1f} min'}  {r[3][:70]}" for r in last]
     for f in ("docs/results/m5_rerun.md", "docs/results/batch3.md"):
         out.append(f"{f}: {'present' if Path(f).exists() else 'missing'}")
     try:

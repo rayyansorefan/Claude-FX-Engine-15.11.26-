@@ -73,4 +73,5 @@ until the sealed holdout and a forward test confirm it. Run on the VM via the M5
   UNVERIFIED until run on the VM); a value is treated as known 45 days after the start of its month. E7 runs ONLY if rates have no gaps.
 - Challenger: random Friday close, random direction, same stop/target ATR multiples and a hold length drawn from the real holds; for E7 it
   also earns/pays carry by its random direction, so structural carry in the mechanics is not credited to the strategy.
+- Stop-out semantics (stated 2026-11-16 after review, no change to code): `prev` is the weekly STATE, not the position. After a stop-out E6/E7 stay flat until the state next flips (the sign must change away and back), they do NOT re-enter on the next Friday. Changing that would be a rule change and a new trial.
 - Costs reported in three modes as in R0 (stressed, normal, measured). Gate: unchanged. Trials: E6 +1, E7 +1.

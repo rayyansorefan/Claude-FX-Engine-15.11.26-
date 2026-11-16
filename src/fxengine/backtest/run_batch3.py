@@ -49,7 +49,7 @@ def run_experiment(name, frames, m5s, sigs, diffs=None, rng=None):
             if j0 >= len(m5):
                 continue
             s = _setup(name, sym, row, created, hold)
-            res = {k: track_arrays(s, arr, FIVE, cm, j0, j0 + hold + 400) for k, cm in M.COSTS.items()}
+            res = {k: track_arrays(s, arr, FIVE, cm, j0, j0 + hold + 867) for k, cm in M.COSTS.items()}
             ts = res["stressed"]
             free_until = ts.events[-1]["ts"]
             o = ts.outcome
@@ -82,14 +82,15 @@ def run_experiment(name, frames, m5s, sigs, diffs=None, rng=None):
             s = _setup("challenger", sym, row, created, hold)
             arr = bar_arrays(m5)
             for k, cm in M.COSTS.items():
-                t = track_arrays(s, arr, FIVE, cm, j0, j0 + hold + 400)
+                t = track_arrays(s, arr, FIVE, cm, j0, j0 + hold + 867)
                 if t.outcome and t.fill is not None:
                     pool[k].append(t.outcome.net_r)
     return df, pool
 
 
 def render(res) -> str:
-    return M.render(res).replace("# R0 — M5-resolution rerun (same rules, same data window, holdout untouched)",
+    extra = ("\nRates: last observation per currency " + json.dumps(res["rates_last_observation"]) + " (45-day publication lag applied)\n") if res.get("rates_last_observation") else ""
+    return extra + M.render(res).replace("# R0 — M5-resolution rerun (same rules, same data window, holdout untouched)",
                                  "# Batch 3 — daily momentum (E6) and carry+momentum (E7), scored on M5 bars (holdout untouched)")
 
 
@@ -99,8 +100,10 @@ def main(which="all", root="data/candles", reg=Path("docs/trials.jsonl"), out=Pa
         d = store.load(sym, "M5", Path(root))
         if d.empty:
             sys.exit(f"missing M5 data for {sym}")
-        d = split.research_view(d)
-        m5s[sym] = d
+        m5s[sym] = split.research_view(d)
+    if all(len(d) == 0 for d in m5s.values()):
+        sys.exit("research window empty: the stored prices start after the holdout boundary. Run the history job first.")
+    for sym, d in m5s.items():
         frames[sym] = v3.prep(daily_bars_ny(d))
     seen = {json.loads(l)["name"] for l in reg.open()} if reg.exists() else set()
     todo = {"E6": "E6_tsmom_daily", "E7": "E7_carry_mom_daily"}
@@ -116,10 +119,8 @@ def main(which="all", root="data/candles", reg=Path("docs/trials.jsonl"), out=Pa
                 print("E7 skipped: rates have gaps (fix the data first):", json.dumps(gaps)[:800]); run.remove("E7")
             else:
                 diffs = {s: R.pair_diff(s, R.rates_known_at(rt, frames[s].close_time)).set_axis(frames[s].index) for s in M.PAIRS}
-    for k in run:
-        if todo[k] not in seen:
-            trials.log_trial(todo[k], {"batch": 3}, "pre-registered in docs/EXPERIMENTS.md", reg=reg)
-    n_trials = trials.count_trials(reg)
+    pending = [k for k in run if todo[k] not in seen]                 # logged only AFTER a run that actually scored setups
+    n_trials = trials.count_trials(reg) + len(pending)
     res = dict(version="B3", n_trials=n_trials, period=[str(min(f.index.min() for f in m5s.values())), str(max(f.index.max() for f in m5s.values()))], summary={})
     for k in run:
         sigs = ({s: v3.tsmom_signals(frames[s]) for s in M.PAIRS} if k == "E6"
@@ -130,6 +131,11 @@ def main(which="all", root="data/candles", reg=Path("docs/trials.jsonl"), out=Pa
         if len(df):
             Path("data").mkdir(exist_ok=True)
             df.to_parquet(f"data/batch3_{k}.parquet")
+    for k in pending:
+        if any(s["scored"] for s in res["summary"].get(todo[k], {}).values()):
+            trials.log_trial(todo[k], {"batch": 3}, "pre-registered in docs/EXPERIMENTS.md", reg=reg)
+    if diffs is not None:
+        res["rates_last_observation"] = {c: str(g["last"]) for c, g in R.gap_report(rt).items()}      # so the publication lag can be checked
     out.mkdir(parents=True, exist_ok=True)
     json.dump(res, open(out / "batch3.json", "w"), indent=1, default=str)
     (out / "batch3.md").write_text(render(res))

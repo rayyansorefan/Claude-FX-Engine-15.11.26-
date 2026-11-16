@@ -1,0 +1,10 @@
+{"name": "asia_breakout", "note": "historical trial, seeded from the Mac registry so the multiple-testing divisor is complete", "params": {"seeded": "2026-11-16"}}
+{"name": "trend_pullback", "note": "historical trial, seeded from the Mac registry so the multiple-testing divisor is complete", "params": {"seeded": "2026-11-16"}}
+{"name": "range_reversion", "note": "historical trial, seeded from the Mac registry so the multiple-testing divisor is complete", "params": {"seeded": "2026-11-16"}}
+{"name": "asia_breakout@H1", "note": "historical trial, seeded from the Mac registry so the multiple-testing divisor is complete", "params": {"seeded": "2026-11-16"}}
+{"name": "trend_pullback@H1", "note": "historical trial, seeded from the Mac registry so the multiple-testing divisor is complete", "params": {"seeded": "2026-11-16"}}
+{"name": "range_reversion@H1", "note": "historical trial, seeded from the Mac registry so the multiple-testing divisor is complete", "params": {"seeded": "2026-11-16"}}
+{"name": "E1_strength@H4", "note": "historical trial, seeded from the Mac registry so the multiple-testing divisor is complete", "params": {"seeded": "2026-11-16"}}
+{"name": "E2_donchian@H4", "note": "historical trial, seeded from the Mac registry so the multiple-testing divisor is complete", "params": {"seeded": "2026-11-16"}}
+{"name": "E4_donchian_trail@H4", "note": "historical trial, seeded from the Mac registry so the multiple-testing divisor is complete", "params": {"seeded": "2026-11-16"}}
+{"name": "E5_strength_trail@H4", "note": "historical trial, seeded from the Mac registry so the multiple-testing divisor is complete", "params": {"seeded": "2026-11-16"}}

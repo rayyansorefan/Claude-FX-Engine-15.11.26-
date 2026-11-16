@@ -127,6 +127,8 @@ def run_variant(variant, tfname, frames_tf, m5s, use_invalidation=True, rng=None
         sym, risk_atr, rr, kind, exp_b, hold = real[rng.integers(len(real))]
         d, m5 = frames_tf[sym], m5s[sym]
         p = int(rng.integers(v1.WARMUP, len(d) - 1))
+        if variant.startswith("v1") and not (7 <= d.index[p].hour <= 19):      # v1 only trades 07-19 UTC; sample the same hours
+            continue
         a = float(d.atr.iloc[p])
         if not a > 0:
             continue
@@ -189,14 +191,15 @@ def main(root="data/candles", reg=Path("docs/trials.jsonl"), out=Path("docs/resu
         d = store.load(sym, "M5", Path(root))
         if d.empty:
             sys.exit(f"missing M5 data for {sym}")
-        d = split.research_view(d)
-        m5s[sym] = d
+        m5s[sym] = split.research_view(d)
+    if all(len(d) == 0 for d in m5s.values()):
+        sys.exit("research window empty: the stored prices start after the holdout boundary. Run the history job first.")
+    for sym, d in m5s.items():
         for tf in frames:
             frames[tf][sym] = prepare(resample(d, tf, base="M5"))
     seen = {json.loads(l)["name"] for l in reg.open()} if reg.exists() else set()
-    if "R0_m5_rerun_measured_cost" not in seen:
-        trials.log_trial("R0_m5_rerun_measured_cost", {"resolution": "M5", "costs": list(COSTS)}, "R0: same rules at M5 resolution + measured-cost mode", reg=reg)
-    n_trials = trials.count_trials(reg)
+    pending = "R0_m5_rerun_measured_cost" not in seen                 # logged only AFTER a run that actually scored setups
+    n_trials = trials.count_trials(reg) + (1 if pending else 0)
     res = dict(version="R0-M5", n_trials=n_trials, period=[str(min(f.index.min() for f in m5s.values())), str(max(f.index.max() for f in m5s.values()))], summary={})
     for variant, tfname in variants:
         df, pool = run_variant(variant, tfname, frames[tfname], m5s)
@@ -205,6 +208,8 @@ def main(root="data/candles", reg=Path("docs/trials.jsonl"), out=Path("docs/resu
         if len(df):
             Path("data").mkdir(exist_ok=True)
             df.to_parquet(f"data/m5_rerun_{variant}.parquet")
+    if pending and any(s["scored"] for modes in res["summary"].values() for s in modes.values()):
+        trials.log_trial("R0_m5_rerun_measured_cost", {"resolution": "M5", "costs": list(COSTS)}, "R0: same rules at M5 resolution + measured-cost mode", reg=reg)
     out.mkdir(parents=True, exist_ok=True)
     json.dump(res, open(out / "m5_rerun.json", "w"), indent=1, default=str)
     (out / "m5_rerun.md").write_text(render(res))
