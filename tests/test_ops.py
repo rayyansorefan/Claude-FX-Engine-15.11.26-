@@ -114,3 +114,20 @@ def test_failed_job_halts_queue_until_resume_and_kill_stops_running_job(repo, mo
     assert len(killed) == 1 and "55" in killed[0]
     R.tick(fake)
     assert len([c for c in fake.cmds if "pkill" in c]) == 1
+
+
+def test_root_job_runs_as_root_and_heavy_jobs_are_niced(repo, monkeypatch):
+    assert "harden" in R.JOBS_ROOT and "earlyoom" in R.JOBS_ROOT["harden"]
+    q, bad = R.parse_jobs("001 harden\n002 bash\n")
+    assert q == [("001", "harden")] and len(bad) == 1
+    for name in ("r0", "batch3", "history"):
+        assert "nice -n 19" in R.JOBS[name]
+    calls = []
+
+    def fake(cmd, as_user=True, timeout=600):
+        calls.append(as_user)
+        return types.SimpleNamespace(stdout="9\n", stderr="", returncode=0)
+    st = {"done": {}, "running": None}
+    R.start_job("001", "harden", st, fake)
+    R.start_job("002", "report", dict(st), fake)
+    assert calls == [False, True]                           # maintenance as root, ordinary jobs as the owner

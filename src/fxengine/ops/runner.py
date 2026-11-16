@@ -11,10 +11,15 @@ REPO = Path(os.environ.get("OPS_DIR", Path(__file__).resolve().parents[3]))
 USER = os.environ.get("OPS_USER", "")
 PY = f"{REPO}/.venv/bin/python"
 ENV = f"cd {REPO} && export PYTHONPATH=src && "
+NICE = "nice -n 19 ionice -c3 "                       # heavy research must never starve the live engine or the dashboard
+JOBS_ROOT = {                                          # maintenance that needs root; fixed strings, no quotes, run as root
+    # earlyoom kills the biggest process when RAM runs low, so a runaway research job dies instead of freezing the whole VM
+    "harden": "apt-get install -y earlyoom && systemctl enable --now earlyoom && systemctl is-active earlyoom",
+}
 JOBS = {
-    "history": ".venv/bin/python -m fxengine.data.oanda_cli --start 2023-11-01 && .venv/bin/python -m fxengine.data.build",
-    "r0": ".venv/bin/python -m fxengine.backtest.run_m5",
-    "batch3": "bash deploy/run_batch3.sh",
+    "history": NICE + ".venv/bin/python -m fxengine.data.oanda_cli --start 2023-11-01 && " + NICE + ".venv/bin/python -m fxengine.data.build",
+    "r0": NICE + ".venv/bin/python -m fxengine.backtest.run_m5",
+    "batch3": NICE + "bash deploy/run_batch3.sh",
     "rates": ".venv/bin/python -m fxengine.data.rates",
     "tests": ".venv/bin/pytest -q",
     "full_research": "bash deploy/research_once.sh",
@@ -51,7 +56,7 @@ def parse_jobs(text: str):
         parts = line.split()
         if len(parts) != 2:
             bad.append(line)
-        elif parts[1] not in JOBS:
+        elif parts[1] not in JOBS and parts[1] not in JOBS_ROOT:
             bad.append(line)
         else:
             out.append((parts[0], parts[1]))
@@ -106,8 +111,9 @@ def start_job(jid, name, st, run=sh):
     log = REPO / "data" / f"ops_{jid}.log"
     rc = REPO / "data" / f"ops_{jid}.rc"
     log.parent.mkdir(parents=True, exist_ok=True)
-    cmd = f"{ENV}nohup bash -c '{JOBS[name]}; echo $? > {rc}' > {log} 2>&1 & echo $!"
-    r = run(cmd)
+    body = JOBS_ROOT[name] if name in JOBS_ROOT else JOBS[name]
+    cmd = f"{ENV}nohup bash -c '{body}; echo $? > {rc}' > {log} 2>&1 & echo $!"
+    r = run(cmd, as_user=name not in JOBS_ROOT)
     pid = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else None
     st["running"] = {"id": jid, "job": name, "pid": pid, "start": time.time()}
     save_state(st)
