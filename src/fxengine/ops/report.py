@@ -27,6 +27,12 @@ def lines():
         out += [f"last cycle: {r}" for r in last]
     for f in ("docs/results/m5_rerun.md", "docs/results/batch3.md"):
         out.append(f"{f}: {'present' if Path(f).exists() else 'missing'}")
+    try:
+        mi = {l.split(":")[0]: int(l.split()[1]) for l in open("/proc/meminfo")}
+        out.append(f"memory: {mi['MemAvailable'] // 1024} MB available of {mi['MemTotal'] // 1024} MB; swap used {(mi['SwapTotal'] - mi['SwapFree']) // 1024} MB")
+        out.append("uptime: " + open("/proc/uptime").read().split()[0] + " s; load: " + open("/proc/loadavg").read().split()[0])
+    except Exception:
+        pass
     svc = subprocess.run(["systemctl", "is-active", "fxengine", "fxdash"], capture_output=True, text=True).stdout.split()
     out.append(f"services fxengine/fxdash: {svc}")
     return out

@@ -183,7 +183,7 @@ def run_cycle(conn, env, now, send=telegram.send, root=store.ROOT, refresh_fn=No
         n = int(DB.kv_get(conn, "consec_err", 0)) + 1
         DB.kv_set(conn, "consec_err", n)
         if n == 3 or n % ERR_ALERT_EVERY == 0:
-            send(env, f"🔴 ENGINE ERROR x{n} · {note[:80]}\nLoop is alive but failing: no new setups until this is fixed.")
+            send(env, M.engine_error(n, note))
     else:
         if int(DB.kv_get(conn, "consec_err", 0)) >= 3:
             send(env, "🟢 ENGINE RECOVERED · cycles are succeeding again")

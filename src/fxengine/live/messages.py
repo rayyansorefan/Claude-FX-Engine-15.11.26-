@@ -52,3 +52,12 @@ def stale(age) -> str:
 
 def recovered() -> str:
     return "🟢 DATA FRESH AGAIN · scanning resumed"
+
+
+def engine_error(n: int, note: str) -> str:
+    """Error alert that says exactly what to do. A 401 means the OANDA token is no longer valid (only one can exist)."""
+    if "401" in note:
+        return (f"🔴 OANDA TOKEN REJECTED (x{n}) · no new prices\n"
+                "Fix: OANDA > Manage API Access > Revoke > Generate. On the server run: bash ~/fx/deploy/set_token.sh\n"
+                "Do not create a token anywhere else, it cancels this one.")
+    return f"🔴 ENGINE ERROR x{n} · {note[:80]}\nLoop is alive but failing: no new setups until this is fixed."

@@ -121,8 +121,8 @@ def test_error_alerts_at_three_then_every_three_hours_and_recovery(tmp_path):
         raise RuntimeError("OANDA HTTP 401")
     for _ in range(loop.ERR_ALERT_EVERY * 2):
         loop.run_cycle(conn, {}, now, send=bag, root=tmp_path, refresh_fn=boom)
-    errs = [m for m in bag.msgs if "ENGINE ERROR" in m]
-    assert len(errs) == 3 and "x3" in errs[0] and "alive" in errs[0] and "x72" in errs[-1]
+    errs = [m for m in bag.msgs if "ENGINE ERROR" in m or "TOKEN REJECTED" in m]
+    assert len(errs) == 3 and "x3" in errs[0] and "set_token.sh" in errs[0] and "x72" in errs[-1]
     loop.run_cycle(conn, {}, now, send=bag, root=tmp_path, refresh_fn=lambda: None, scan_fn=lambda: [])
     assert any("RECOVERED" in m for m in bag.msgs)
     assert conn.execute("SELECT status FROM cycles ORDER BY rowid DESC LIMIT 1").fetchone()["status"] == "OK"
@@ -153,3 +153,18 @@ def test_halfway_advice_uses_only_bars_closed_at_the_event(tmp_path):
     a_now, _ = loop.advice(t, m5, m5.index[-1] + pd.Timedelta(minutes=5))
     assert a_event in ("HOLD", "EXIT") and a_now in ("HOLD", "EXIT")
     assert loop.advice(t, m5, at) == loop.advice(t, m5.iloc[:70], at)       # later bars change nothing
+
+
+def test_401_alert_says_exactly_what_to_do_and_audit_reports_longest_silence(tmp_path):
+    from fxengine.live import messages as M, db as DB
+    from fxengine.audit.run import audit_text
+    t = M.engine_error(3, 'RuntimeError: OANDA HTTP 401: {"errorMessage":"Insufficient authorization"}')
+    assert "TOKEN REJECTED" in t and "set_token.sh" in t and "Do not create a token anywhere else" in t
+    assert "401" not in M.engine_error(3, "KeyError: x") and "ENGINE ERROR" in M.engine_error(3, "KeyError: x")
+    conn = DB.connect(str(tmp_path / "e.db"))
+    now = pd.Timestamp("2026-11-16 20:00", tz="UTC")
+    for ts in ("2026-11-16 12:00", "2026-11-16 12:05", "2026-11-16 17:05", "2026-11-16 17:10"):        # a 5-hour silence
+        conn.execute("INSERT INTO cycles VALUES(?,?,?,?,?,?)", (str(pd.Timestamp(ts, tz="UTC")), 1, "OK", 0.5, 1.0, ""))
+    conn.commit()
+    txt = audit_text(conn, now)
+    assert "longest silence 24h 300 min" in txt and len(txt.split("\n")) == 5

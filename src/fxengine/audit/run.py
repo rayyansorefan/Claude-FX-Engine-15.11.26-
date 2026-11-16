@@ -4,6 +4,8 @@ import pandas as pd
 
 def audit_text(conn, now) -> str:
     since = str(now - pd.Timedelta(hours=12))
+    ts = [pd.Timestamp(r["ts"]) for r in conn.execute("SELECT ts FROM cycles WHERE ts>=? ORDER BY ts", (str(now - pd.Timedelta(hours=24)),))]
+    gap = max(((b - a).total_seconds() / 60 for a, b in zip(ts, ts[1:])), default=0)
     cyc = conn.execute("SELECT ok, status FROM cycles WHERE ts>=? AND status!='CLOSED'", (since,)).fetchall()
     n, good = len(cyc), sum(r["ok"] for r in cyc)
     last = conn.execute("SELECT data_age_min FROM cycles WHERE data_age_min IS NOT NULL ORDER BY ts DESC LIMIT 1").fetchone()
@@ -17,7 +19,7 @@ def audit_text(conn, now) -> str:
     ev = conn.execute("SELECT COUNT(*) FROM events WHERE idx>0").fetchone()[0]
     al = conn.execute("SELECT COUNT(*) FROM alerts WHERE idx>0").fetchone()[0]
     return ("🔎 AUDIT\n"
-            f"Cycles 12h: {good}/{n} ok · data age {'n/a' if not last else f'{last[0]:.0f} min'}\n"
+            f"Cycles 12h: {good}/{n} ok · longest silence 24h {gap:.0f} min · data age {'n/a' if not last else f'{last[0]:.0f} min'}\n"
             f"Setups {len(setups)} · resolved {len(resolved)} · lifecycle gaps {len(no_events) + len(bad_res)}\n"
             f"Events {ev} vs alerts {al} · unsent {unsent}\n"
             f"Late alerts {late} · worst latency {'n/a' if mx is None else f'{mx:.0f}s'}")
