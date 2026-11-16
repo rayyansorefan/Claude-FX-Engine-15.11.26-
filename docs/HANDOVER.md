@@ -23,3 +23,7 @@ give copy-paste blocks, never paste secrets, never tell him to run things on his
 ## Rules to keep
 Pre-register before running; one change at a time; log every trial (docs/trials.jsonl); never loosen gates silently (tell Rayyan);
 never open the holdout casually; zero LLM at runtime; no order placement ever.
+
+## Owner decisions (2026-11-16)
+- Healthchecks.io dead-man alert: DECLINED by Rayyan. Do not nag. Known gap: no off-host alert if the VM dies; Gate A (reliability) cannot be fully met without it. Report that honestly in weekly reports.
+- Git history rewrite for the early cTrader-details note: DECLINED. Leave history as is; do not ask again. Never write personal remarks into the repo.
