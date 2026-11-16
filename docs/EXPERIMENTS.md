@@ -61,3 +61,16 @@ until the sealed holdout and a forward test confirm it. Run on the VM via the M5
   the rate data and its known gaps are documented in docs/DATA_SOURCES.md. Do not run E7 before that.
 ## Decision rule: identical to batch 1 (penalised CI low > 0, n >= 100 independent pair-days, >= 3 positive years, not one pair,
 ## and it must beat the random-entry challenger). Report the minimum detectable effect with every number.
+
+## Batch 3 — implementation details frozen 2026-11-16 (code: setups/v3.py, backtest/run_batch3.py; written BEFORE any batch-3 result)
+- Daily bars close 17:00 New York (data/daily.py, DST-safe). E6 and E7 act only on the Friday 17:00 NY close.
+- A signal is emitted when the weekly position state CHANGES to long/short; the position is held until the state next changes, the 3-ATR
+  stop, or 84 calendar days. Entry is a stop order at the Friday close (the weekend gap is paid). ATR = Wilder ATR(20) on daily bars.
+- E6 state = sign(close / close[-60 daily bars] - 1). E6 uses the old pessimistic swap model (0.3 pip/night against) in all cost modes.
+- E7 state = sign(60-day return) if the rate differential (base minus quote, percentage points, KNOWN at the close) has the same sign and
+  |differential| >= 1.0pp, else flat. Carry per position = direction x differential - 1.0pp/year broker mark-up, earned/paid per calendar day
+  held on the entry price (differential frozen at entry). Rates: OECD 3-month interbank, monthly, from FRED (series ids in data/rates.py,
+  UNVERIFIED until run on the VM); a value is treated as known 45 days after the start of its month. E7 runs ONLY if rates have no gaps.
+- Challenger: random Friday close, random direction, same stop/target ATR multiples and a hold length drawn from the real holds; for E7 it
+  also earns/pays carry by its random direction, so structural carry in the mechanics is not credited to the strategy.
+- Costs reported in three modes as in R0 (stressed, normal, measured). Gate: unchanged. Trials: E6 +1, E7 +1.

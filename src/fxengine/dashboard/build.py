@@ -296,16 +296,18 @@ def live_candidates(c):
     return [json.loads(r["record"]) | {"run_id": r["run_id"], "state": r["state"] or "PENDING"} for r in rows]
 
 
-def m5_rerun_rows():
-    f = Path("docs/results/m5_rerun.json")
-    if not f.exists():
-        return []
-    res = json.load(open(f))
+def m5_rerun_rows(files=("docs/results/m5_rerun.json", "docs/results/batch3.json")):
+    """Rows from the M5-resolution reruns: R0 (the seven original variants) and batch 3 (E6 momentum, E7 carry)."""
     rows = []
-    for v, modes in res["summary"].items():
-        for k, m in modes.items():
-            if m["scored"]:
-                rows.append((v, k, m["scored"], m["pair_days"], m["win"] * 100, m["exp_r"], m["penalised_lo"], m["mde_r"], m["challenger_p95"], m["challenger_pct"], m["passes"]))
+    for fn in files:
+        f = Path(fn)
+        if not f.exists():
+            continue
+        res = json.load(open(f))
+        for v, modes in res["summary"].items():
+            for k, m in modes.items():
+                if m["scored"]:
+                    rows.append((v, k, m["scored"], m["pair_days"], m["win"] * 100, m["exp_r"], m["penalised_lo"], m["mde_r"], m["challenger_p95"], m["challenger_pct"], m["passes"]))
     return rows
 
 
@@ -574,7 +576,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
 <div class='tab' id='research'><div class='grid'>
 <div class='card c12'><h3>Every strategy tested · 2023-11 to 2026-05 · stressed costs · last 6 months held back untouched</h3>
 <table class='tbl'><tr><th>Strategy</th><th>Timeframe</th><th class='r'>Trades</th><th class='r'>Win</th><th class='r'>Net R / trade</th><th class='r'>Penalised low</th><th>Verdict</th></tr>{rtab or "<tr><td colspan='7' class='muted'>No result files found on this machine.</td></tr>"}</table>
-<div class='card c12'><h3>R0 · same rules rescored on 5-minute bars (the live loop's method), three cost models, random-entry challenger</h3>
+<div class='card c12'><h3>M5-resolution results · R0 (original seven rules) and batch 3 (E6 daily momentum, E7 carry) · three cost models · random-entry challenger</h3>
 <table class='tbl'><tr><th>Variant</th><th>Costs</th><th class='r'>Trades</th><th class='r'>Pair-days</th><th class='r'>Win</th><th class='r'>Net R</th><th class='r'>Penalised low</th><th class='r'>MDE</th><th class='r'>Challenger p95 / real pct</th><th>Verdict</th></tr>{m5tab or "<tr><td colspan='10' class='muted'>Not run yet: PYTHONPATH=src .venv/bin/python -m fxengine.backtest.run_m5 on the VM.</td></tr>"}</table>
 <p class='muted'>MDE = the smallest real edge this sample could have detected. "No edge" means "no edge above the MDE". Challenger = the same stop/target rules at random times; a strategy must beat its 95th percentile.</p></div>
 <p class='muted'>R = one planned stop distance (your £{RISK:.0f}). Penalised low = lower end of the 95% range after the multiple-testing penalty ({trials} tests). A strategy passes only if that number is above zero, with at least 100 trades, positive in at least 3 calendar years and not carried by one pair.</p></div>

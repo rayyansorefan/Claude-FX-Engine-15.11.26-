@@ -9,6 +9,7 @@
 **Live dashboard server:** `start_dashboard.command` (double-click) or `python -m fxengine.dashboard.serve --open --refresh --auto 60` -> http://localhost:8787, rebuilds on every refresh.
 **Audit prompt for an independent reviewer: docs/AUDIT_PROMPT.md. VM install (deploy/install_vm.sh) awaiting Rayyan's Step 1-3.**
 **LIVE 2026-11-15:** VM fx-engine (GCP e2-micro us-central1) runs engine+dashboard+watchdog via systemd; dashboard on port 8787 over Tailscale (private IP, not published); research_once.sh started manually (check data/research_once.log). GCP free trial ends ~day 90: Rayyan must decide on upgrade (flag at day ~80). Waiting on Astra/Fable review feedback.
+**2026-11-16 UNCOMMITTED WORK (tool outage blocked git/pytest):** batch 3 written but NOT yet tested or pushed: tracker `carry_annual`, data/daily.py, data/rates.py, setups/v3.py, backtest/run_batch3.py, tests/test_batch3.py, deploy/run_batch3.sh, dashboard batch3 rows, EXPERIMENTS.md E6/E7 details. NEXT: `PYTHONPATH=src .venv/bin/pytest -q` (fix any failure), then commit + push to `engine`. VM finding: the 3-year M5 download never ran on the VM (only ~90 days, all inside the sealed holdout window => R0 saw "no data"); Rayyan was told to run `oanda_cli --start 2023-11-01 && data.build && backtest.run_m5` in the background.
 **Current phase:** 2 machinery DONE (no real-data results yet); Phase 1 data BLOCKED on cTrader keys (app status: 'Submitted')
 **Last updated:** 2026-11-15
 

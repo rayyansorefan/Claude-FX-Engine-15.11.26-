@@ -33,6 +33,8 @@ class Setup:                      # immutable published record
     invalidation: Optional[float] = None   # pre-trigger: bar CLOSE beyond this cancels (long: <=, short: >=)
     score: float = 0.0
     reason: str = ""
+    carry_annual: Optional[float] = None   # E7 only: net financing as a fraction of price per year, signed for THIS position
+                                           # (positive = the position EARNS carry after broker mark-up). None = old adverse-swap model.
 
     @property
     def risk(self) -> float:
@@ -167,7 +169,11 @@ class Tracker:
             o.fill, o.exit = self.fill, exit_px
             o.gross_r = sign * (exit_px - self.fill) / risk
             nights = rollover_nights(self.fill_time, exit_time or ts)
-            o.cost_r = (self.cost.commission(s.symbol) + nights * self.cost.swap_per_night(s.symbol)) / risk
+            if s.carry_annual is None:
+                swap_price = nights * self.cost.swap_per_night(s.symbol)
+            else:                                   # carry earned (negative cost) or paid, per calendar day held
+                swap_price = -s.carry_annual * s.entry * nights / 365.0
+            o.cost_r = (self.cost.commission(s.symbol) + swap_price) / risk
             o.net_r = o.gross_r - o.cost_r
             o.bars_held, o.mfe_r, o.mae_r = self.bars_held, self.mfe, self.mae
         self.outcome = o
