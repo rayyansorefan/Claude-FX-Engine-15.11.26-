@@ -1,0 +1,30 @@
+2026-11-16 14:28:44,108 EURUSD M5 +226841 rows
+2026-11-16 14:29:37,191 GBPUSD M5 +226796 rows
+2026-11-16 14:30:27,627 HTTP 504, retry in 2s
+2026-11-16 14:30:40,814 USDJPY M5 +226785 rows
+2026-11-16 14:31:10,163 HTTP 504, retry in 2s
+2026-11-16 14:31:20,691 HTTP 504, retry in 2s
+2026-11-16 14:31:29,392 HTTP 504, retry in 2s
+2026-11-16 14:31:59,661 HTTP 504, retry in 2s
+2026-11-16 14:32:07,353 USDCHF M5 +226657 rows
+2026-11-16 14:32:15,351 HTTP 504, retry in 2s
+2026-11-16 14:32:34,547 HTTP 504, retry in 2s
+2026-11-16 14:33:18,625 AUDUSD M5 +226791 rows
+2026-11-16 14:34:08,559 USDCAD M5 +226816 rows
+2026-11-16 14:34:51,400 NZDUSD M5 +226763 rows
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/rayyansorefan/fx/src/fxengine/data/oanda_cli.py", line 23, in <module>
+    main()
+    ~~~~^^
+  File "/home/rayyansorefan/fx/src/fxengine/data/oanda_cli.py", line 19, in main
+    download(tok, a.pairs.split(","), a.gran, a.start)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rayyansorefan/fx/src/fxengine/data/oanda.py", line 64, in download
+    df = parse_candles(get_page(sess, token, sym, gran, t))
+                       ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rayyansorefan/fx/src/fxengine/data/oanda.py", line 47, in get_page
+    raise RuntimeError(f"OANDA HTTP {r.status_code}: {r.text[:200]}")   # 401 => bad token
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: OANDA HTTP 401: {"errorMessage":"Insufficient authorization to perform request."}
