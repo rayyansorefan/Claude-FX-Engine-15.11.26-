@@ -27,3 +27,6 @@ never open the holdout casually; zero LLM at runtime; no order placement ever.
 ## Owner decisions (2026-11-16)
 - Healthchecks.io dead-man alert: DECLINED by Rayyan. Do not nag. Known gap: no off-host alert if the VM dies; Gate A (reliability) cannot be fully met without it. Report that honestly in weekly reports.
 - Git history rewrite for the early cTrader-details note: DECLINED. Leave history as is; do not ask again. Never write personal remarks into the repo.
+
+## Ops runner (2026-11-16)
+- After `deploy/install_ops.sh` the VM pulls `engine` every 2 min (restart + auto-rollback), runs ONE queued job at a time from ops/jobs.txt (names whitelisted in src/fxengine/ops/runner.py), and pushes results to branch `vm-results` (git fetch origin vm-results to read). Telegram gets start/finish lines. Prefer this over asking Rayyan to paste commands.

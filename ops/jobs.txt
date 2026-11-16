@@ -1,0 +1,4 @@
+# Queue of whitelisted VM jobs. One per line: "<unique-id> <job-name>". Each id runs exactly once, in order, one at a time.
+# Job names are fixed in src/fxengine/ops/runner.py (history, r0, batch3, rates, tests, full_research, report).
+# Results (docs/results/*, logs, report) are pushed to branch vm-results automatically.
+001 report
