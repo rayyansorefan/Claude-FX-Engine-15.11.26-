@@ -1,1 +1,2 @@
 {"name": "R0_m5_rerun_measured_cost", "note": "R0: same rules at M5 resolution + measured-cost mode", "params": {"costs": ["stressed", "normal", "measured"], "resolution": "M5"}}
+{"name": "E6_tsmom_daily", "note": "pre-registered in docs/EXPERIMENTS.md", "params": {"batch": 3}}

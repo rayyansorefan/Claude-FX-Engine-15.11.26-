@@ -1,0 +1,57 @@
+{
+ "version": "B3",
+ "n_trials": 2,
+ "period": [
+  "NaT",
+  "NaT"
+ ],
+ "summary": {
+  "E6_tsmom_daily": {
+   "stressed": {
+    "signals": 0,
+    "scored": 0,
+    "pair_days": null,
+    "win": null,
+    "exp_r": null,
+    "ci95_cluster": null,
+    "penalised_lo": null,
+    "mde_r": null,
+    "by_year": {},
+    "challenger_pct": null,
+    "challenger_p95": null,
+    "challenger_mean": null,
+    "passes": false
+   },
+   "normal": {
+    "signals": 0,
+    "scored": 0,
+    "pair_days": null,
+    "win": null,
+    "exp_r": null,
+    "ci95_cluster": null,
+    "penalised_lo": null,
+    "mde_r": null,
+    "by_year": {},
+    "challenger_pct": null,
+    "challenger_p95": null,
+    "challenger_mean": null,
+    "passes": false
+   },
+   "measured": {
+    "signals": 0,
+    "scored": 0,
+    "pair_days": null,
+    "win": null,
+    "exp_r": null,
+    "ci95_cluster": null,
+    "penalised_lo": null,
+    "mde_r": null,
+    "by_year": {},
+    "challenger_pct": null,
+    "challenger_p95": null,
+    "challenger_mean": null,
+    "passes": false
+   }
+  }
+ }
+}

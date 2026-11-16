@@ -1,0 +1,50 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/rayyansorefan/fx/src/fxengine/data/rates.py", line 74, in <module>
+    main()
+    ~~~~^^
+  File "/home/rayyansorefan/fx/src/fxengine/data/rates.py", line 68, in main
+    df = fetch_rates()
+  File "/home/rayyansorefan/fx/src/fxengine/data/rates.py", line 31, in fetch_rates
+    cols[ccy] = parse_fred(getter(URL.format(sid)))
+                ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rayyansorefan/fx/src/fxengine/data/rates.py", line 19, in parse_fred
+    df = pd.read_csv(StringIO(text))
+  File "/home/rayyansorefan/fx/.venv/lib/python3.13/site-packages/pandas/io/parsers/readers.py", line 1866, in read_csv
+    return _read(filepath_or_buffer, kwds)
+  File "/home/rayyansorefan/fx/.venv/lib/python3.13/site-packages/pandas/io/parsers/readers.py", line 429, in _read
+    return parser.read(nrows)
+           ~~~~~~~~~~~^^^^^^^
+  File "/home/rayyansorefan/fx/.venv/lib/python3.13/site-packages/pandas/io/parsers/readers.py", line 3061, in read
+    ) = self._engine.read(  # type: ignore[attr-defined]
+        ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        nrows
+        ^^^^^
+    )
+    ^
+  File "/home/rayyansorefan/fx/.venv/lib/python3.13/site-packages/pandas/io/parsers/c_parser_wrapper.py", line 297, in read
+    chunks = self._reader.read_low_memory(nrows)
+  File "pandas/_libs/parsers.pyx", line 1041, in pandas._libs.parsers.TextReader.read_low_memory
+  File "pandas/_libs/parsers.pyx", line 1182, in pandas._libs.parsers.TextReader._read_rows
+  File "pandas/_libs/parsers.pyx", line 1149, in pandas._libs.parsers.TextReader._tokenize_rows
+  File "pandas/_libs/parsers.pyx", line 1170, in pandas._libs.parsers.TextReader._check_tokenize_status
+  File "pandas/_libs/parsers.pyx", line 4400, in pandas._libs.parsers.raise_parser_error
+pandas.errors.ParserError: Error tokenizing data. C error: Expected 1 fields in line 6, saw 2
+
+RATES FETCH FAILED: E7 will be skipped (see message above)
+E7 skipped: no rates file. Run: python -m fxengine.data.rates
+E6 {'stressed': (0, None, False), 'normal': (0, None, False), 'measured': (0, None, False)}
+# Batch 3 — daily momentum (E6) and carry+momentum (E7), scored on M5 bars (holdout untouched)
+
+Trials logged: 2 (alpha = 0.05/2). Period NaT -> NaT.
+Pass = penalised cluster-bootstrap lower bound > 0 AND mean above the random-entry challenger's 95th percentile.
+MDE = smallest true edge (R/trade) this sample could have detected; read 'no edge' as 'no edge above MDE'.
+
+| variant | cost | signals | scored | pair-days | win | net R | 95% cluster CI | penalised low | MDE | challenger mean / p95 / real pct | years | pass |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| E6_tsmom_daily | stressed | 0 | 0 | | | | | | | | | no data |
+| E6_tsmom_daily | normal | 0 | 0 | | | | | | | | | no data |
+| E6_tsmom_daily | measured | 0 | 0 | | | | | | | | | no data |
+
+batch 3 done
