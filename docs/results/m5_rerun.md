@@ -1,0 +1,26 @@
+# R0 — M5-resolution rerun (same rules, same data window, holdout untouched)
+
+Trials logged: 1 (alpha = 0.05/1). Period NaT -> NaT.
+Pass = penalised cluster-bootstrap lower bound > 0 AND mean above the random-entry challenger's 95th percentile.
+MDE = smallest true edge (R/trade) this sample could have detected; read 'no edge' as 'no edge above MDE'.
+
+| variant | cost | signals | scored | pair-days | win | net R | 95% cluster CI | penalised low | MDE | challenger mean / p95 / real pct | years | pass |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| v1_M15 | stressed | 0 | 0 | | | | | | | | | no data |
+| v1_M15 | normal | 0 | 0 | | | | | | | | | no data |
+| v1_M15 | measured | 0 | 0 | | | | | | | | | no data |
+| v1_H1 | stressed | 0 | 0 | | | | | | | | | no data |
+| v1_H1 | normal | 0 | 0 | | | | | | | | | no data |
+| v1_H1 | measured | 0 | 0 | | | | | | | | | no data |
+| E1_strength | stressed | 0 | 0 | | | | | | | | | no data |
+| E1_strength | normal | 0 | 0 | | | | | | | | | no data |
+| E1_strength | measured | 0 | 0 | | | | | | | | | no data |
+| E2_donchian | stressed | 0 | 0 | | | | | | | | | no data |
+| E2_donchian | normal | 0 | 0 | | | | | | | | | no data |
+| E2_donchian | measured | 0 | 0 | | | | | | | | | no data |
+| E4_donchian_trail | stressed | 0 | 0 | | | | | | | | | no data |
+| E4_donchian_trail | normal | 0 | 0 | | | | | | | | | no data |
+| E4_donchian_trail | measured | 0 | 0 | | | | | | | | | no data |
+| E5_strength_trail | stressed | 0 | 0 | | | | | | | | | no data |
+| E5_strength_trail | normal | 0 | 0 | | | | | | | | | no data |
+| E5_strength_trail | measured | 0 | 0 | | | | | | | | | no data |
