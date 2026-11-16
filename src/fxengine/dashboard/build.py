@@ -32,7 +32,7 @@ def health(root, now):
     """Age of the OLDEST pair's last closed M5 candle (same rule as the live loop); market hours in New York time."""
     ages = []
     for s in PAIRS:
-        m5 = store.load(s, "M5", root)
+        m5 = store.load(s, "M5", root, tail=3)
         if len(m5):
             ages.append((now - (m5.index[-1] + pd.Timedelta(minutes=5))).total_seconds() / 60)
     age = max(ages) if ages else None
@@ -45,7 +45,7 @@ def health(root, now):
 
 
 def strength(root):
-    fr = {s: store.load(s, "H4", root).tail(150) for s in PAIRS}
+    fr = {s: store.load(s, "H4", root, tail=150) for s in PAIRS}
     fr = {k: v for k, v in fr.items() if len(v)}
     if not fr:
         return None
@@ -60,7 +60,7 @@ def strength(root):
 def vol_by_hour(root):
     ds = []
     for s in PAIRS[:6]:
-        d = store.load(s, "H1", root).tail(24 * 60)
+        d = store.load(s, "H1", root, tail=24 * 60)
         if len(d):
             ds.append(((d.bid_h - d.bid_l) / pip(s)).groupby(d.index.hour).mean())
     if not ds:
@@ -85,7 +85,7 @@ def scale(vals, lo, hi, a, b):
 
 
 def mini_chart(c, root):
-    d = store.load(c["pair"], c["tf"], root).tail(48)
+    d = store.load(c["pair"], c["tf"], root, tail=48)
     px = list(d.bid_c) or [c["entry"]]
     lo = min(px + [c["stop"], c["target"]]); hi = max(px + [c["stop"], c["target"]])
     pad = (hi - lo) * .08
@@ -410,7 +410,7 @@ def trades_data(c, root, now, closed_n=6):
             t, m5 = L.replay(dict(rec, run_id=r["run_id"]), root)
             fill, fill_ts = t.fill, (None if t.fill_time is None else int(pd.Timestamp(t.fill_time).timestamp()))
         except Exception:
-            m5 = store.load(pair, "M5", root)
+            m5 = store.load(pair, "M5", root, tail=3)
         if len(m5):
             price = float(m5.bid_c.iloc[-1])
             ask = float(m5.ask_c.iloc[-1]) if "ask_c" in m5.columns else price
@@ -526,11 +526,11 @@ def candle_data(root):
     out = {}
     for sym in PAIRS:
         out[sym] = {}
-        m5 = store.load(sym, "M5", root)
-        srcs = {"H1": store.load(sym, "H1", root), "H4": store.load(sym, "H4", root)}
+        m5 = store.load(sym, "M5", root, tail=8000)
+        srcs = {"H1": store.load(sym, "H1", root, tail=1500), "H4": store.load(sym, "H4", root, tail=1500)}
         if len(m5):
             from ..data.resample import resample
-            srcs["M15"] = resample(m5.tail(30000), "M15", base="M5")
+            srcs["M15"] = resample(m5, "M15", base="M5")
         for tf, d in srcs.items():
             if d.empty:
                 continue
@@ -590,13 +590,13 @@ def pair_table(root, cands, lv):
     srow = st.iloc[-1] if st is not None and len(st) else None
     rows = ""
     for sym in PAIRS:
-        m5 = store.load(sym, "M5", root)
+        m5 = store.load(sym, "M5", root, tail=7000)
         if m5.empty:
             continue
         p = pip(sym)
         last = m5.iloc[-1]
-        h1 = store.load(sym, "H1", root)
-        h4 = store.load(sym, "H4", root)
+        h1 = store.load(sym, "H1", root, tail=1500)
+        h4 = store.load(sym, "H4", root, tail=1500)
         m15 = resample(m5.tail(6000), "M15", base="M5")
         levels = {x["k"]: x["v"] for x in lv.get(sym, []) if x["k"] in ("PDH", "PDL", "DO")}
         chg = "" if "DO" not in levels else f"{(last.bid_c / levels['DO'] - 1) * 100:+.2f}%"
@@ -856,7 +856,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
                     f"<span><i style='background:{TOK['CRIT']}'></i>error</span><span><i style='background:#4a4a46'></i>market closed</span></div><div class='cyc'>{sq}</div>"
                     f"<pre class='mono muted' style='white-space:pre-wrap'>{e(audit_text(dbc, now))}</pre>")
     for sym in PAIRS:
-        m5k = store.load(sym, "M5", root)
+        m5k = store.load(sym, "M5", root, tail=6000)
         levels.setdefault(sym, [])
         levels[sym] = key_levels(m5k) + levels[sym]
     ptable = pair_table(root, cands, levels)

@@ -61,3 +61,18 @@ def test_no_order_messages_in_src():
         txt = f.read_text()
         for b in bad:
             assert b not in txt, (f, b)
+
+
+def test_tail_reads_return_only_the_newest_rows_and_match_the_full_file(tmp_path):
+    import numpy as np
+    from fxengine.data import store
+    idx = pd.date_range("2025-01-06", periods=9000, freq="5min", tz="UTC")
+    df = pd.DataFrame({c: np.arange(9000, dtype=float) for c in ("bid_o", "bid_h", "bid_l", "bid_c", "ask_o", "ask_h", "ask_l", "ask_c", "volume")}, index=idx)
+    store.merge_save("EURUSD", "M5", df, tmp_path)
+    full = store.load("EURUSD", "M5", tmp_path)
+    t = store.load("EURUSD", "M5", tmp_path, tail=100)
+    assert len(full) == 9000 and len(t) == 100 and t.index[-1] == full.index[-1] and (t.index == full.index[-100:]).all()
+    assert store.last_open("EURUSD", "M5", tmp_path) == full.index[-1]
+    assert len(store.load("EURUSD", "M5", tmp_path, tail=5000)) == 5000 and store.load("NOPE", "M5", tmp_path, tail=3).empty
+    import pyarrow.parquet as pq
+    assert pq.ParquetFile(store.path("EURUSD", "M5", tmp_path)).metadata.num_row_groups > 1       # small row groups were written

@@ -29,7 +29,7 @@ def refresh(token, root=store.ROOT, start=None):
     start = start or (pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=90)).strftime("%Y-%m-%d")
     oanda.download(token, SC.PAIRS, "M5", start, root, pause=0.05)
     for sym in SC.PAIRS:
-        m5 = store.load(sym, "M5", root)
+        m5 = store.load(sym, "M5", root, tail=6500)
         if m5.empty:
             continue
         sub = m5[m5.index >= m5.index[max(0, len(m5) - 6000)].ceil("4h")]      # start on a 4h boundary: no partial buckets
@@ -41,7 +41,7 @@ def data_age_min(root, now):
     """Age of the OLDEST pair's last closed M5 candle: every stored pair must be fresh, not just EURUSD."""
     ages = []
     for sym in SC.PAIRS:
-        m5 = store.load(sym, "M5", root)
+        m5 = store.load(sym, "M5", root, tail=3)
         if len(m5):
             ages.append((now - (m5.index[-1] + FIVE)).total_seconds() / 60)
     return max(ages) if ages else None
@@ -61,8 +61,11 @@ def to_setup(c) -> Setup:
 
 def replay(c, root, cost=CostModel(True)):
     """Deterministic replay of one setup over stored M5 bars: the same track_arrays driver as the research rerun."""
-    m5 = store.load(c["pair"], "M5", root)
-    m5 = m5[m5.index + FIVE > pd.Timestamp(c["created"])]
+    created = pd.Timestamp(c["created"])
+    m5 = store.load(c["pair"], "M5", root, tail=4500)                    # ~15 days: enough for any live setup
+    if len(m5) and m5.index[0] > created - FIVE and len(m5) >= 4500:    # older than the window: fall back to the whole file
+        m5 = store.load(c["pair"], "M5", root)
+    m5 = m5[m5.index + FIVE > created]
     t = track_arrays(to_setup(c), bar_arrays(m5), FIVE, cost)
     return t, m5
 

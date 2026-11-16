@@ -49,13 +49,13 @@ def scan(root=store.ROOT, now=None, max_age_min=None):
     px, frames = {}, {"H1": {}, "H4": {}}
     last_m5 = None
     for sym in PAIRS:
-        m5 = store.load(sym, "M5", root)
+        m5 = store.load(sym, "M5", root, tail=3)
         if m5.empty:
             continue
         px[sym] = float(m5.bid_c.iloc[-1])
         last_m5 = max(last_m5 or m5.index[-1], m5.index[-1])
         for tf in ("H1", "H4"):
-            frames[tf][sym] = prepare(store.load(sym, tf, root))
+            frames[tf][sym] = prepare(store.load(sym, tf, root, tail=3000))
     age_min = None if last_m5 is None else (now - (last_m5 + pd.Timedelta(minutes=5))).total_seconds() / 60
     cands = []
     if age_min is not None and age_min <= (max_age_min or 90):
