@@ -1,3 +1,4 @@
+import json
 import numpy as np, pandas as pd
 from fxengine.data import store
 from fxengine.live import scan as sc
@@ -101,3 +102,27 @@ def test_dashboard_shows_setups_from_the_ledger_not_a_scan_file(tmp_path, monkey
     assert "EURUSD" in html and "TRIGGERED" in html and "Strength gap" in html and "published by the live loop" in html
     assert "GBPUSD</span><span class='dir short'>" not in html          # the stale scan file is ignored once a ledger exists
     assert "Strategies tested" in html and "Seven strategy ideas" not in html
+
+
+def test_live_pnl_panel_numbers_and_charts_tab(tmp_path, monkeypatch):
+    from fxengine.live import db as DB
+    monkeypatch.chdir(tmp_path)
+    end = _store(tmp_path / "data" / "candles")
+    now = end + pd.Timedelta(minutes=3)
+    c = DB.connect("data/engine.db")
+    for i, (reason, r) in enumerate([("TARGET", 1.9), ("STOP", -1.1), ("EXPIRED", 0.0)]):
+        rec = dict(pair="EURUSD", direction="long", type="E1_strength", tf="H1", created=str(now - pd.Timedelta(hours=5 - i)),
+                   expires=str(now), entry=1.1, stop=1.09, target=1.12, entry_kind="stop", stop_pips=100, lots_for_20gbp_risk=.1, score=1.0)
+        DB.add_setup(c, f"r{i}", rec)
+        c.execute("INSERT INTO events VALUES(?,?,?,?,?,?)", (f"r{i}", 0, rec["created"], None, "PUBLISHED", "published"))
+        c.execute("INSERT INTO outcomes VALUES(?,?,?,?,?,?)", (f"r{i}", reason, r, 1.1, 1.1, str(now - pd.Timedelta(minutes=30 + i))))
+    c.commit()
+    html = db.build(root=tmp_path / "data" / "candles", out=None, now=now)
+    assert "Live profit &amp; loss" in html
+    assert "+£16" in html                                     # (1.9 - 1.1) R x £20 = +£16 realised today
+    assert "£2,516" in html                                   # hypothetical balance
+    assert "1 · 1" in html and "50% win rate" in html
+    assert "expired or invalidated without a trade 1" in html
+    assert "All pairs at a glance" in html and "pickPair" in html and "To PDH" in html
+    lv = json.loads(html.split("id='lv'>")[1].split("</script>")[0])
+    assert {x["k"] for x in lv["EURUSD"]} >= {"PDH", "PDL", "DO"}
