@@ -126,3 +126,18 @@ def test_live_pnl_panel_numbers_and_charts_tab(tmp_path, monkeypatch):
     assert "All pairs at a glance" in html and "pickPair" in html and "To PDH" in html
     lv = json.loads(html.split("id='lv'>")[1].split("</script>")[0])
     assert {x["k"] for x in lv["EURUSD"]} >= {"PDH", "PDL", "DO"}
+
+
+def test_top_bar_shows_uptime_and_next_cycle(tmp_path, monkeypatch):
+    from fxengine.live import db as DB
+    monkeypatch.chdir(tmp_path)
+    end = _store(tmp_path / "data" / "candles")
+    now = pd.Timestamp("2026-11-17 10:02", tz="UTC")                       # a Tuesday: market open
+    c = DB.connect("data/engine.db")
+    for i in range(10):
+        c.execute("INSERT INTO cycles VALUES(?,?,?,?,?,?)", (str(now - pd.Timedelta(minutes=5 * (i + 1))), 1 if i != 3 else 0, "OK" if i != 3 else "STALE", 1.0, 2.0, ""))
+    c.commit()
+    html = db.build(root=tmp_path / "data" / "candles", out=None, now=now)
+    assert "uptime 90.0% (10 cycles, 7d)" in html and "next cycle 10:05 UTC" in html
+    sat = db.build(root=tmp_path / "data" / "candles", out=None, now=pd.Timestamp("2026-11-21 12:00", tz="UTC"))
+    assert "market opens Sun 22:00 UTC" in sat

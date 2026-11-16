@@ -289,6 +289,23 @@ def live_db(path="data/engine.db"):
     return c
 
 
+def ops_chips(c, now):
+    """Uptime (share of scheduled, market-open cycles that completed OK, last 7 days) and the next scheduled cycle."""
+    from ..calendar import market_closed, next_open
+    up = "n/a"
+    if c is not None:
+        since = str(now - pd.Timedelta(days=7))
+        rows = c.execute("SELECT ok FROM cycles WHERE ts>=? AND status!='CLOSED'", (since,)).fetchall()
+        if rows:
+            up = f"{sum(r['ok'] for r in rows) / len(rows) * 100:.1f}% ({len(rows)} cycles, 7d)"
+    if market_closed(now):
+        nxt = f"market opens {next_open(now):%a %H:%M} UTC"
+    else:
+        n = now.floor("5min") + pd.Timedelta(minutes=5, seconds=20)
+        nxt = f"{n:%H:%M} UTC"
+    return up, nxt
+
+
 def live_candidates(c):
     """Setups the live loop has published and not yet resolved, straight from the ledger (never from a scan file)."""
     rows = c.execute("""SELECT s.run_id, s.record, (SELECT to_state FROM events e WHERE e.run_id=s.run_id ORDER BY idx DESC LIMIT 1) AS state
@@ -619,6 +636,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     live = live_record(dbc) if dbc else []
     live_net = sum(r["net_r"] or 0 for r in live if r["reason"] in ("TARGET", "STOP", "TIMEOUT"))
     lp = live_pnl(dbc, root, now) if dbc else None
+    uptime, next_cycle = ops_chips(dbc, now)
     livehtml = live_panel(lp)
     jr = J.load()
     j_bal = START + (jr.pnl_gbp.sum() if jr is not None else 0)
@@ -710,7 +728,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     cd = json.dumps(candle_data(root)).replace("</", "<\\/")
     page = f"""<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <title>FX Engine</title><style>{CSS}</style></head><body><div class='wrap'>{banner}
-<div class='top'><span class='brand'>FX ENGINE</span><span class='pill {state}'>{icon} {label}</span><span class='chip'>data age {'n/a' if age is None else f'{age:.0f} min'}</span><span class='chip'>RESEARCH ONLY · NO ORDERS</span>
+<div class='top'><span class='brand'>FX ENGINE</span><span class='pill {state}'>{icon} {label}</span><span class='chip'>data age {'n/a' if age is None else f'{age:.0f} min'}</span><span class='chip'>uptime {uptime}</span><span class='chip'>next cycle {next_cycle}</span><span class='chip'>RESEARCH ONLY · NO ORDERS</span>
 <span class='sp'></span><span class='mono muted'>{now:%a %d %b %Y %H:%M} UTC</span></div>
 <div class='tabs'><button data-t='overview'>Overview</button><button data-t='research'>Research</button><button data-t='charts'>Charts</button><button data-t='positions'>Positions</button><button data-t='performance'>Performance</button><button data-t='journal'>Journal</button><button data-t='system'>System</button></div>
 <div class='tab' id='overview'><div class='grid' style='margin-bottom:12px'>{livehtml}</div><div class='kpis'>{kpis}</div>
