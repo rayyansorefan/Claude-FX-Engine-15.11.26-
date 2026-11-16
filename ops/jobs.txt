@@ -1,6 +1,6 @@
 # Queue of whitelisted VM jobs. One per line: "<unique-id> <job-name>". Each id runs exactly once, in order, one at a time.
+# A failed job PAUSES the queue (Telegram tells you); ops/control.txt can kill a job or resume the queue.
 # Job names are fixed in src/fxengine/ops/runner.py (history, r0, batch3, rates, tests, full_research, report).
-# Results (docs/results/*, logs, report) are pushed to branch vm-results automatically.
 001 report
 002 report
 003 history
@@ -9,5 +9,4 @@
 006 report
 007 history
 008 r0
-009 batch3
-010 report
+011 report

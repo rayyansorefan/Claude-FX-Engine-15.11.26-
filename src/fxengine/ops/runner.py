@@ -120,13 +120,15 @@ def finalize(st):
     rc = int(rcf.read_text().strip()) if rcf.exists() and rcf.read_text().strip().lstrip("-").isdigit() else -1
     st["done"][r["id"]] = {"job": r["job"], "rc": rc, "minutes": round((time.time() - r["start"]) / 60, 1)}
     st["running"] = None
+    if rc != 0:
+        st["halted"] = True                                  # a failed job stops the queue until the owner resumes it
     save_state(st)
     tail = ""
     log = REPO / "data" / f"ops_{r['id']}.log"
     if log.exists():
         lines = [l for l in log.read_text().splitlines() if l.strip()]
         tail = lines[-1][:90] if lines else ""
-    notify(f"{'✅' if rc == 0 else '❌'} JOB {'done' if rc == 0 else 'FAILED'} · {r['job']} · {st['done'][r['id']]['minutes']} min\n{tail}")
+    notify(f"{'✅' if rc == 0 else '❌'} JOB {'done' if rc == 0 else 'FAILED, queue paused'} · {r['job']} · {st['done'][r['id']]['minutes']} min\n{tail}")
     return rc
 
 
@@ -146,6 +148,32 @@ def push_results(run=sh) -> str:
     return "pushed" if r.returncode == 0 else "push-failed: " + r.stderr[-200:]
 
 
+def control(st, run=sh):
+    """ops/control.txt (owner-controlled via git): `kill <job-id>` stops that job if it is running; `resume <token>` lets a
+    halted queue continue (only while nothing is running). Each line is applied once."""
+    f = REPO / "ops" / "control.txt"
+    if not f.exists():
+        return
+    done = st.setdefault("control_done", [])
+    for line in f.read_text().splitlines():
+        parts = line.split("#")[0].split()
+        if len(parts) != 2 or line.split("#")[0].strip() in done:
+            continue
+        verb, arg = parts
+        key = line.split("#")[0].strip()
+        if verb == "kill":
+            r = st.get("running")
+            if r and r["id"] == arg:
+                run(f"pkill -TERM -P {r['pid']}; kill -TERM {r['pid']}", as_user=False)
+                notify(f"🛑 JOB stopped · {r['job']} (id {r['id']})")
+            done.append(key)
+        elif verb == "resume" and not st.get("running"):
+            st["halted"] = False
+            notify("▶️ JOB queue resumed")
+            done.append(key)
+    save_state(st)
+
+
 def tick(run=sh):
     st = load_state()
     sync = sync_code(run)
@@ -154,7 +182,8 @@ def tick(run=sh):
     if st["running"] and not pid_alive(st["running"]["pid"]):
         finalize(st)
         finished = True
-    if not st["running"] and jobs_file.exists():
+    control(st, run)
+    if not st["running"] and not st.get("halted") and jobs_file.exists():
         queue, bad = parse_jobs(jobs_file.read_text())
         for jid, name in queue:
             if jid not in st["done"]:

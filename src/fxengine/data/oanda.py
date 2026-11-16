@@ -39,10 +39,10 @@ def get_page(sess, token, symbol, gran, start, count=5000, retries=5):
                      headers={"Authorization": f"Bearer {token}"}, timeout=30)
         if r.status_code == 200:
             return r.json()
-        if r.status_code in (429, 500, 502, 503, 504):
+        if r.status_code in (429, 500, 502, 503, 504) or (r.status_code == 401 and _ < retries - 3):
             log.warning("HTTP %s, retry in %ss", r.status_code, wait)
-            time.sleep(wait)
-            wait *= 2
+            time.sleep(wait if r.status_code != 401 else 30)
+            wait = min(wait * 2, 60)
             continue
         raise RuntimeError(f"OANDA HTTP {r.status_code}: {r.text[:200]}")   # 401 => bad token
     raise RuntimeError("OANDA: gave up after retries")

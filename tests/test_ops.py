@@ -86,3 +86,31 @@ def test_sync_deploys_restarts_and_rolls_back_on_failure(repo):
     assert R.sync_code(same) == "up-to-date"
     docs_only = Fake({"git rev-parse HEAD": "a", "git rev-parse origin/engine": "b", "git diff --name-only": "docs/x.md\n"})
     assert R.sync_code(docs_only) == "deployed" and not any("systemctl restart" in c for c in docs_only.cmds)
+
+
+def test_failed_job_halts_queue_until_resume_and_kill_stops_running_job(repo, monkeypatch):
+    (repo / "ops" / "jobs.txt").write_text("001 history\n002 r0\n")
+    fake = Fake({"git rev-parse HEAD": "a", "git rev-parse origin/engine": "a", "echo $!": "55\n"})
+    alive = {"v": False}
+    monkeypatch.setattr(R, "pid_alive", lambda pid: alive["v"])
+    (repo / "data").mkdir(exist_ok=True)
+    R.tick(fake)                                           # 001 starts (pid dead -> next tick finalizes it)
+    (repo / "data" / "ops_001.rc").write_text("1\n")       # it FAILED
+    R.tick(fake)
+    st = json.loads((repo / "data" / "ops_state.json").read_text())
+    assert st["done"]["001"]["rc"] == 1 and st["halted"] is True and st["running"] is None
+    assert any("queue paused" in s for s in sent)
+    n = len([c for c in fake.cmds if "nohup" in c])
+    R.tick(fake)
+    assert len([c for c in fake.cmds if "nohup" in c]) == n                    # halted: 002 does NOT start after a failure
+    (repo / "ops" / "control.txt").write_text("resume 1\n")
+    R.tick(fake)
+    assert len([c for c in fake.cmds if "nohup" in c]) == n + 1                # resumed: 002 starts
+    # kill: only acts on the matching running job, once
+    alive["v"] = True
+    (repo / "ops" / "control.txt").write_text("resume 1\nkill 002\nkill 999\n")
+    R.tick(fake)
+    killed = [c for c in fake.cmds if "pkill" in c]
+    assert len(killed) == 1 and "55" in killed[0]
+    R.tick(fake)
+    assert len([c for c in fake.cmds if "pkill" in c]) == 1
