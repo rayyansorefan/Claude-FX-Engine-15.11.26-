@@ -42,3 +42,22 @@ Why: the original runners resolved fills/stops/targets on the signal bar (M15/H1
 How: `python -m fxengine.backtest.run_m5`. Same data window, holdout untouched, same cooldown. Costs: stressed (headline), normal, measured (OANDA ask-bid from the data, no commission). Cluster bootstrap by pair-day. Random-entry challenger (3,000 random setups per variant with the same mechanics). MDE printed.
 Decision rule: a variant is a CANDIDATE only if, under STRESSED costs, the penalised cluster-bootstrap lower bound > 0 AND its mean beats the challenger's 95th percentile AND 3 of 4 years positive AND positive without its best pair. A candidate then goes to the holdout under docs/GATES.md. Otherwise the 2026-11-15 'no edge found' verdict stands, now stated as 'no edge above the printed MDE'.
 Counts as 1 trial (alpha becomes 0.05/11). Runtime: roughly 1-3 hours on the e2-micro VM.
+
+# BATCH 3 — pre-registered 2026-11-16 BEFORE any result. Reason: literature review (see docs/LITERATURE_NOTES.md).
+Different STYLE from batches 1-2: slow, low-turnover, daily bars (institutional factor style). Same data window, costs, holdout (sealed),
+gates and decision rule. Trials +2 (E6, E7). Caveat: chosen after seeing batches 1-2 fail on the same data, so a pass is provisional
+until the sealed holdout and a forward test confirm it. Run on the VM via the M5-resolution driver (track_arrays), never on signal bars.
+## E6 — time-series momentum, daily
+- Daily bars close 17:00 New York (fxengine.calendar). Universe: the 10 pairs. Rebalance weekly at the Friday daily close.
+- Signal: sign of the 60-trading-day return (long if > 0, short if < 0). One setup per pair per rebalance; if the sign is unchanged, the
+  running position continues (no new setup, no extra costs).
+- Stop: 3 x ATR(20, daily) from entry; no profit target (practical none, 10 ATR); exit at the first rebalance where the sign flips,
+  or the stop, or 60 trading days. Entry at the next bar open after the signal bar.
+- Costs: stressed as before PLUS, in a second reported column, MEASURED (data ask-bid, no commission) with swap at the pessimistic rate.
+## E7 — carry + momentum (BLOCKED until data exists)
+- Needs historical policy/short rates per currency (free sources: central bank / FRED series) to build interest differentials, and
+  real OANDA financing rates for swap. Rule: rank the 8 currencies by 3-month rate; long highest-carry vs lowest-carry pairs in the
+  momentum-confirmed direction (E6 sign agrees). Swap is EARNED/PAID by sign, not assumed adverse. Details to be pre-registered once
+  the rate data and its known gaps are documented in docs/DATA_SOURCES.md. Do not run E7 before that.
+## Decision rule: identical to batch 1 (penalised CI low > 0, n >= 100 independent pair-days, >= 3 positive years, not one pair,
+## and it must beat the random-entry challenger). Report the minimum detectable effect with every number.

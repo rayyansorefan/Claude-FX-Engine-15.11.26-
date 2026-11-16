@@ -15,7 +15,7 @@ give copy-paste blocks, never paste secrets, never tell him to run things on his
 2. Confirm research_once.sh finished on the VM (data/research_once.log says "research done"); dashboard Research/Performance tabs depend on it.
 3. Cost-validity worry: ADDRESSED by R0's 'measured' cost mode (real OANDA ask-bid, no commission), logged as one trial. Read the R0 table on the Research tab.
 4. Live loop has never seen a market session: watch the first Monday (alerts, ledger, audit). Fix anything that breaks.
-5. Untested ideas: market structure/key levels, news blackout (needs free calendar), E3 filters.
+5. NEXT RESEARCH: batch 3 (E6 daily time-series momentum, E7 carry+momentum) pre-registered in docs/EXPERIMENTS.md; build E6 after R0 finishes (use M5-resolution driver). E7 needs free policy-rate data documented in DATA_SOURCES.md first. Untested ideas: market structure/key levels, news blackout (needs free calendar), E3 filters.
 6. GCP free trial ends ~day 90 (~mid Feb 2027): remind Rayyan ~day 80 about the upgrade decision (billed account risk vs moving host).
 7. Halfway HOLD/EXIT rule is unproven; keep it labelled so.
 8. Repo is public: never commit secrets, results are visible. Consider moving research outputs off the public repo.
