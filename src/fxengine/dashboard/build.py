@@ -614,10 +614,10 @@ def pair_table(root, cands, lv):
         setup = next((f"<span class='st'>{c.get('state', 'PENDING')}</span> {c['direction'].upper()}" for c in cands if c["pair"] == sym), "<span class='muted'>–</span>")
         cls = "dn" if chg.startswith("-") else "up"
         rows += (f"<tr class='pk' onclick=\"pickPair('{sym}')\"><td><b>{sym}</b></td><td class='num'>{px(sym, last.bid_c)}</td><td class='num {cls}'>{chg}</td>"
-                 f"<td class='num'>{atr_h1}</td><td>{trend_glyph(m15)} {trend_glyph(h1)} {trend_glyph(h4)}</td><td class='num'>{pdh} / {pdl}</td>"
-                 f"<td class='num'>{spr}</td><td class='num'>{sd}</td><td>{setup}</td></tr>")
-    return ("<table class='tbl'><tr><th>Pair</th><th class='r'>Price</th><th class='r'>Day</th><th class='r'>H1 range (pips)</th><th>Trend M15 · H1 · H4</th>"
-            "<th class='r'>To PDH / from PDL (pips)</th><th class='r'>Spread (pips)</th><th class='r'>Strength gap</th><th>Setup</th></tr>" + rows + "</table>"
+                 f"<td class='num hm'>{atr_h1}</td><td>{trend_glyph(m15)} {trend_glyph(h1)} {trend_glyph(h4)}</td><td class='num hm'>{pdh} / {pdl}</td>"
+                 f"<td class='num hm'>{spr}</td><td class='num hm'>{sd}</td><td>{setup}</td></tr>")
+    return ("<table class='tbl'><tr><th>Pair</th><th class='r'>Price</th><th class='r'>Day</th><th class='r hm'>H1 range (pips)</th><th>Trend M15 · H1 · H4</th>"
+            "<th class='r hm'>To PDH / from PDL (pips)</th><th class='r hm'>Spread (pips)</th><th class='r hm'>Strength gap</th><th>Setup</th></tr>" + rows + "</table>"
             "<p class='muted'>Trend: ▲ EMA50 above EMA200 and price above EMA50 · ▼ the reverse · ◆ mixed. PDH/PDL = previous trading day high/low. "
             "Click a row to chart it. A reading aid, not a signal: every rule built on these failed its tests.</p>")
 
@@ -683,6 +683,7 @@ svg .grid{stroke:var(--line);stroke-width:1}.zero{stroke:var(--mute);stroke-widt
 .why{color:var(--ink);font-size:15px;margin:8px 0}.tl{display:flex;gap:6px;flex-wrap:wrap}.tl .chip{font-size:12px}
 .empty{background:var(--card);border:1px dashed var(--line);border-radius:14px;padding:34px;text-align:center;font-size:17px}
 .sel button{font-size:14px;padding:7px 14px}.legend{font-size:13px}
+@media(max-width:600px){.hm{display:none}.top{gap:6px}.chip{padding:2px 8px;font-size:12px}.kpis{grid-template-columns:repeat(2,1fr);gap:8px}.kpi{padding:10px 12px}.kpi b{font-size:22px}.kpi small{font-size:11px}.kpi span{font-size:12px}.wrap{padding:10px 10px 30px}}
 .sample{background:var(--warn);color:#000;text-align:center;font-weight:700;padding:6px;border-radius:6px;margin-bottom:10px}
 p{margin:6px 0}
 """
