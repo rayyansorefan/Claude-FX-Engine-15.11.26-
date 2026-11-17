@@ -24,6 +24,20 @@ def test_margin_removal():
     assert s[2] < p[2]                                               # Shin takes more margin off longshots
 
 
+def test_shin_solves_its_own_equation():
+    o = np.array([1.5, 4.2, 7.5]); q = 1 / o; s = q.sum()
+    p = O.fair_probs_shin(*o)
+    assert abs(p.sum() - 1) < 1e-9 and p[0] > p[2]
+    # the solved z must give probabilities that sum to 1 BEFORE the final normalisation (guards against a reversed bisection)
+    lo, hi = 0.0, 0.4
+    for _ in range(200):
+        z = (lo + hi) / 2
+        raw = (np.sqrt(z * z + 4 * (1 - z) * q * q / s) - z) / (2 * (1 - z))
+        lo, hi = (lo, z) if raw.sum() < 1 else (z, hi)
+    assert np.allclose(raw / raw.sum(), p, atol=1e-6) and abs(raw.sum() - 1) < 1e-6
+    assert abs(p[0] - 1 / 1.5 / s) < 0.02                           # favourite barely moves vs proportional removal
+
+
 def test_a_fair_market_with_a_margin_shows_no_edge_and_loses_the_margin():
     b = R.bet_table(_matches())
     out = R.score(b, "F1_all_favourites", 6, np.random.default_rng(1))
@@ -31,7 +45,7 @@ def test_a_fair_market_with_a_margin_shows_no_edge_and_loses_the_margin():
 
 
 def test_a_planted_mispricing_is_detected():
-    m = _matches(4000, seed=2)
+    m = _matches(16000, seed=2)                                    # longshots are noisy: a real edge needs a big sample to clear the gate (the gate is NOT loosened)
     mask = (m.B365H > 3.0)                                         # Bet365 offers 12% too much on longshot home wins whose true price is Pinnacle's
     m.loc[mask, "B365H"] = m.loc[mask, "B365H"] * 1.2
     b = R.bet_table(m)

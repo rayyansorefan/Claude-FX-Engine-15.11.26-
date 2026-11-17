@@ -31,5 +31,5 @@ def fair_probs_shin(*odds, iters=200):
     for _ in range(iters):
         z = (lo + hi) / 2
         p = (np.sqrt(z * z + 4 * (1 - z) * q * q / s) - z) / (2 * (1 - z))
-        lo, hi = (z, hi) if p.sum() < 1 else (lo, z)
+        lo, hi = (lo, z) if p.sum() < 1 else (z, hi)      # sum(p) falls as z rises: too small a sum means z is too big
     return p / p.sum()
