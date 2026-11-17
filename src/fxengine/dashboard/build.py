@@ -500,7 +500,8 @@ def DB_kv(c, k):
 
 
 def live_record(c):
-    rows = c.execute("""SELECT s.run_id, s.created_at, s.pair, s.type, s.tf, s.record, o.reason, o.net_r, o.fill, o.gross_r, o.mfe_r, o.mae_r,
+    rows = c.execute("""SELECT s.run_id, s.created_at, s.pair, s.type, s.tf, s.record, o.reason, o.net_r, o.fill, o.gross_r, o.mfe_r, o.mae_r, o.resolved_at,
+        (SELECT ts FROM events e2 WHERE e2.run_id=s.run_id AND e2.to_state='TRIGGERED' ORDER BY idx LIMIT 1) AS filled_at,
         (SELECT to_state FROM events e WHERE e.run_id=s.run_id ORDER BY idx DESC LIMIT 1) AS state
         FROM setups s LEFT JOIN outcomes o USING(run_id) ORDER BY s.created_at DESC""").fetchall()
     return [dict(r) | {"rec": json.loads(r["record"])} for r in rows]
@@ -860,7 +861,16 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
             msg = f"Open: now {t['float_r']:+.2f}R, best so far {t['peak_r']:+.2f}R, worst {-t['worst_r']:+.2f}R."
             return msg + (f" It has given back {back:.2f}R of its peak so far; the frozen rules still wait for the stop, target or time limit." if back >= 0.5 and t["peak_r"] >= 0.5 else "")
         return "Waiting for the entry price to be reached."
-    lr = "".join(f"<tr><td class='mono'>{uk(r['created_at']):%d %b %H:%M}</td><td>{r['pair']} {r['rec']['direction'].upper()}</td>"
+    def _when(r):
+        def f(x):
+            try:
+                return f"{uk(x):%d %b %H:%M}"
+            except Exception:
+                return str(x)[:16]
+        fill = f"filled {f(r['filled_at'])}" if r.get("filled_at") else "not filled"
+        end = f"closed {f(r['resolved_at'])}" if r.get("resolved_at") else "still open"
+        return f"{f(r['created_at'])}<br><small>{fill}</small><br><small><b>{end}</b></small>"
+    lr = "".join(f"<tr><td class='mono'>{_when(r)}</td><td>{r['pair']} {r['rec']['direction'].upper()}</td>"
                  f"<td>{e(STRATS.get(r['type'], (r['type'],))[0])}</td><td>{st_}</td><td class='num {cl_}'>{pl_}</td></tr>"
                  f"<tr class='rv'><td colspan='5'><b>Review</b> · {e(_review(r))}</td></tr>"
                  for r in live[:15] for st_, cl_, pl_ in [_state_pl(r)])
@@ -888,7 +898,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     except Exception:
         learn_html = ""
     livetbl = (f"<p class='muted'>Published {len(live)} · resolved {len(done)} · target {wins} · stop {losses} · "
-               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><table class='tbl'><tr><th>Created (UK)</th><th>Setup</th><th>Rule</th><th>Outcome</th><th class='r'>P&amp;L</th></tr>{lr}</table>{lesson_html}{learn_html}"
+               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><table class='tbl'><tr><th>Published / filled / closed (UK)</th><th>Setup</th><th>Rule</th><th>Outcome</th><th class='r'>P&amp;L</th></tr>{lr}</table>{lesson_html}{learn_html}"
               if live else "<p class='muted'>No live setups recorded yet. This fills in once the live loop publishes its first setup.</p>")
     # --- research
     m5tab = "".join(f"<tr><td><b>{e(v)}</b></td><td>{k}</td><td class='num'>{n:,}</td><td class='num'>{pdays:,}</td><td class='num'>{w:.0f}%</td>"

@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 from ..data import store
 from ..research.diagnose import trade_fields
+from ..features.context import snapshot as _ctx_snapshot
 from ..data.resample import resample
 from ..data.timeframes import tf_delta
 from ..engine.costs import CostModel, BASE_SPREAD_PIPS
@@ -111,6 +112,11 @@ class PairCache(Mapping):
         return len(self._keys)
 
 
+def context_fields(d, pos, direction):
+    c = _ctx_snapshot(d, int(pos), direction)
+    return {k: v for k, v in c.items() if k not in ("hour_utc", "dow")}
+
+
 def run_variant(variant, tfname, frames_tf, m5s, use_invalidation=True, rng=None):
     tf = tf_delta(tfname)
     sigs = signals_for(variant, frames_tf)
@@ -141,7 +147,7 @@ def run_variant(variant, tfname, frames_tf, m5s, use_invalidation=True, rng=None
                              reason=o.reason if o else "OPEN", triggered=ts.fill is not None, bars=o.bars_held if o else 0,
                              **{f"net_r_{k}": (r.outcome.net_r if r.outcome else 0.0) for k, r in res.items()},
                              **{f"trig_{k}": r.fill is not None for k, r in res.items()},
-                             **trade_fields(o, row.direction, created)))
+                             **trade_fields(o, row.direction, created), **context_fields(d, row.pos, row.direction)))
             a = float(d.atr.iloc[row.pos])
             if a > 0:
                 real.append((sym, abs(row.entry - row.stop) / a, abs(row.target - row.entry) / abs(row.entry - row.stop),

@@ -11,12 +11,15 @@ from ..data import store, oanda
 from ..data.resample import resample
 from ..data.timeframes import tf_delta
 from ..features.indicators import prepare
-from ..engine.costs import BASE_SPREAD_PIPS
+from ..engine.costs import BASE_SPREAD_PIPS, pip
 from ..setups import v1, v2
 from .sizing import lots_for_risk
 
 PAIRS = list(BASE_SPREAD_PIPS)
 NOTE = "UNPROVEN: this rule failed its backtest. Research only."
+
+
+from ..features import context as CTX
 
 
 def refresh(token, root=store.ROOT):
@@ -27,7 +30,7 @@ def refresh(token, root=store.ROOT):
             store.merge_save(sym, tf, resample(m5, tf, base="M5"), root)
 
 
-def _cands(sym, d, tf, kind, sig, now, px):
+def _cands(sym, d, tf, kind, sig, now, px, extra=None):
     out = []
     last = len(d) - 1
     for r in sig[sig.pos == last].itertuples():
@@ -39,20 +42,21 @@ def _cands(sym, d, tf, kind, sig, now, px):
                         created=str(created), expires=str(created + int(r.expiry_bars) * tf_delta(tf)),
                         invalidation=None if inv != inv else round(float(inv), 5), reason=str(getattr(r, "reason", kind)),
                         stop_pips=round(stop_pips, 1), lots_for_20gbp_risk=lots, score=round(float(r.score), 2),
-                        note=NOTE))
+                        note=NOTE, ctx=CTX.snapshot(d, int(r.pos), r.direction, (extra or {}).get('spread'), (extra or {}).get('h4'))))
     return out
 
 
 def scan(root=store.ROOT, now=None, max_age_min=None):
     now = pd.Timestamp.now(tz="UTC") if now is None else pd.Timestamp(now)
     root = Path(root)
-    px, frames = {}, {"H1": {}, "H4": {}}
+    px, frames, spr = {}, {"H1": {}, "H4": {}}, {}
     last_m5 = None
     for sym in PAIRS:
         m5 = store.load(sym, "M5", root, tail=3)
         if m5.empty:
             continue
         px[sym] = float(m5.bid_c.iloc[-1])
+        spr[sym] = (float(m5.ask_c.iloc[-1]) - float(m5.bid_c.iloc[-1])) / pip(sym) if 'ask_c' in m5.columns else None
         last_m5 = max(last_m5 or m5.index[-1], m5.index[-1])
         for tf in ("H1", "H4"):
             frames[tf][sym] = prepare(store.load(sym, tf, root, tail=3000))
@@ -61,11 +65,11 @@ def scan(root=store.ROOT, now=None, max_age_min=None):
     if age_min is not None and age_min <= (max_age_min or 90):
         for sym, d in frames["H1"].items():
             for kind in v1.TYPES:
-                cands += _cands(sym, d, "H1", kind, v1.GENERATORS[kind](d), now, px)
+                cands += _cands(sym, d, "H1", kind, v1.GENERATORS[kind](d), now, px, dict(spread=spr.get(sym), h4=frames["H4"].get(sym)))
         for sym, d in frames["H4"].items():
-            cands += _cands(sym, d, "H4", "E2_donchian", v2.donchian_trend(d), now, px)
+            cands += _cands(sym, d, "H4", "E2_donchian", v2.donchian_trend(d), now, px, dict(spread=spr.get(sym), h4=d))
         for sym, sig in v2.strength_signals(frames["H4"]).items():
-            cands += _cands(sym, frames["H4"][sym], "H4", "E1_strength", sig, now, px)
+            cands += _cands(sym, frames["H4"][sym], "H4", "E1_strength", sig, now, px, dict(spread=spr.get(sym), h4=frames["H4"][sym]))
     cands.sort(key=lambda c: -c["score"])
     return dict(generated=str(now), last_candle_close=None if last_m5 is None else str(last_m5 + pd.Timedelta(minutes=5)),
                 data_age_min=None if age_min is None else round(age_min, 1), candidates=cands[:5], total_found=len(cands),

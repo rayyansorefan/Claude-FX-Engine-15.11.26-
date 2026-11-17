@@ -89,3 +89,19 @@ def test_tally_rolls_reviews_up_per_rule_and_says_how_many_more_trades_are_neede
     out = D.tally(items)
     assert "asia_breakout: 3 closed" in out[0] and "2 stalled" in out[0] and "27 more closed trades" in out[0]
     assert "trend_pullback: 1 closed" in out[1] and "wrong way" in out[1]
+
+
+def test_history_row_shows_publish_fill_and_close_times(tmp_path):
+    import os, re
+    from pathlib import Path
+    from fxengine.dashboard import build as B
+    os.chdir(tmp_path)
+    c = DB.connect("data/engine.db")
+    rec = dict(pair="EURJPY", direction="short", type="asia_breakout", tf="H1", created="2026-11-17T09:00:00+00:00", expires="2026-11-17T20:00:00+00:00",
+               entry=175.015, stop=175.27, target=174.50, run_id="r1", entry_kind="stop", score=1)
+    c.execute("INSERT INTO setups VALUES('r1','2026-11-17T09:00:00+00:00','2026-11-17T20:00:00+00:00','EURJPY','asia_breakout','H1','2026-11-17',?)", (json.dumps(rec),))
+    c.execute("INSERT INTO events VALUES('r1',1,'2026-11-17T09:35:00+00:00','PUBLISHED','TRIGGERED','filled')")
+    c.execute("INSERT INTO outcomes(run_id,reason,net_r,fill,exit,resolved_at,gross_r,mfe_r,mae_r) VALUES('r1','STOP',-1.08,175.0,175.27,'2026-11-17T15:20:00+00:00',-1.0,0.93,1.04)")
+    c.commit()
+    h = B.build(root=Path("c"), out=None, now=pd.Timestamp("2026-11-17 16:00", tz="UTC"))
+    assert "17 Nov 09:00" in h and "filled 17 Nov 09:35" in h and "closed 17 Nov 15:20" in h

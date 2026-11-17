@@ -115,6 +115,15 @@ def prepare(df: pd.DataFrame, cost: str = "stressed") -> pd.DataFrame:
     d["created"] = pd.to_datetime(d["created"], utc=True)
     d["klass"] = d.apply(classify, axis=1) if len(d) else []
     d["session"] = d["hour"].map(session_of) if len(d) else []
+    if len(d):                                                      # context bands (only when the context was recorded)
+        if "atr_rank" in d:
+            d["vol_band"] = pd.cut(d.atr_rank, [-1, .33, .67, 2], labels=["low vol", "mid vol", "high vol"]).astype(object)
+        if "trend_with" in d:
+            d["trend_band"] = pd.cut(d.trend_with, [-1e9, 0, 2, 1e9], labels=["against trend", "weak trend", "strong trend"]).astype(object)
+        if "ext_ema20" in d:
+            d["ext_band"] = pd.cut(d.ext_ema20, [-1e9, .5, 1.5, 1e9], labels=["near EMA20", "extended", "very extended"]).astype(object)
+        if "htf_align" in d:
+            d["htf_band"] = d.htf_align.map({1: "with H4 trend", 0: "H4 flat", -1: "against H4 trend"})
     return d
 
 
@@ -133,7 +142,7 @@ def winners_vs_losers(d: pd.DataFrame) -> dict:
                 loss_mae=f(l, "mae_r"), win_bars=f(w, "bars") if "bars" in d else None, loss_bars=f(l, "bars") if "bars" in d else None)
 
 
-def feature_scan(d: pd.DataFrame, features=("symbol", "direction", "session", "dow")) -> dict:
+def feature_scan(d: pd.DataFrame, features=("symbol", "direction", "session", "dow", "vol_band", "trend_band", "ext_band", "htf_band")) -> dict:
     """Pre-set, small feature list (no free-form mining). A bucket is SUPPORTED only if: n >= 30, its mean differs from the
     rest of the trades at a Bonferroni-corrected level over every bucket tested, AND the earlier and later half of the sample
     agree on the sign. Everything else is reported as noise."""

@@ -107,6 +107,8 @@ def publish(conn, env, send, cands, now):
         if n_today >= MAX_PER_DAY or c["pair"] in active_pairs or not (PUBLISH_HOURS[0] <= now.hour < PUBLISH_HOURS[1]):
             continue
         c = dict(c, run_id=f"live-{c['type']}-{c['pair']}-{pd.Timestamp(c['created']):%Y%m%d%H%M}")
+        from ..features import context as CTX
+        c["ctx"] = dict(c.get("ctx") or {}, **CTX.exposure(c["pair"], c["direction"], DB.active_setups(conn)))   # correlated setups lose together
         champ = DB.kv_get(conn, "champion_exit")
         if champ:                                                       # stored in the immutable record: this setup keeps its exit rule for life
             c["exit_rule"] = champ
