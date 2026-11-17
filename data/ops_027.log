@@ -1,0 +1,20 @@
+report generated 2026-11-17 12:27 UTC
+EURUSD M5: 227,059 rows 2023-11-01 -> 2026-11-17 12:20
+GBPUSD M5: 227,014 rows 2023-11-01 -> 2026-11-17 12:20
+USDJPY M5: 227,002 rows 2023-11-01 -> 2026-11-17 12:20
+USDCHF M5: 226,874 rows 2023-11-01 -> 2026-11-17 12:20
+AUDUSD M5: 227,007 rows 2023-11-01 -> 2026-11-17 12:20
+USDCAD M5: 227,033 rows 2023-11-01 -> 2026-11-17 12:20
+NZDUSD M5: 226,980 rows 2023-11-01 -> 2026-11-17 12:20
+EURGBP M5: 129,124 rows 2023-11-01 -> 2026-11-17 12:20
+EURJPY M5: 226,988 rows 2023-11-01 -> 2026-11-17 12:20
+GBPJPY M5: 227,017 rows 2023-11-01 -> 2026-11-17 12:20
+cycles total 509 ok 390 | setups 10 resolved 5 | alerts 33 unsent 0
+last cycle: 2026-11-17 12:25:20  OK      data age 0.3 min  
+last cycle: 2026-11-17 12:21:26  OK      data age 1.4 min  
+last cycle: 2026-11-17 12:20:20  OK      data age 0.3 min  
+docs/results/m5_rerun.md: present
+docs/results/batch3.md: present
+memory: 367 MB available of 964 MB; swap used 200 MB
+uptime: 661.75 s; load: 0.75
+services fxengine/fxdash: ['active', 'active']
