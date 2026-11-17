@@ -37,7 +37,7 @@ def eod(conn, day):
             f"Hypothetical net {net * 20:+.0f} GBP ({net:+.1f}R). Research only.\n{why_line}")
 
 
-def daily_jobs(conn, env, now, send=telegram.send):
+def daily_jobs(conn, env, now, send=telegram.send, root=store.ROOT):
     if now.day_of_week >= 5:
         return
     d, hm = str(now.date()), now.hour * 60 + now.minute
@@ -45,5 +45,16 @@ def daily_jobs(conn, env, now, send=telegram.send):
         send(env, brief(conn))
     if hm >= 21 * 60 + 5 and _once(conn, f"eod-{d}"):
         send(env, eod(conn, d))
+    if hm >= 21 * 60 + 20 and _once(conn, f"learn-{d}"):           # learning loop: shadow-replay today's finished trades under every exit rule
+        try:
+            from ..learn import review as LR
+            LR.daily(conn, root, now)
+            if now.day_of_week == 4:                                  # Friday = the scheduled weekly review (promotion / rollback decisions)
+                for m in LR.decide(conn, now):
+                    send(env, m)
+                send(env, "\n".join(LR.summary_lines(conn)))
+            LR.write_report(conn, now)
+        except Exception as e:
+            send(env, f"⚠️ LEARNING · review failed ({type(e).__name__}); the frozen exit stays in force.")
     if hm >= 7 * 60 and _once(conn, f"audit-{d}-7"):
         send(env, audit_text(conn, now))

@@ -50,6 +50,14 @@ def resolved(c, reason, net_r) -> str:
     return f"{head} · {c['pair']} {c['direction'].upper()} · {gbp:+.0f} GBP ({net_r:+.1f}R)\nHypothetical, after costs."
 
 
+def protected(c, detail) -> str:
+    """The champion exit rule moved the stop to protect profit (first move only)."""
+    import re
+    m = re.search(r"stop=([0-9.]+)", detail)
+    return (f"🔒 PROFIT PROTECTED · {c['pair']} {c['direction'].upper()}\n"
+            f"Stop moved to {m.group(1) if m else '?'} by the exit rule in force ({c.get('exit_rule', '?')}). UNPROVEN.")
+
+
 def stale(age) -> str:
     return f"🔴 DATA STALE · last price {age:.0f} min old\nNo new setups until fresh data returns."
 

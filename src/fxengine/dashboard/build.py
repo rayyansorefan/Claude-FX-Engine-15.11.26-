@@ -494,6 +494,11 @@ def trade_card(i, t, now):
             f"<div class='tc' data-i='{i}'></div>{bar}<div class='nums'>{nh}</div><div class='why'>{why}</div><div class='tl'>{tl}</div></div>")
 
 
+def DB_kv(c, k):
+    r = c.execute("SELECT v FROM kv WHERE k=?", (k,)).fetchone()
+    return r[0] if r else None
+
+
 def live_record(c):
     rows = c.execute("""SELECT s.run_id, s.created_at, s.pair, s.type, s.tf, s.record, o.reason, o.net_r, o.fill, o.gross_r, o.mfe_r, o.mae_r,
         (SELECT to_state FROM events e WHERE e.run_id=s.run_id ORDER BY idx DESC LIMIT 1) AS state
@@ -864,8 +869,26 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     lesson_html = ("<div class='card' style='margin-top:10px'><h3>What the engine is learning (per rule)</h3>" + "".join(f"<p class='muted'>{e(x)}</p>" for x in lessons) +
                    "<p class='muted'>Rules only change through a pre-registered replay test on history (exit tests: docs/results/exits.md), never because of a single trade. "
                    "Every review above is a hypothesis, not a live change.</p></div>") if lessons else ""
+    learn_html = ""
+    try:
+        from ..learn import review as LR
+        if dbc:
+            board = LR.scoreboard(dbc)
+            champ = DB_kv(dbc, "champion_exit") or "frozen exit (no change yet)"
+            nstudied = dbc.execute("SELECT COUNT(*) FROM shadow WHERE rule='FROZEN'").fetchone()[0]
+            rws = "".join(f"<tr><td>{e(k)}</td><td class='num'>{v['n']}</td><td class='num {'up' if v['cum_delta_r'] > 0 else 'dn'}'>{v['cum_delta_r']:+.2f}R</td>"
+                          f"<td class='num'>{v['mean_delta']:+.3f}R</td></tr>" for k, v in sorted(board.items(), key=lambda kv: -kv[1]['mean_delta']))
+            logs = "".join(f"<p class='muted'>{e(r['ts'][:16])} {e(r['kind'])}: {e(r['detail'][:140])}</p>" for r in dbc.execute("SELECT * FROM learning_log ORDER BY ts DESC LIMIT 3"))
+            learn_html = (f"<div class='card' style='margin-top:10px'><h3>Self-learning · exit rules scored on your real trades</h3>"
+                          f"<p class='muted'>Exit in force for new setups: <b>{e(champ)}</b> · {nstudied} finished trades studied. Each alternative exit is replayed on every finished trade "
+                          f"and scored against the frozen exit (positive = it would have done better). A rule can only be promoted after {LR.MIN_FORWARD}+ trades, a proven gain and a matching "
+                          f"history test; it is rolled back automatically if it underperforms. Nothing changes from one trade.</p>"
+                          + (f"<table class='tbl'><tr><th>Exit rule</th><th class='r'>Trades</th><th class='r'>Total vs frozen</th><th class='r'>Per trade</th></tr>{rws}</table>" if rws else
+                             "<p class='muted'>The scoreboard fills as trades finish (daily at 21:20 GMT).</p>") + logs + "</div>")
+    except Exception:
+        learn_html = ""
     livetbl = (f"<p class='muted'>Published {len(live)} · resolved {len(done)} · target {wins} · stop {losses} · "
-               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><table class='tbl'><tr><th>Created (UK)</th><th>Setup</th><th>Rule</th><th>Outcome</th><th class='r'>P&amp;L</th></tr>{lr}</table>{lesson_html}"
+               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><table class='tbl'><tr><th>Created (UK)</th><th>Setup</th><th>Rule</th><th>Outcome</th><th class='r'>P&amp;L</th></tr>{lr}</table>{lesson_html}{learn_html}"
               if live else "<p class='muted'>No live setups recorded yet. This fills in once the live loop publishes its first setup.</p>")
     # --- research
     m5tab = "".join(f"<tr><td><b>{e(v)}</b></td><td>{k}</td><td class='num'>{n:,}</td><td class='num'>{pdays:,}</td><td class='num'>{w:.0f}%</td>"

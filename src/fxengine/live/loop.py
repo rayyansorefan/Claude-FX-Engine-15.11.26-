@@ -59,14 +59,24 @@ def to_setup(c) -> Setup:
                  score=c["score"], reason=c.get("reason", c["type"]))
 
 
-def replay(c, root, cost=CostModel(True)):
-    """Deterministic replay of one setup over stored M5 bars: the same track_arrays driver as the research rerun."""
+def load_m5(c, root):
     created = pd.Timestamp(c["created"])
     m5 = store.load(c["pair"], "M5", root, tail=4500)                    # ~15 days: enough for any live setup
     if len(m5) and m5.index[0] > created - FIVE and len(m5) >= 4500:    # older than the window: fall back to the whole file
         m5 = store.load(c["pair"], "M5", root)
-    m5 = m5[m5.index + FIVE > created]
-    t = track_arrays(to_setup(c), bar_arrays(m5), FIVE, cost)
+    return m5[m5.index + FIVE > created]
+
+
+def replay(c, root, cost=CostModel(True)):
+    """Deterministic replay of one setup over stored M5 bars: the same track_arrays driver as the research rerun."""
+    created = pd.Timestamp(c["created"])
+    m5 = load_m5(c, root)
+    arr = bar_arrays(m5)
+    hook = None
+    if c.get("exit_rule"):                                               # the exit rule that was in force when this setup was published
+        from ..backtest.run_exits import exit_hook
+        hook = exit_hook(c["exit_rule"], arr)
+    t = track_arrays(to_setup(c), arr, FIVE, cost, after_bar=hook)
     return t, m5
 
 
@@ -97,6 +107,9 @@ def publish(conn, env, send, cands, now):
         if n_today >= MAX_PER_DAY or c["pair"] in active_pairs or not (PUBLISH_HOURS[0] <= now.hour < PUBLISH_HOURS[1]):
             continue
         c = dict(c, run_id=f"live-{c['type']}-{c['pair']}-{pd.Timestamp(c['created']):%Y%m%d%H%M}")
+        champ = DB.kv_get(conn, "champion_exit")
+        if champ:                                                       # stored in the immutable record: this setup keeps its exit rule for life
+            c["exit_rule"] = champ
         if DB.add_setup(conn, c["run_id"], c):
             n_today += 1
             active_pairs.add(c["pair"])
@@ -127,6 +140,11 @@ def track(conn, env, send, root, now):
                 conn.execute("INSERT OR REPLACE INTO outcomes(run_id,reason,net_r,fill,exit,resolved_at,gross_r,mfe_r,mae_r) VALUES(?,?,?,?,?,?,?,?,?)",
                              (c["run_id"], o.reason, o.net_r, o.fill, o.exit, str(ev["ts"]), o.gross_r, o.mfe_r, o.mae_r))
                 txt, kind = M.resolved(c, o.reason, o.net_r), o.reason
+            elif ev["to"] == "ADJUSTED" and ev["frm"] in ("TRIGGERED", "ADJUSTED") and c.get("exit_rule"):
+                first = conn.execute("SELECT COUNT(*) FROM events WHERE run_id=? AND to_state='ADJUSTED' AND idx<?", (c["run_id"], idx)).fetchone()[0] == 0
+                if not first:                                           # trailing rules move every bar: tell Rayyan once per trade
+                    continue
+                txt, kind = M.protected(c, ev["detail"]), "PROTECTED"
             else:
                 continue
             _alert(conn, env, send, c, idx, kind, txt, ev["ts"], now)
@@ -229,7 +247,7 @@ def main():
     while True:
         now = pd.Timestamp.now(tz="UTC")
         st = run_cycle(conn, env, now)
-        schedule.daily_jobs(conn, env, now)
+        schedule.daily_jobs(conn, env, now, root=root)
         ping(env, st in ("OK", "CLOSED"))
         nxt = (now.floor("5min") + FIVE + pd.Timedelta(seconds=20))
         time.sleep(max(5, (nxt - pd.Timestamp.now(tz="UTC")).total_seconds()))

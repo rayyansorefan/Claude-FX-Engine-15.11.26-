@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS alerts(run_id TEXT, idx INTEGER, kind TEXT, event_ts 
 CREATE TABLE IF NOT EXISTS outcomes(run_id TEXT PRIMARY KEY, reason TEXT, net_r REAL, fill REAL, exit REAL, resolved_at TEXT);
 CREATE TABLE IF NOT EXISTS cycles(ts TEXT, ok INTEGER, status TEXT, data_age_min REAL, duration_s REAL, note TEXT);
 CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS shadow(run_id TEXT, rule TEXT, net_r REAL, PRIMARY KEY(run_id, rule));
+CREATE TABLE IF NOT EXISTS learning_log(ts TEXT, kind TEXT, detail TEXT);
 """
 
 

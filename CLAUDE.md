@@ -53,5 +53,6 @@ No code reused from the old ChatGPT engine.
 
 ## Workflow
 - Work on branch `engine`; commit often with tests passing.
+- Learning loop (docs/LEARNING.md): shadow-replay exits, scheduled evidence-gated promotion, auto-rollback; entries/sizing never auto-change.
 - Update STATUS.md at the end of every session and at every checkpoint.
 - Python 3.11+, pandas, numpy, pyarrow, requests, sqlite3, pytest. Keep deps minimal.
