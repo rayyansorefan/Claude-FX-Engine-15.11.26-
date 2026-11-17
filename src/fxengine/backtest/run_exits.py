@@ -16,35 +16,30 @@ from ..features.indicators import prepare
 from ..research import split, stats, trials
 from . import run_m5 as M
 
-RULES = {                                  # name -> stop level in R above/below the fill once peak >= TRIGGER_R (None = trails with peak)
-    "X1_breakeven_after_1R": ("fixed", 0.0),
-    "X2_lock_half_after_1R": ("fixed", 0.5),
-    "X3_trail_1R_behind_peak": ("behind", 1.0),
-    "X4_keep_half_of_peak": ("share", 0.5),
+RULES = {                                  # name -> (kind, trigger R, parameter). Only ever TIGHTENS a stop; never closes at market.
+    "A1_breakeven_at_0.75R": ("fixed", 0.75, 0.0), "A2_breakeven_at_1R": ("fixed", 1.0, 0.0), "A3_breakeven_at_1.5R": ("fixed", 1.5, 0.0),
+    "B1_trail_0.5R_behind_peak": ("behind", 1.0, 0.5), "B2_trail_1R_behind_peak": ("behind", 1.0, 1.0), "B3_trail_1.5R_behind_peak": ("behind", 1.0, 1.5),
+    "C1_keep_40pc_of_peak": ("share", 1.0, 0.4), "C2_keep_50pc_of_peak": ("share", 1.0, 0.5), "C3_keep_60pc_of_peak": ("share", 1.0, 0.6),
 }
-TRIGGER_R = 1.0
+BUFFER_R = 0.15                            # the protective stop is always at least this far behind the current price: no instant exits
 FIVE = M.FIVE
 MODES = ("stressed", "measured")
 
 
 def exit_hook(rule, arr):
-    kind, x = RULES[rule]
+    kind, trigger, x = RULES[rule]
     ot, o, h, l, c, sp = arr
 
     def hook(t, j):
-        if t.fill is None or not t.active or t.mfe < TRIGGER_R:
+        if t.fill is None or not t.active or t.mfe < trigger:
             return
         sign = 1 if t.s.direction == "long" else -1
         lvl = x if kind == "fixed" else (t.mfe - x if kind == "behind" else x * t.mfe)
         new = t.fill + sign * lvl * t.s.risk
-        close = c[j]
+        new = min(new, c[j] - BUFFER_R * t.s.risk) if sign == 1 else max(new, c[j] + BUFFER_R * t.s.risk)   # leave the trade room to run
         if (sign == 1 and new <= t.stop) or (sign == -1 and new >= t.stop):
             return                                              # never loosens a stop
-        if (sign == 1 and new < close) or (sign == -1 and new > close):
-            t.adjust(ot[j] + FIVE, stop=float(new), detail=f"rule {rule}")
-        else:                                                   # price already beyond the protective level: leave at the close
-            spread = t.cost.spread(t.s.symbol, ot[j], sp[j] if sp is not None else None)
-            t.exit_at_close(ot[j] + FIVE, float(close), spread, reason="RULE_EXIT")
+        t.adjust(ot[j] + FIVE, stop=float(new), detail=f"rule {rule}")
     return hook
 
 
@@ -80,46 +75,57 @@ def run(frames, m5s, sigs, tf):
 
 
 def summarise(df, n_trials):
-    out = {}
-    half = df.created.sort_values().iloc[len(df) // 2] if len(df) else None
+    """Walk-forward selection: pick the best rule on the EARLIER half (stressed costs), then test ONLY that rule on the LATER half it never saw."""
+    df = df.sort_values("created").reset_index(drop=True)
+    cut = df.created.iloc[len(df) // 2]
+    disc, val = df[df.created < cut], df[df.created >= cut]
+    def delta(d, rule, k):
+        ok = d[f"base_{k}"].notna() & d[f"{rule}_{k}"].notna()
+        return d[ok], (d[ok][f"{rule}_{k}"] - d[ok][f"base_{k}"]).values
+    table = {}
     for rule in RULES:
-        res = {}
+        row = {}
         for k in MODES:
-            ok = df[f"base_{k}"].notna() & df[f"{rule}_{k}"].notna()
-            d = df[ok]
-            delta = (d[f"{rule}_{k}"] - d[f"base_{k}"]).values
-            if len(d) < 100:
-                res[k] = dict(n=int(len(d)), verdict="too few trades"); continue
-            a = stats.adjusted_alpha(n_trials)
-            lo, hi = stats.cluster_bootstrap_ci(delta, d.day.values, a * 2)
-            early, late = delta[(d.created < half).values], delta[(d.created >= half).values]
-            reach = d.peak_r >= TRIGGER_R
-            res[k] = dict(n=int(len(d)), reached_1R=int(reach.sum()), base_mean=round(float(d[f"base_{k}"].mean()), 4),
-                          rule_mean=round(float(d[f"{rule}_{k}"].mean()), 4), delta=round(float(delta.mean()), 4),
-                          ci_lo=round(float(lo), 4), ci_hi=round(float(hi), 4),
-                          delta_first_half=round(float(early.mean()), 4), delta_second_half=round(float(late.mean()), 4),
-                          winners_cut_short=round(float(((d[f"{rule}_{k}"] < d[f"base_{k}"] - 0.3) & (d[f"base_{k}"] > 0)).mean()), 4),
-                          losers_saved=round(float(((d[f"{rule}_{k}"] > d[f"base_{k}"] + 0.3) & (d[f"base_{k}"] < 0)).mean()), 4),
-                          candidate=bool(lo > 0 and early.mean() > 0 and late.mean() > 0))
-        out[rule] = res
-    for rule, res in out.items():
-        res["passes"] = all(res[k].get("candidate") for k in MODES)
+            dd, dl = delta(disc, rule, k)
+            vd, vl = delta(val, rule, k)
+            row[k] = dict(n_disc=int(len(dl)), delta_disc=round(float(dl.mean()), 4) if len(dl) else None,
+                          n_val=int(len(vl)), delta_val=round(float(vl.mean()), 4) if len(vl) else None)
+        table[rule] = row
+    best = max(RULES, key=lambda r: table[r]["stressed"]["delta_disc"] if table[r]["stressed"]["delta_disc"] is not None else -9)
+    out = dict(cut=str(cut), best_on_first_half=best, table=table, validation={})
+    for k in MODES:
+        vd, vl = delta(val, best, k)
+        if len(vl) < 100:
+            out["validation"][k] = dict(n=int(len(vl)), verdict="too few trades"); continue
+        lo, hi = stats.cluster_bootstrap_ci(vl, vd.day.values, 0.05 * 2)           # ONE pre-selected rule, one test: alpha 0.05 one-sided
+        out["validation"][k] = dict(n=int(len(vl)), base_mean=round(float(vd[f"base_{k}"].mean()), 4), rule_mean=round(float(vd[f"{best}_{k}"].mean()), 4),
+                                    delta=round(float(vl.mean()), 4), ci_lo=round(float(lo), 4), ci_hi=round(float(hi), 4),
+                                    winners_cut_short=round(float(((vd[f"{best}_{k}"] < vd[f"base_{k}"] - 0.3) & (vd[f"base_{k}"] > 0)).mean()), 4),
+                                    losers_saved=round(float(((vd[f"{best}_{k}"] > vd[f"base_{k}"] + 0.3) & (vd[f"base_{k}"] < 0)).mean()), 4),
+                                    candidate=bool(lo > 0))
+    out["passes"] = all(v.get("candidate") for v in out["validation"].values())
     return out
 
 
 def render(res) -> str:
-    L = ["# Exit-rule test (pre-registered): take profit earlier once a trade has been >= +1R?", "",
-         f"Rules tested: {', '.join(RULES)}. Trades: live H1 rules at M5 resolution, research window only. Trials counted: {res['n_trials']} (alpha = 0.05/{res['n_trials']}).",
-         "Delta = rule result minus the frozen exit, per trade (R). A rule is a CANDIDATE only if the penalised lower bound is > 0 under stressed AND measured costs and both halves are positive.",
-         "", "| rule | cost | trades | reached +1R | frozen exit | with rule | delta | 95% CI (clustered) | 1st / 2nd half | winners cut short | losers saved | candidate |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
-    for rule, r in res["summary"].items():
-        for k in MODES:
-            s = r[k]
-            if "delta" not in s:
-                L.append(f"| {rule} | {k} | {s['n']} | {s['verdict']} ||||||||"); continue
-            L.append(f"| {rule} | {k} | {s['n']} | {s['reached_1R']} | {s['base_mean']:+.3f} | {s['rule_mean']:+.3f} | {s['delta']:+.3f} | [{s['ci_lo']:+.3f}, {s['ci_hi']:+.3f}] | "
-                     f"{s['delta_first_half']:+.3f} / {s['delta_second_half']:+.3f} | {s['winners_cut_short']:.1%} | {s['losers_saved']:.1%} | {'YES' if s['candidate'] else 'no'} |")
-    L += ["", "Verdict: " + ("; ".join(f"{k} passes" for k, v in res["summary"].items() if v["passes"]) or "no exit rule beats the frozen exit under both cost models. Live rules stay unchanged."), ""]
+    sm = res["summary"]
+    L = ["# Exit-rule test (pre-registered): does protecting profit after a good run beat the frozen exits?", "",
+         f"{len(RULES)} rules, none closes at market (each only places a protective stop at least {BUFFER_R}R behind price). Live H1 rules at M5 resolution, research window only. "
+         f"Trials counted: {res['n_trials']}.", f"Method: choose the best rule on the earlier half of history (before {sm['cut'][:10]}), then test ONLY that rule on the later half.",
+         "", "Every rule, change in average result per trade (R, positive = better than the frozen exit), earlier half | later half, stressed costs:", "",
+         "| rule | earlier half | later half | trades (later) |", "|---|---|---|---|"]
+    for rule, row in sm["table"].items():
+        s_ = row["stressed"]
+        L.append(f"| {rule}{' **(chosen)**' if rule == sm['best_on_first_half'] else ''} | {s_['delta_disc']:+.3f} | {s_['delta_val']:+.3f} | {s_['n_val']} |")
+    L += ["", f"Chosen on the earlier half: **{sm['best_on_first_half']}**. Test on the later half it never saw:", "",
+          "| cost | trades | frozen exit | with rule | delta | 95% CI (clustered) | winners cut short | losers saved | candidate |", "|---|---|---|---|---|---|---|---|---|"]
+    for k in MODES:
+        v = sm["validation"][k]
+        if "delta" not in v:
+            L.append(f"| {k} | {v['n']} | {v['verdict']} |||||||"); continue
+        L.append(f"| {k} | {v['n']} | {v['base_mean']:+.3f} | {v['rule_mean']:+.3f} | {v['delta']:+.3f} | [{v['ci_lo']:+.3f}, {v['ci_hi']:+.3f}] | {v['winners_cut_short']:.1%} | {v['losers_saved']:.1%} | {'YES' if v['candidate'] else 'no'} |")
+    L += ["", "Verdict: " + (f"{sm['best_on_first_half']} is a CANDIDATE (beats the frozen exit on unseen data under both cost models); it still needs a forward test before any live change."
+                            if sm["passes"] else "the best rule does not beat the frozen exit on unseen data under both cost models. Live rules stay unchanged."), ""]
     return "\n".join(L)
 
 
@@ -146,7 +152,7 @@ def main(root="data/candles", reg=Path("docs/trials.jsonl"), out=Path("docs/resu
     n_trials = trials.count_trials(reg) + len(new)
     res = dict(n_trials=n_trials, trades=int(len(df)), summary=summarise(df, n_trials))
     for r in new:
-        trials.log_trial(r, {"trigger_r": TRIGGER_R}, "exit-rule test, pre-registered in docs/EXPERIMENTS.md", reg=reg)
+        trials.log_trial(r, {"grid": 9}, "exit-rule test, pre-registered in docs/EXPERIMENTS.md", reg=reg)
     Path("data").mkdir(exist_ok=True)
     df.to_parquet("data/exits_h1.parquet")
     out.mkdir(parents=True, exist_ok=True)

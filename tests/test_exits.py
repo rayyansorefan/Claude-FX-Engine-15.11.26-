@@ -29,7 +29,7 @@ def test_frozen_exit_gives_back_everything():
     assert t.outcome.reason == "STOP" and t.outcome.net_r < -0.9
 
 
-def test_profit_protecting_rules_save_the_reversal():
+def test_profit_protecting_rules_save_the_reversal_without_closing_at_market():
     base = _track().outcome.net_r
     for rule in X.RULES:
         t = _track(rule)
@@ -38,5 +38,11 @@ def test_profit_protecting_rules_save_the_reversal():
 
 def test_rule_never_acts_before_the_trade_has_been_1R_ahead():
     arr, idx = _arr([(1.0999, 1.1004, 1.0998, 1.1002), (1.1002, 1.1010, 1.0970, 1.0975)])
-    t = M.track_m5(_setup(idx), arr, 0, M.COSTS["stressed"], X.exit_hook("X4_keep_half_of_peak", arr))
+    t = M.track_m5(_setup(idx), arr, 0, M.COSTS["stressed"], X.exit_hook("C2_keep_50pc_of_peak", arr))
     assert t.outcome.reason == "STOP" and t.outcome.net_r < -0.9
+
+
+def test_no_rule_closes_at_market_and_stops_stay_behind_price():
+    for rule in X.RULES:
+        t = _track(rule)
+        assert t.outcome.reason in ("STOP", "TARGET", "TIMEOUT"), (rule, t.outcome.reason)

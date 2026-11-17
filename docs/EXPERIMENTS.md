@@ -76,11 +76,12 @@ until the sealed holdout and a forward test confirm it. Run on the VM via the M5
 - Stop-out semantics (stated 2026-11-16 after review, no change to code): `prev` is the weekly STATE, not the position. After a stop-out E6/E7 stay flat until the state next flips (the sign must change away and back), they do NOT re-enter on the next Friday. Changing that would be a rule change and a new trial.
 - Costs reported in three modes as in R0 (stressed, normal, measured). Gate: unchanged. Trials: E6 +1, E7 +1.
 
-## Exit-rule test X1-X4 (pre-registered 2026-11-17, BEFORE any result; requested by Rayyan: "take profit if deep in green and it reverses")
-Question: after a live H1 trade has been >= +1R at its best, does exiting earlier beat the frozen exits (stop / 2R target / time limit)?
-Rules (only the exit changes; signals, fills, costs identical): X1 stop to break-even; X2 stop to +0.5R; X3 trail stop 1R behind the peak; X4 keep half of the peak gain
-(if price is already beyond the protective level at the bar close, exit at that close). Trigger = peak >= +1R measured on M5 bar extremes; rules only ever tighten.
+## Exit-rule test, 9 variants (pre-registered 2026-11-17 BEFORE any result; revised the same day at Rayyan's request: no instant exits, test several, pick the best fairly)
+Question: after a live H1 trade has been well in profit, does a protective exit beat the frozen exits (stop / 2R target / time limit)?
+Rules (only the exit changes; signals, fills, costs identical). None closes at market: each only places a stop at least 0.15R behind the current price and never loosens one.
+A1-A3 break-even stop once the peak reaches 0.75R / 1R / 1.5R. B1-B3 trail the stop 0.5R / 1R / 1.5R behind the peak (after +1R). C1-C3 keep 40% / 50% / 60% of the peak gain (after +1R).
+Not tested (tracker has no partial closes yet): partial exits.
 Data: v1_H1 rules at M5 resolution, research window only (holdout sealed). Costs: stressed and measured.
-Statistic: per-trade paired difference vs the frozen exit, cluster bootstrap by pair-day, Bonferroni with the registry count (4 new trials).
-Pass (candidate only): penalised CI lower bound > 0 under BOTH cost models AND positive in both halves of the sample. A pass creates a CANDIDATE for a new frozen
-version, to be forward-tested; nothing changes in the live loop. Report the cost honestly: winners cut short vs losers saved.
+Selection: pick the best rule on the EARLIER half of the trades (stressed delta), then test ONLY that rule on the LATER half: one test, paired per-trade difference vs the frozen exit, cluster bootstrap by pair-day.
+Pass (candidate only): lower CI bound > 0 under BOTH cost models on the later half. A pass = CANDIDATE for a new frozen version, then a forward test; nothing changes in the live loop.
+Registry: the 9 rules are logged as trials (raises the bar for later tests). Report winners cut short vs losers saved.
