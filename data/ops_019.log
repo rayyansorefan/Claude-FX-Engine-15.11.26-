@@ -1,0 +1,14 @@
+Reading package lists...
+Building dependency tree...
+Reading state information...
+earlyoom is already the newest version (1.8.2-1).
+0 upgraded, 0 newly installed, 0 to remove and 2 not upgraded.
+Setting up swapspace version 1, size = 2 GiB (2147479552 bytes)
+no label, UUID=9f96bab4-0150-41a0-9d2d-0068a1dfdfc2
+Synchronizing state of earlyoom.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+Executing: /usr/lib/systemd/systemd-sysv-install enable earlyoom
+vm.swappiness = 10
+active
+active
+active
+hardened
