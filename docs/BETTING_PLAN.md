@@ -36,3 +36,13 @@ pre-registered gates, trial registry, sealed holdout, hypothetical scoring, nega
 - Bet365 closing odds in the data are historical; today's price may differ and Bet365 limits/closes accounts that beat the closing line.
 - Free historical data has no stake limits, so achievable profit is overstated by backtests.
 - "Sure bets"/arbitrage and matched betting are real but different: small, capped, one-off or account-limiting. Not part of this engine unless asked.
+
+## Status 2026-11-17 (branch `betting-wip`, NOT merged to `engine`)
+- Phases 1-3 code built and tested (96 tests pass; synthetic dry run: a fair market shows no edge, a planted 12% mispricing is found only with a large sample; holdout seasons 2526/2627 sealed).
+- NO real-data results exist yet. The sandbox cannot reach football-data.co.uk (proxy 403), so the download runs on the VM.
+- Fixed this session: Shin margin-removal bisection was reversed (it manufactured fake +10% "value"); missing-odds check.
+- Run on the VM (separate clone, never touches the live FX engine):
+    1. `cd ~/fx && git fetch origin betting-wip && git show origin/betting-wip:deploy/install_bets.sh | bash`   (clones ~/bets, installs, runs the betting tests)
+    2. `cd ~/bets && nohup bash deploy/run_bets.sh > data/bets.log 2>&1 &`   (about 6-10 minutes; then read `docs/results/bets.md`)
+- Runner jobs `bets` / `bets_research` are whitelisted in src/fxengine/ops/runner.py but only usable after betting code is merged to `engine` (merging restarts the live FX services: Rayyan's call).
+- Phase 4 (forward tracking) needs a free odds feed with sign-up (The Odds API free tier, no card): flagged, not started.

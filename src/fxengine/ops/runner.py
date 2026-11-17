@@ -32,9 +32,11 @@ JOBS = {
     "full_research": "bash deploy/research_once.sh",
     "report": ".venv/bin/python -m fxengine.ops.report",
     "diagnose": ".venv/bin/python -m fxengine.research.diagnose",
+    "bets": "bash deploy/run_bets.sh",              # betting research (download + 6 rules); only usable once betting code is on `engine`
+    "bets_research": "bash deploy/run_bets.sh research",
 }
-JOB_MEM = {"history": "450M", "r0": "600M", "batch3": "600M", "full_research": "600M", "tests": "500M"}   # default 300M
-RESULT_GLOBS = ["docs/results/*.md", "docs/results/*.json", "docs/trials.jsonl", "data/ops_*.log", "data/ops_report.txt"]
+JOB_MEM = {"history": "450M", "r0": "600M", "batch3": "600M", "full_research": "600M", "tests": "500M", "bets": "600M", "bets_research": "500M"}   # default 300M
+RESULT_GLOBS = ["docs/results/*.md", "docs/results/*.json", "docs/trials.jsonl", "docs/bets_trials.jsonl", "data/ops_*.log", "data/ops_report.txt"]
 STATE = REPO / "data" / "ops_state.json"
 RESULTS_DIR = REPO.parent / "fx-results"
 
