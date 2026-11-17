@@ -771,7 +771,8 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     cand_src = "published by the live loop (ledger)" if dbc else "no ledger yet"
     if not cands and not dbc:
         cands, cand_src = scan.get("candidates", []), "last manual scan (no live loop ledger found)"
-    trials = sum(1 for _ in open("docs/trials.jsonl")) if Path("docs/trials.jsonl").exists() else 0
+    from ..research import trials as _tr
+    trials = _tr.count_trials(Path("docs/trials.jsonl"))
     res = research()
     base = res.get("H1") if res.get("H1") is not None else (next(iter(res.values())) if res else None)
     sc = base[base.triggered] if base is not None else None

@@ -76,3 +76,15 @@ def test_tail_reads_return_only_the_newest_rows_and_match_the_full_file(tmp_path
     assert len(store.load("EURUSD", "M5", tmp_path, tail=5000)) == 5000 and store.load("NOPE", "M5", tmp_path, tail=3).empty
     import pyarrow.parquet as pq
     assert pq.ParquetFile(store.path("EURUSD", "M5", tmp_path)).metadata.num_row_groups > 1       # small row groups were written
+
+
+def test_trial_registry_merges_the_seed_once_and_counts_honestly(tmp_path):
+    import json
+    from fxengine.research import trials
+    reg = tmp_path / "docs" / "trials.jsonl"
+    reg.parent.mkdir()
+    (tmp_path / "docs" / "trials_seed.jsonl").write_text("\n".join(json.dumps({"name": f"old{i}"}) for i in range(10)) + "\n")
+    assert trials.count_trials(reg) == 10 and trials.count_trials(reg) == 10          # idempotent
+    assert trials.log_trial("R0", {}, "x", reg) == 11
+    reg.write_text("")                                                                  # VM file replaced/emptied: seed comes back, VM trial would not
+    assert trials.count_trials(reg) == 10

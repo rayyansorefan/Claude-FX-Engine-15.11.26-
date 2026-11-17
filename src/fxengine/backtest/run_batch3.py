@@ -105,6 +105,7 @@ def main(which="all", root="data/candles", reg=Path("docs/trials.jsonl"), out=Pa
         sys.exit("research window empty: the stored prices start after the holdout boundary. Run the history job first.")
     for sym, d in m5s.items():
         frames[sym] = v3.prep(daily_bars_ny(d))
+    trials.ensure_seed(reg)
     seen = {json.loads(l)["name"] for l in reg.open()} if reg.exists() else set()
     todo = {"E6": "E6_tsmom_daily", "E7": "E7_carry_mom_daily"}
     run = [k for k in todo if which in ("all", k)]

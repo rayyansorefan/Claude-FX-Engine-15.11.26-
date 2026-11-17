@@ -117,7 +117,10 @@ def _heal_worktree(run):
     """The VM must have no local code changes. Jobs write tracked files (docs/trials.jsonl, docs/results/*), which would block a
     fast-forward: discard those edits but KEEP any VM-only trial-registry lines (the registry is append-only history)."""
     mine = _tracked_trials()
-    run(f"cd {shlex.quote(str(REPO))} && git checkout -- .")
+    q = shlex.quote(str(REPO))
+    run(f"cd {q} && git checkout -- .")
+    # an UNTRACKED copy of a file that upstream now tracks would make the merge abort ("would be overwritten"): clear it
+    run(f"cd {q} && for f in docs/trials.jsonl; do git ls-files --error-unmatch $f >/dev/null 2>&1 || rm -f $f; done")
     return mine
 
 

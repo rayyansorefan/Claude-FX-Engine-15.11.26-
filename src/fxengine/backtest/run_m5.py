@@ -197,6 +197,7 @@ def main(root="data/candles", reg=Path("docs/trials.jsonl"), out=Path("docs/resu
     for sym, d in m5s.items():
         for tf in frames:
             frames[tf][sym] = prepare(resample(d, tf, base="M5"))
+    trials.ensure_seed(reg)
     seen = {json.loads(l)["name"] for l in reg.open()} if reg.exists() else set()
     pending = "R0_m5_rerun_measured_cost" not in seen                 # logged only AFTER a run that actually scored setups
     n_trials = trials.count_trials(reg) + (1 if pending else 0)
