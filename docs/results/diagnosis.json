@@ -2076,7 +2076,7 @@
  },
  {
   "name": "live_ledger",
-  "n": 3,
+  "n": 8,
   "verdict": "too few scored trades with diagnostics to say anything"
  }
 ]

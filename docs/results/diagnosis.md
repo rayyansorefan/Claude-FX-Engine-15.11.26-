@@ -129,6 +129,6 @@ Exits: 14% of losers had been 1R+ ahead
 
 Buckets tested 14 (needs |z| >= 2.91): none survive
 
-## live_ledger  (n=3)
+## live_ledger  (n=8)
 
 too few scored trades with diagnostics to say anything

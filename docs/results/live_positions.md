@@ -1,11 +1,11 @@
-# Live positions (written 2026-11-17 20:50 UTC)
+# Live positions (written 2026-11-17 20:55 UTC)
 
 Unfinished setups: 2
 
 - EURGBP SHORT asia_breakout [TRIGGERED] created 2026-11-17 08:00
-  FILLED at 0.83371. entry 0.83377 stop 0.83442 target 0.83247. Unrealised +1.03R, best so far +1.88R, worst -0.86R. Target is 0.88R away. Held 153 of 384 five-minute bars (19h until the time limit).
+  FILLED at 0.83371. entry 0.83377 stop 0.83442 target 0.83247. Unrealised +0.95R, best so far +1.88R, worst -0.86R. Target is 0.95R away. Held 154 of 384 five-minute bars (19h until the time limit).
 - AUDUSD SHORT E1_strength [TRIGGERED] created 2026-11-17 08:00
-  FILLED at 0.67310. entry 0.67316 stop 0.67676 target 0.66596. Unrealised -0.09R, best so far +0.29R, worst -0.47R. Target is 2.07R away. Held 153 of 576 five-minute bars (35h until the time limit).
+  FILLED at 0.67310. entry 0.67316 stop 0.67676 target 0.66596. Unrealised -0.05R, best so far +0.29R, worst -0.47R. Target is 2.04R away. Held 154 of 576 five-minute bars (35h until the time limit).
 
 Last 8 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
