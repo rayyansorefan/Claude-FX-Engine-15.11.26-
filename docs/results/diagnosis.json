@@ -1,28 +1,1905 @@
 [
  {
   "name": "m5_rerun_E1_strength",
-  "n": 0,
-  "verdict": "too few scored trades with diagnostics to say anything"
+  "n": 633,
+  "win_rate": 0.453,
+  "mean_net_r": -0.055,
+  "losers": 346,
+  "main_loss_cause": {
+   "klass": "WRONG_WAY",
+   "n": 227,
+   "share": 0.359,
+   "mean_net_r": -0.91,
+   "mean_mfe_r": 0.21,
+   "mean_mae_r": 1.02
+  },
+  "classes": [
+   {
+    "klass": "WIN",
+    "n": 287,
+    "share": 0.453,
+    "mean_net_r": 0.884,
+    "mean_mfe_r": 1.27,
+    "mean_mae_r": 0.42
+   },
+   {
+    "klass": "WRONG_WAY",
+    "n": 227,
+    "share": 0.359,
+    "mean_net_r": -0.91,
+    "mean_mfe_r": 0.21,
+    "mean_mae_r": 1.02
+   },
+   {
+    "klass": "STALLED",
+    "n": 93,
+    "share": 0.147,
+    "mean_net_r": -0.708,
+    "mean_mfe_r": 0.71,
+    "mean_mae_r": 0.89
+   },
+   {
+    "klass": "GAVE_BACK",
+    "n": 24,
+    "share": 0.038,
+    "mean_net_r": -0.677,
+    "mean_mfe_r": 1.32,
+    "mean_mae_r": 0.82
+   },
+   {
+    "klass": "COST_DRAG",
+    "n": 2,
+    "share": 0.003,
+    "mean_net_r": -0.023,
+    "mean_mfe_r": 0.57,
+    "mean_mae_r": 0.72
+   }
+  ],
+  "winners_vs_losers": {
+   "n_win": 287,
+   "n_loss": 346,
+   "win_mfe": 1.274,
+   "loss_mfe": 0.427,
+   "win_mae": 0.42,
+   "loss_mae": 0.972,
+   "win_bars": 526.92,
+   "loss_bars": 389.338
+  },
+  "management": {
+   "share_of_losers_gave_back": 0.069,
+   "flag": false
+  },
+  "scan": {
+   "tests": 21,
+   "z_needed": 3.04,
+   "rows": [
+    {
+     "feature": "symbol",
+     "bucket": "AUDUSD",
+     "n": 58,
+     "mean_net_r": -0.055,
+     "diff_vs_rest": -0.0,
+     "z": -0.0,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURGBP",
+     "n": 44,
+     "mean_net_r": -0.101,
+     "diff_vs_rest": -0.05,
+     "z": -0.29,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURJPY",
+     "n": 85,
+     "mean_net_r": -0.036,
+     "diff_vs_rest": 0.022,
+     "z": 0.18,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURUSD",
+     "n": 68,
+     "mean_net_r": -0.035,
+     "diff_vs_rest": 0.022,
+     "z": 0.18,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPJPY",
+     "n": 75,
+     "mean_net_r": -0.102,
+     "diff_vs_rest": -0.053,
+     "z": -0.43,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPUSD",
+     "n": 68,
+     "mean_net_r": 0.048,
+     "diff_vs_rest": 0.115,
+     "z": 0.91,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "NZDUSD",
+     "n": 54,
+     "mean_net_r": 0.1,
+     "diff_vs_rest": 0.169,
+     "z": 1.23,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDCAD",
+     "n": 60,
+     "mean_net_r": 0.012,
+     "diff_vs_rest": 0.075,
+     "z": 0.52,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDCHF",
+     "n": 55,
+     "mean_net_r": -0.214,
+     "diff_vs_rest": -0.174,
+     "z": -1.28,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDJPY",
+     "n": 66,
+     "mean_net_r": -0.178,
+     "diff_vs_rest": -0.138,
+     "z": -1.07,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "direction",
+     "bucket": "long",
+     "n": 341,
+     "mean_net_r": -0.006,
+     "diff_vs_rest": 0.107,
+     "z": 1.33,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "direction",
+     "bucket": "short",
+     "n": 292,
+     "mean_net_r": -0.112,
+     "diff_vs_rest": -0.107,
+     "z": -1.33,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "Asia",
+     "n": 168,
+     "mean_net_r": -0.124,
+     "diff_vs_rest": -0.094,
+     "z": -1.06,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "London AM",
+     "n": 109,
+     "mean_net_r": -0.075,
+     "diff_vs_rest": -0.024,
+     "z": -0.22,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "London/NY overlap",
+     "n": 98,
+     "mean_net_r": -0.028,
+     "diff_vs_rest": 0.032,
+     "z": 0.26,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "NY PM",
+     "n": 258,
+     "mean_net_r": -0.012,
+     "diff_vs_rest": 0.073,
+     "z": 0.91,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "0",
+     "n": 135,
+     "mean_net_r": -0.208,
+     "diff_vs_rest": -0.194,
+     "z": -2.11,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "1",
+     "n": 115,
+     "mean_net_r": -0.08,
+     "diff_vs_rest": -0.031,
+     "z": -0.3,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "2",
+     "n": 122,
+     "mean_net_r": -0.034,
+     "diff_vs_rest": 0.026,
+     "z": 0.26,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "3",
+     "n": 135,
+     "mean_net_r": -0.0,
+     "diff_vs_rest": 0.07,
+     "z": 0.74,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "4",
+     "n": 126,
+     "mean_net_r": 0.053,
+     "diff_vs_rest": 0.135,
+     "z": 1.23,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    }
+   ],
+   "supported": []
+  },
+  "verdict": "No winner-vs-loser pattern survives the multiple-testing and half-sample checks (treat differences as noise)."
  },
  {
   "name": "m5_rerun_E2_donchian",
-  "n": 0,
-  "verdict": "too few scored trades with diagnostics to say anything"
+  "n": 496,
+  "win_rate": 0.383,
+  "mean_net_r": -0.118,
+  "losers": 306,
+  "main_loss_cause": {
+   "klass": "WRONG_WAY",
+   "n": 179,
+   "share": 0.361,
+   "mean_net_r": -1.022,
+   "mean_mfe_r": 0.22,
+   "mean_mae_r": 1.07
+  },
+  "classes": [
+   {
+    "klass": "WIN",
+    "n": 190,
+    "share": 0.383,
+    "mean_net_r": 1.169,
+    "mean_mfe_r": 1.6,
+    "mean_mae_r": 0.39
+   },
+   {
+    "klass": "WRONG_WAY",
+    "n": 179,
+    "share": 0.361,
+    "mean_net_r": -1.022,
+    "mean_mfe_r": 0.22,
+    "mean_mae_r": 1.07
+   },
+   {
+    "klass": "STALLED",
+    "n": 74,
+    "share": 0.149,
+    "mean_net_r": -0.848,
+    "mean_mfe_r": 0.7,
+    "mean_mae_r": 0.97
+   },
+   {
+    "klass": "GAVE_BACK",
+    "n": 51,
+    "share": 0.103,
+    "mean_net_r": -0.686,
+    "mean_mfe_r": 1.32,
+    "mean_mae_r": 0.85
+   },
+   {
+    "klass": "COST_DRAG",
+    "n": 2,
+    "share": 0.004,
+    "mean_net_r": -0.018,
+    "mean_mfe_r": 0.75,
+    "mean_mae_r": 0.61
+   }
+  ],
+  "winners_vs_losers": {
+   "n_win": 190,
+   "n_loss": 306,
+   "win_mfe": 1.601,
+   "loss_mfe": 0.52,
+   "win_mae": 0.389,
+   "loss_mae": 1.005,
+   "win_bars": 1556.821,
+   "loss_bars": 966.582
+  },
+  "management": {
+   "share_of_losers_gave_back": 0.167,
+   "flag": false
+  },
+  "scan": {
+   "tests": 21,
+   "z_needed": 3.04,
+   "rows": [
+    {
+     "feature": "symbol",
+     "bucket": "AUDUSD",
+     "n": 61,
+     "mean_net_r": -0.327,
+     "diff_vs_rest": -0.238,
+     "z": -1.61,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURGBP",
+     "n": 22,
+     "status": "too few trades"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURJPY",
+     "n": 53,
+     "mean_net_r": 0.039,
+     "diff_vs_rest": 0.176,
+     "z": 1.02,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURUSD",
+     "n": 49,
+     "mean_net_r": -0.04,
+     "diff_vs_rest": 0.087,
+     "z": 0.51,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPJPY",
+     "n": 52,
+     "mean_net_r": -0.271,
+     "diff_vs_rest": -0.171,
+     "z": -1.03,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPUSD",
+     "n": 52,
+     "mean_net_r": -0.116,
+     "diff_vs_rest": 0.003,
+     "z": 0.02,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "NZDUSD",
+     "n": 56,
+     "mean_net_r": -0.228,
+     "diff_vs_rest": -0.123,
+     "z": -0.79,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDCAD",
+     "n": 48,
+     "mean_net_r": -0.113,
+     "diff_vs_rest": 0.006,
+     "z": 0.03,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDCHF",
+     "n": 51,
+     "mean_net_r": -0.154,
+     "diff_vs_rest": -0.04,
+     "z": -0.23,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDJPY",
+     "n": 52,
+     "mean_net_r": 0.135,
+     "diff_vs_rest": 0.283,
+     "z": 1.62,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "direction",
+     "bucket": "long",
+     "n": 301,
+     "mean_net_r": -0.119,
+     "diff_vs_rest": -0.0,
+     "z": -0.0,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "direction",
+     "bucket": "short",
+     "n": 195,
+     "mean_net_r": -0.118,
+     "diff_vs_rest": 0.0,
+     "z": 0.0,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "Asia",
+     "n": 110,
+     "mean_net_r": -0.12,
+     "diff_vs_rest": -0.002,
+     "z": -0.01,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "London AM",
+     "n": 83,
+     "mean_net_r": -0.093,
+     "diff_vs_rest": 0.031,
+     "z": 0.22,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "London/NY overlap",
+     "n": 77,
+     "mean_net_r": -0.207,
+     "diff_vs_rest": -0.105,
+     "z": -0.7,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "NY PM",
+     "n": 226,
+     "mean_net_r": -0.097,
+     "diff_vs_rest": 0.04,
+     "z": 0.39,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "0",
+     "n": 98,
+     "mean_net_r": -0.233,
+     "diff_vs_rest": -0.143,
+     "z": -1.23,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "1",
+     "n": 107,
+     "mean_net_r": -0.112,
+     "diff_vs_rest": 0.008,
+     "z": 0.06,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "2",
+     "n": 100,
+     "mean_net_r": 0.01,
+     "diff_vs_rest": 0.161,
+     "z": 1.2,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "3",
+     "n": 101,
+     "mean_net_r": -0.185,
+     "diff_vs_rest": -0.083,
+     "z": -0.68,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "4",
+     "n": 90,
+     "mean_net_r": -0.069,
+     "diff_vs_rest": 0.06,
+     "z": 0.44,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    }
+   ],
+   "supported": []
+  },
+  "verdict": "No winner-vs-loser pattern survives the multiple-testing and half-sample checks (treat differences as noise)."
  },
  {
   "name": "m5_rerun_E4_donchian_trail",
-  "n": 0,
-  "verdict": "too few scored trades with diagnostics to say anything"
+  "n": 415,
+  "win_rate": 0.349,
+  "mean_net_r": -0.107,
+  "losers": 270,
+  "main_loss_cause": {
+   "klass": "WRONG_WAY",
+   "n": 152,
+   "share": 0.366,
+   "mean_net_r": -0.915,
+   "mean_mfe_r": 0.22,
+   "mean_mae_r": 0.94
+  },
+  "classes": [
+   {
+    "klass": "WRONG_WAY",
+    "n": 152,
+    "share": 0.366,
+    "mean_net_r": -0.915,
+    "mean_mfe_r": 0.22,
+    "mean_mae_r": 0.94
+   },
+   {
+    "klass": "WIN",
+    "n": 145,
+    "share": 0.349,
+    "mean_net_r": 1.072,
+    "mean_mfe_r": 2.32,
+    "mean_mae_r": 0.33
+   },
+   {
+    "klass": "STALLED",
+    "n": 73,
+    "share": 0.176,
+    "mean_net_r": -0.572,
+    "mean_mfe_r": 0.7,
+    "mean_mae_r": 0.64
+   },
+   {
+    "klass": "GAVE_BACK",
+    "n": 39,
+    "share": 0.094,
+    "mean_net_r": -0.48,
+    "mean_mfe_r": 1.31,
+    "mean_mae_r": 0.59
+   },
+   {
+    "klass": "COST_DRAG",
+    "n": 6,
+    "share": 0.014,
+    "mean_net_r": -0.034,
+    "mean_mfe_r": 1.27,
+    "mean_mae_r": 0.35
+   }
+  ],
+  "winners_vs_losers": {
+   "n_win": 145,
+   "n_loss": 270,
+   "win_mfe": 2.32,
+   "loss_mfe": 0.534,
+   "win_mae": 0.335,
+   "loss_mae": 0.798,
+   "win_bars": 2297.448,
+   "loss_bars": 845.281
+  },
+  "management": {
+   "share_of_losers_gave_back": 0.144,
+   "flag": false
+  },
+  "scan": {
+   "tests": 21,
+   "z_needed": 3.04,
+   "rows": [
+    {
+     "feature": "symbol",
+     "bucket": "AUDUSD",
+     "n": 51,
+     "mean_net_r": -0.351,
+     "diff_vs_rest": -0.279,
+     "z": -1.74,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURGBP",
+     "n": 20,
+     "status": "too few trades"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURJPY",
+     "n": 41,
+     "mean_net_r": 0.22,
+     "diff_vs_rest": 0.362,
+     "z": 1.49,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURUSD",
+     "n": 45,
+     "mean_net_r": -0.122,
+     "diff_vs_rest": -0.017,
+     "z": -0.09,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPJPY",
+     "n": 43,
+     "mean_net_r": -0.243,
+     "diff_vs_rest": -0.153,
+     "z": -0.96,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPUSD",
+     "n": 45,
+     "mean_net_r": -0.164,
+     "diff_vs_rest": -0.065,
+     "z": -0.41,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "NZDUSD",
+     "n": 49,
+     "mean_net_r": -0.219,
+     "diff_vs_rest": -0.127,
+     "z": -0.73,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDCAD",
+     "n": 39,
+     "mean_net_r": 0.012,
+     "diff_vs_rest": 0.131,
+     "z": 0.72,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDCHF",
+     "n": 41,
+     "mean_net_r": -0.094,
+     "diff_vs_rest": 0.014,
+     "z": 0.07,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDJPY",
+     "n": 41,
+     "mean_net_r": 0.113,
+     "diff_vs_rest": 0.243,
+     "z": 1.27,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "direction",
+     "bucket": "long",
+     "n": 246,
+     "mean_net_r": -0.066,
+     "diff_vs_rest": 0.1,
+     "z": 0.91,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "direction",
+     "bucket": "short",
+     "n": 169,
+     "mean_net_r": -0.166,
+     "diff_vs_rest": -0.1,
+     "z": -0.91,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "Asia",
+     "n": 97,
+     "mean_net_r": -0.16,
+     "diff_vs_rest": -0.07,
+     "z": -0.53,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "London AM",
+     "n": 70,
+     "mean_net_r": -0.009,
+     "diff_vs_rest": 0.117,
+     "z": 0.72,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "London/NY overlap",
+     "n": 64,
+     "mean_net_r": -0.203,
+     "diff_vs_rest": -0.114,
+     "z": -0.78,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "NY PM",
+     "n": 184,
+     "mean_net_r": -0.082,
+     "diff_vs_rest": 0.045,
+     "z": 0.4,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "0",
+     "n": 88,
+     "mean_net_r": -0.194,
+     "diff_vs_rest": -0.111,
+     "z": -0.89,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "1",
+     "n": 85,
+     "mean_net_r": -0.026,
+     "diff_vs_rest": 0.101,
+     "z": 0.64,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "2",
+     "n": 84,
+     "mean_net_r": -0.016,
+     "diff_vs_rest": 0.113,
+     "z": 0.83,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "3",
+     "n": 85,
+     "mean_net_r": -0.239,
+     "diff_vs_rest": -0.167,
+     "z": -1.28,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "4",
+     "n": 73,
+     "mean_net_r": -0.045,
+     "diff_vs_rest": 0.075,
+     "z": 0.52,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    }
+   ],
+   "supported": []
+  },
+  "verdict": "No winner-vs-loser pattern survives the multiple-testing and half-sample checks (treat differences as noise)."
+ },
+ {
+  "name": "m5_rerun_E5_strength_trail",
+  "n": 403,
+  "win_rate": 0.295,
+  "mean_net_r": -0.072,
+  "losers": 284,
+  "main_loss_cause": {
+   "klass": "WRONG_WAY",
+   "n": 136,
+   "share": 0.337,
+   "mean_net_r": -1.017,
+   "mean_mfe_r": 0.2,
+   "mean_mae_r": 1.04
+  },
+  "classes": [
+   {
+    "klass": "WRONG_WAY",
+    "n": 136,
+    "share": 0.337,
+    "mean_net_r": -1.017,
+    "mean_mfe_r": 0.2,
+    "mean_mae_r": 1.04
+   },
+   {
+    "klass": "WIN",
+    "n": 119,
+    "share": 0.295,
+    "mean_net_r": 1.815,
+    "mean_mfe_r": 3.15,
+    "mean_mae_r": 0.4
+   },
+   {
+    "klass": "GAVE_BACK",
+    "n": 73,
+    "share": 0.181,
+    "mean_net_r": -0.598,
+    "mean_mfe_r": 1.6,
+    "mean_mae_r": 0.72
+   },
+   {
+    "klass": "STALLED",
+    "n": 72,
+    "share": 0.179,
+    "mean_net_r": -0.873,
+    "mean_mfe_r": 0.74,
+    "mean_mae_r": 0.95
+   },
+   {
+    "klass": "COST_DRAG",
+    "n": 3,
+    "share": 0.007,
+    "mean_net_r": -0.059,
+    "mean_mfe_r": 2.05,
+    "mean_mae_r": 0.53
+   }
+  ],
+  "winners_vs_losers": {
+   "n_win": 119,
+   "n_loss": 284,
+   "win_mfe": 3.148,
+   "loss_mfe": 0.719,
+   "win_mae": 0.402,
+   "loss_mae": 0.933,
+   "win_bars": 2075.42,
+   "loss_bars": 632.254
+  },
+  "management": {
+   "share_of_losers_gave_back": 0.257,
+   "flag": false
+  },
+  "scan": {
+   "tests": 21,
+   "z_needed": 3.04,
+   "rows": [
+    {
+     "feature": "symbol",
+     "bucket": "AUDUSD",
+     "n": 36,
+     "mean_net_r": 0.148,
+     "diff_vs_rest": 0.242,
+     "z": 0.75,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURGBP",
+     "n": 24,
+     "status": "too few trades"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURJPY",
+     "n": 56,
+     "mean_net_r": -0.07,
+     "diff_vs_rest": 0.003,
+     "z": 0.01,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURUSD",
+     "n": 46,
+     "mean_net_r": -0.143,
+     "diff_vs_rest": -0.08,
+     "z": -0.33,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPJPY",
+     "n": 48,
+     "mean_net_r": -0.184,
+     "diff_vs_rest": -0.127,
+     "z": -0.53,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPUSD",
+     "n": 43,
+     "mean_net_r": 0.1,
+     "diff_vs_rest": 0.192,
+     "z": 0.75,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "NZDUSD",
+     "n": 31,
+     "mean_net_r": 0.183,
+     "diff_vs_rest": 0.277,
+     "z": 0.89,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDCAD",
+     "n": 36,
+     "mean_net_r": -0.083,
+     "diff_vs_rest": -0.012,
+     "z": -0.04,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDCHF",
+     "n": 38,
+     "mean_net_r": -0.333,
+     "diff_vs_rest": -0.288,
+     "z": -1.47,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDJPY",
+     "n": 45,
+     "mean_net_r": -0.134,
+     "diff_vs_rest": -0.07,
+     "z": -0.34,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "direction",
+     "bucket": "long",
+     "n": 213,
+     "mean_net_r": 0.04,
+     "diff_vs_rest": 0.238,
+     "z": 1.55,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "direction",
+     "bucket": "short",
+     "n": 190,
+     "mean_net_r": -0.198,
+     "diff_vs_rest": -0.238,
+     "z": -1.55,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "Asia",
+     "n": 101,
+     "mean_net_r": -0.092,
+     "diff_vs_rest": -0.026,
+     "z": -0.15,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "London AM",
+     "n": 72,
+     "mean_net_r": -0.174,
+     "diff_vs_rest": -0.123,
+     "z": -0.64,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "London/NY overlap",
+     "n": 76,
+     "mean_net_r": -0.12,
+     "diff_vs_rest": -0.058,
+     "z": -0.3,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "NY PM",
+     "n": 154,
+     "mean_net_r": 0.011,
+     "diff_vs_rest": 0.135,
+     "z": 0.82,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "0",
+     "n": 86,
+     "mean_net_r": -0.247,
+     "diff_vs_rest": -0.222,
+     "z": -1.26,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "1",
+     "n": 71,
+     "mean_net_r": -0.024,
+     "diff_vs_rest": 0.059,
+     "z": 0.29,
+     "z_needed": 3.04,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "2",
+     "n": 79,
+     "mean_net_r": -0.296,
+     "diff_vs_rest": -0.278,
+     "z": -1.78,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "3",
+     "n": 97,
+     "mean_net_r": 0.189,
+     "diff_vs_rest": 0.344,
+     "z": 1.7,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "4",
+     "n": 70,
+     "mean_net_r": -0.017,
+     "diff_vs_rest": 0.067,
+     "z": 0.3,
+     "z_needed": 3.04,
+     "stable_halves": true,
+     "status": "noise"
+    }
+   ],
+   "supported": []
+  },
+  "verdict": "No winner-vs-loser pattern survives the multiple-testing and half-sample checks (treat differences as noise)."
  },
  {
   "name": "m5_rerun_v1_H1",
-  "n": 0,
-  "verdict": "too few scored trades with diagnostics to say anything"
+  "n": 7954,
+  "win_rate": 0.346,
+  "mean_net_r": -0.147,
+  "losers": 5198,
+  "main_loss_cause": {
+   "klass": "WRONG_WAY",
+   "n": 2959,
+   "share": 0.372,
+   "mean_net_r": -1.125,
+   "mean_mfe_r": 0.17,
+   "mean_mae_r": 1.21
+  },
+  "classes": [
+   {
+    "klass": "WRONG_WAY",
+    "n": 2959,
+    "share": 0.372,
+    "mean_net_r": -1.125,
+    "mean_mfe_r": 0.17,
+    "mean_mae_r": 1.21
+   },
+   {
+    "klass": "WIN",
+    "n": 2756,
+    "share": 0.346,
+    "mean_net_r": 1.654,
+    "mean_mfe_r": 1.98,
+    "mean_mae_r": 0.52
+   },
+   {
+    "klass": "STALLED",
+    "n": 1225,
+    "share": 0.154,
+    "mean_net_r": -1.094,
+    "mean_mfe_r": 0.72,
+    "mean_mae_r": 1.2
+   },
+   {
+    "klass": "GAVE_BACK",
+    "n": 995,
+    "share": 0.125,
+    "mean_net_r": -1.064,
+    "mean_mfe_r": 1.4,
+    "mean_mae_r": 1.22
+   },
+   {
+    "klass": "COST_DRAG",
+    "n": 19,
+    "share": 0.002,
+    "mean_net_r": -0.034,
+    "mean_mfe_r": 1.42,
+    "mean_mae_r": 0.8
+   }
+  ],
+  "winners_vs_losers": {
+   "n_win": 2756,
+   "n_loss": 5198,
+   "win_mfe": 1.982,
+   "loss_mfe": 0.542,
+   "win_mae": 0.517,
+   "loss_mae": 1.208,
+   "win_bars": 168.969,
+   "loss_bars": 95.138
+  },
+  "management": {
+   "share_of_losers_gave_back": 0.191,
+   "flag": false
+  },
+  "scan": {
+   "tests": 20,
+   "z_needed": 3.02,
+   "rows": [
+    {
+     "feature": "symbol",
+     "bucket": "AUDUSD",
+     "n": 759,
+     "mean_net_r": -0.223,
+     "diff_vs_rest": -0.084,
+     "z": -1.62,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURGBP",
+     "n": 576,
+     "mean_net_r": -0.377,
+     "diff_vs_rest": -0.248,
+     "z": -4.19,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "SUPPORTED"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURJPY",
+     "n": 775,
+     "mean_net_r": -0.095,
+     "diff_vs_rest": 0.057,
+     "z": 1.12,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURUSD",
+     "n": 874,
+     "mean_net_r": -0.122,
+     "diff_vs_rest": 0.028,
+     "z": 0.59,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPJPY",
+     "n": 824,
+     "mean_net_r": -0.072,
+     "diff_vs_rest": 0.083,
+     "z": 1.67,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPUSD",
+     "n": 925,
+     "mean_net_r": -0.117,
+     "diff_vs_rest": 0.034,
+     "z": 0.72,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "NZDUSD",
+     "n": 758,
+     "mean_net_r": -0.194,
+     "diff_vs_rest": -0.053,
+     "z": -1.02,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDCAD",
+     "n": 872,
+     "mean_net_r": -0.117,
+     "diff_vs_rest": 0.034,
+     "z": 0.69,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDCHF",
+     "n": 906,
+     "mean_net_r": -0.191,
+     "diff_vs_rest": -0.05,
+     "z": -1.05,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDJPY",
+     "n": 685,
+     "mean_net_r": -0.019,
+     "diff_vs_rest": 0.14,
+     "z": 2.57,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "direction",
+     "bucket": "long",
+     "n": 4257,
+     "mean_net_r": -0.155,
+     "diff_vs_rest": -0.018,
+     "z": -0.58,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "direction",
+     "bucket": "short",
+     "n": 3697,
+     "mean_net_r": -0.137,
+     "diff_vs_rest": 0.018,
+     "z": 0.58,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "London AM",
+     "n": 5062,
+     "mean_net_r": -0.157,
+     "diff_vs_rest": -0.028,
+     "z": -0.88,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "London/NY overlap",
+     "n": 1691,
+     "mean_net_r": -0.088,
+     "diff_vs_rest": 0.075,
+     "z": 2.07,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "NY PM",
+     "n": 1201,
+     "mean_net_r": -0.188,
+     "diff_vs_rest": -0.049,
+     "z": -1.16,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "0",
+     "n": 1550,
+     "mean_net_r": -0.094,
+     "diff_vs_rest": 0.065,
+     "z": 1.7,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "1",
+     "n": 1558,
+     "mean_net_r": -0.151,
+     "diff_vs_rest": -0.006,
+     "z": -0.15,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "2",
+     "n": 1609,
+     "mean_net_r": -0.145,
+     "diff_vs_rest": 0.002,
+     "z": 0.06,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "3",
+     "n": 1663,
+     "mean_net_r": -0.115,
+     "diff_vs_rest": 0.04,
+     "z": 1.06,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "4",
+     "n": 1574,
+     "mean_net_r": -0.229,
+     "diff_vs_rest": -0.102,
+     "z": -2.66,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    }
+   ],
+   "supported": [
+    {
+     "feature": "symbol",
+     "bucket": "EURGBP",
+     "n": 576,
+     "mean_net_r": -0.377,
+     "diff_vs_rest": -0.248,
+     "z": -4.19,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "SUPPORTED"
+    }
+   ]
+  },
+  "verdict": "1 pattern(s) survived strict checks: CANDIDATE hypotheses logged, not applied."
  },
  {
   "name": "m5_rerun_v1_M15",
-  "n": 0,
-  "verdict": "too few scored trades with diagnostics to say anything"
+  "n": 18719,
+  "win_rate": 0.33,
+  "mean_net_r": -0.282,
+  "losers": 12547,
+  "main_loss_cause": {
+   "klass": "WRONG_WAY",
+   "n": 7827,
+   "share": 0.418,
+   "mean_net_r": -1.197,
+   "mean_mfe_r": 0.15,
+   "mean_mae_r": 1.27
+  },
+  "classes": [
+   {
+    "klass": "WRONG_WAY",
+    "n": 7827,
+    "share": 0.418,
+    "mean_net_r": -1.197,
+    "mean_mfe_r": 0.15,
+    "mean_mae_r": 1.27
+   },
+   {
+    "klass": "WIN",
+    "n": 6172,
+    "share": 0.33,
+    "mean_net_r": 1.5,
+    "mean_mfe_r": 1.95,
+    "mean_mae_r": 0.54
+   },
+   {
+    "klass": "STALLED",
+    "n": 2663,
+    "share": 0.142,
+    "mean_net_r": -1.132,
+    "mean_mfe_r": 0.72,
+    "mean_mae_r": 1.29
+   },
+   {
+    "klass": "GAVE_BACK",
+    "n": 1962,
+    "share": 0.105,
+    "mean_net_r": -1.099,
+    "mean_mfe_r": 1.42,
+    "mean_mae_r": 1.37
+   },
+   {
+    "klass": "COST_DRAG",
+    "n": 95,
+    "share": 0.005,
+    "mean_net_r": -0.047,
+    "mean_mfe_r": 0.96,
+    "mean_mae_r": 0.67
+   }
+  ],
+  "winners_vs_losers": {
+   "n_win": 6172,
+   "n_loss": 12547,
+   "win_mfe": 1.954,
+   "loss_mfe": 0.475,
+   "win_mae": 0.543,
+   "loss_mae": 1.287,
+   "win_bars": 43.834,
+   "loss_bars": 22.757
+  },
+  "management": {
+   "share_of_losers_gave_back": 0.156,
+   "flag": false
+  },
+  "scan": {
+   "tests": 20,
+   "z_needed": 3.02,
+   "rows": [
+    {
+     "feature": "symbol",
+     "bucket": "AUDUSD",
+     "n": 1786,
+     "mean_net_r": -0.32,
+     "diff_vs_rest": -0.042,
+     "z": -1.28,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURGBP",
+     "n": 1374,
+     "mean_net_r": -0.614,
+     "diff_vs_rest": -0.358,
+     "z": -9.94,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "SUPPORTED"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURJPY",
+     "n": 1813,
+     "mean_net_r": -0.214,
+     "diff_vs_rest": 0.076,
+     "z": 2.25,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURUSD",
+     "n": 2089,
+     "mean_net_r": -0.226,
+     "diff_vs_rest": 0.063,
+     "z": 2.04,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPJPY",
+     "n": 1838,
+     "mean_net_r": -0.158,
+     "diff_vs_rest": 0.138,
+     "z": 4.24,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "SUPPORTED"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPUSD",
+     "n": 2186,
+     "mean_net_r": -0.214,
+     "diff_vs_rest": 0.077,
+     "z": 2.55,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "NZDUSD",
+     "n": 1763,
+     "mean_net_r": -0.414,
+     "diff_vs_rest": -0.145,
+     "z": -4.32,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "SUPPORTED"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDCAD",
+     "n": 2106,
+     "mean_net_r": -0.27,
+     "diff_vs_rest": 0.013,
+     "z": 0.44,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDCHF",
+     "n": 2119,
+     "mean_net_r": -0.354,
+     "diff_vs_rest": -0.081,
+     "z": -2.68,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDJPY",
+     "n": 1645,
+     "mean_net_r": -0.122,
+     "diff_vs_rest": 0.176,
+     "z": 5.07,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "SUPPORTED"
+    },
+    {
+     "feature": "direction",
+     "bucket": "long",
+     "n": 9632,
+     "mean_net_r": -0.288,
+     "diff_vs_rest": -0.012,
+     "z": -0.63,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "direction",
+     "bucket": "short",
+     "n": 9087,
+     "mean_net_r": -0.276,
+     "diff_vs_rest": 0.012,
+     "z": 0.63,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "London AM",
+     "n": 8950,
+     "mean_net_r": -0.296,
+     "diff_vs_rest": -0.027,
+     "z": -1.37,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "London/NY overlap",
+     "n": 6264,
+     "mean_net_r": -0.214,
+     "diff_vs_rest": 0.103,
+     "z": 5.09,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "SUPPORTED"
+    },
+    {
+     "feature": "session",
+     "bucket": "NY PM",
+     "n": 3505,
+     "mean_net_r": -0.368,
+     "diff_vs_rest": -0.106,
+     "z": -4.18,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "SUPPORTED"
+    },
+    {
+     "feature": "dow",
+     "bucket": "0",
+     "n": 3664,
+     "mean_net_r": -0.275,
+     "diff_vs_rest": 0.009,
+     "z": 0.36,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "1",
+     "n": 3881,
+     "mean_net_r": -0.312,
+     "diff_vs_rest": -0.038,
+     "z": -1.61,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "2",
+     "n": 3860,
+     "mean_net_r": -0.276,
+     "diff_vs_rest": 0.008,
+     "z": 0.35,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "3",
+     "n": 3680,
+     "mean_net_r": -0.28,
+     "diff_vs_rest": 0.002,
+     "z": 0.09,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    },
+    {
+     "feature": "dow",
+     "bucket": "4",
+     "n": 3634,
+     "mean_net_r": -0.266,
+     "diff_vs_rest": 0.02,
+     "z": 0.74,
+     "z_needed": 3.02,
+     "stable_halves": false,
+     "status": "noise"
+    }
+   ],
+   "supported": [
+    {
+     "feature": "symbol",
+     "bucket": "EURGBP",
+     "n": 1374,
+     "mean_net_r": -0.614,
+     "diff_vs_rest": -0.358,
+     "z": -9.94,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "SUPPORTED"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPJPY",
+     "n": 1838,
+     "mean_net_r": -0.158,
+     "diff_vs_rest": 0.138,
+     "z": 4.24,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "SUPPORTED"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "NZDUSD",
+     "n": 1763,
+     "mean_net_r": -0.414,
+     "diff_vs_rest": -0.145,
+     "z": -4.32,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "SUPPORTED"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDJPY",
+     "n": 1645,
+     "mean_net_r": -0.122,
+     "diff_vs_rest": 0.176,
+     "z": 5.07,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "SUPPORTED"
+    },
+    {
+     "feature": "session",
+     "bucket": "London/NY overlap",
+     "n": 6264,
+     "mean_net_r": -0.214,
+     "diff_vs_rest": 0.103,
+     "z": 5.09,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "SUPPORTED"
+    },
+    {
+     "feature": "session",
+     "bucket": "NY PM",
+     "n": 3505,
+     "mean_net_r": -0.368,
+     "diff_vs_rest": -0.106,
+     "z": -4.18,
+     "z_needed": 3.02,
+     "stable_halves": true,
+     "status": "SUPPORTED"
+    }
+   ]
+  },
+  "verdict": "6 pattern(s) survived strict checks: CANDIDATE hypotheses logged, not applied."
  },
  {
   "name": "batch3_E6",
@@ -199,7 +2076,7 @@
  },
  {
   "name": "live_ledger",
-  "n": 0,
+  "n": 3,
   "verdict": "too few scored trades with diagnostics to say anything"
  }
 ]

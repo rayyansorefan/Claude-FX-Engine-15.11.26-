@@ -1,0 +1,7 @@
+{"bucket": "EURGBP", "diff_vs_rest": -0.248, "feature": "symbol", "n": 576, "source": "m5_rerun_v1_H1", "status": "CANDIDATE: needs a pre-registered forward test before any rule changes", "z": -4.19}
+{"bucket": "EURGBP", "diff_vs_rest": -0.358, "feature": "symbol", "n": 1374, "source": "m5_rerun_v1_M15", "status": "CANDIDATE: needs a pre-registered forward test before any rule changes", "z": -9.94}
+{"bucket": "GBPJPY", "diff_vs_rest": 0.138, "feature": "symbol", "n": 1838, "source": "m5_rerun_v1_M15", "status": "CANDIDATE: needs a pre-registered forward test before any rule changes", "z": 4.24}
+{"bucket": "NZDUSD", "diff_vs_rest": -0.145, "feature": "symbol", "n": 1763, "source": "m5_rerun_v1_M15", "status": "CANDIDATE: needs a pre-registered forward test before any rule changes", "z": -4.32}
+{"bucket": "USDJPY", "diff_vs_rest": 0.176, "feature": "symbol", "n": 1645, "source": "m5_rerun_v1_M15", "status": "CANDIDATE: needs a pre-registered forward test before any rule changes", "z": 5.07}
+{"bucket": "London/NY overlap", "diff_vs_rest": 0.103, "feature": "session", "n": 6264, "source": "m5_rerun_v1_M15", "status": "CANDIDATE: needs a pre-registered forward test before any rule changes", "z": 5.09}
+{"bucket": "NY PM", "diff_vs_rest": -0.106, "feature": "session", "n": 3505, "source": "m5_rerun_v1_M15", "status": "CANDIDATE: needs a pre-registered forward test before any rule changes", "z": -4.18}
