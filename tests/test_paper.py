@@ -101,3 +101,9 @@ def test_server_places_paper_bets_over_http_and_rejects_non_json():
     assert post("/api/bet", dict(id=fx(0)["id"], market="1X2", sel="D", stake=1), ctype="text/plain")[0] == 415
     assert post("/api/tick", {})[0] == 200 and P.available(c) == 95.0
     srv.shutdown()
+
+
+def test_fixtures_accept_pinnacle_under_pp_names():
+    csv = "Div,Date,Time,HomeTeam,AwayTeam,B365H,B365D,B365A,PPH,PPD,PPA\nE0,21/11/2026,15:00,A,B,3.0,3.4,2.4,2.5,3.4,3.2\n"
+    f = P.parse_fixtures(csv)[0]
+    assert f["ps"] == [2.5, 3.4, 3.2] and any(s == "H" for _, _, s, _ in P.qualifies(f))

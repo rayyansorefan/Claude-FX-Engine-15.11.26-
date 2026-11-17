@@ -13,8 +13,8 @@ AUTO_STAKE = 2.0             # flat paper stake per automatic bet (2% of the sta
 MIN_STAKE = 0.5
 HORIZON_DAYS = 7             # only auto-bet matches kicking off within a week
 EDGE = 0.03                  # V1: Bet365 price at least 3% better than the sharp (Pinnacle, margin-removed) fair price
-FIXTURES_URL = "https://www.football-data.co.uk/fixtures.csv"
-RESULT_URL = "https://www.football-data.co.uk/mmz4281/{s}/{d}.csv"
+FIXTURES_URL = "https://football-data.co.uk/fixtures.csv"
+RESULT_URL = "https://football-data.co.uk/mmz4281/{s}/{d}.csv"
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS bets(id INTEGER PRIMARY KEY, placed_at TEXT, source TEXT, rule TEXT, div TEXT, date TEXT, home TEXT, away TEXT, market TEXT, sel TEXT,
   odds REAL, stake REAL, status TEXT DEFAULT 'open', pnl REAL, settled_at TEXT, UNIQUE(div, date, home, away, market, sel, rule));
@@ -64,7 +64,7 @@ def parse_fixtures(text: str) -> list[dict]:
         dv, h, a = (r.get("Div") or "").strip(), r["HomeTeam"].strip(), r["AwayTeam"].strip()
         out.append(dict(id=f"{dv}|{d.isoformat()}|{h}|{a}", div=dv, date=d.isoformat(), time=(r.get("Time") or "").strip(), home=h, away=a,
                         b365=[_f(r.get("B365H")), _f(r.get("B365D")), _f(r.get("B365A"))],
-                        ps=[_f(r.get("PSH")), _f(r.get("PSD")), _f(r.get("PSA"))],
+                        ps=[_f(r.get("PSH") or r.get("PPH")), _f(r.get("PSD") or r.get("PPD")), _f(r.get("PSA") or r.get("PPA"))],   # Pinnacle: PS* or the newer PP* names
                         ou=[_f(r.get("B365>2.5")), _f(r.get("B365<2.5"))], psou=[_f(r.get("P>2.5")), _f(r.get("P<2.5"))]))
     return out
 

@@ -148,3 +148,12 @@ def test_dashboard_renders_real_numbers_only_and_handles_empty(tmp_path):
     import json
     (tmp_path / "bets.json").write_text(json.dumps(res))
     assert DB.write(tmp_path / "bets.json", tmp_path / "bets.html").read_text().startswith("<!doctype html>")
+
+
+def test_parse_uses_pp_columns_when_ps_columns_are_absent():
+    csv = ("Div,Date,HomeTeam,AwayTeam,FTHG,FTAG,FTR,B365H,B365D,B365A,PPH,PPD,PPA,PPCH,PPCD,PPCA\n"
+           "E0,12/08/2026,A,B,1,0,H,2.0,3.4,3.9,2.1,3.3,3.8,2.05,3.4,3.9\n")
+    p = D.parse(csv, "E0", "2627")
+    assert p["PSH"].iloc[0] == 2.1 and p["PSCA"].iloc[0] == 3.9
+    both = csv.replace("PPH,", "PSH,PPH,").replace("2.1,3.3", "9.9,2.1,3.3")                  # when PS exists it wins
+    assert D.parse(both, "E0", "2627")["PSH"].iloc[0] == 9.9

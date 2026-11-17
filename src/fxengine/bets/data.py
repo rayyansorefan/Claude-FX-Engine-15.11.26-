@@ -5,7 +5,7 @@ import io, sys, time
 from pathlib import Path
 import pandas as pd
 
-URL = "https://www.football-data.co.uk/mmz4281/{s}/{d}.csv"
+URL = "https://football-data.co.uk/mmz4281/{s}/{d}.csv"
 DIVS = ["E0", "E1", "E2", "E3", "EC", "SC0", "SC1", "D1", "D2", "SP1", "SP2", "I1", "I2", "F1", "F2", "N1", "B1", "P1", "T1", "G1"]
 SEASONS = [f"{y % 100:02d}{(y + 1) % 100:02d}" for y in range(2012, 2027)]            # 1213 .. 2627
 KEEP = ["Div", "Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR", "B365H", "B365D", "B365A", "PSH", "PSD", "PSA", "PSCH", "PSCD", "PSCA",
@@ -13,6 +13,7 @@ KEEP = ["Div", "Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR", "B365H", "
         "B365C>2.5", "B365C<2.5", "PC>2.5", "PC<2.5", "Max>2.5", "Max<2.5", "Avg>2.5", "Avg<2.5"]
 
 
+PP_TO_PS = [("PSH", "PPH"), ("PSD", "PPD"), ("PSA", "PPA"), ("PSCH", "PPCH"), ("PSCD", "PPCD"), ("PSCA", "PPCA")]
 TEXT_COLS = {"Div", "Date", "HomeTeam", "AwayTeam", "FTR"}
 
 
@@ -21,6 +22,9 @@ def parse(text: str, div: str, season: str) -> pd.DataFrame:
     d = d.dropna(subset=[c for c in ("HomeTeam", "AwayTeam", "FTR") if c in d.columns]) if "HomeTeam" in d else pd.DataFrame()
     if d.empty:
         return d
+    for new, old in PP_TO_PS:                            # some seasons name Pinnacle's prices PP*/PPC* instead of PS*/PSC*: use them when PS* is absent
+        if new not in d and old in d:
+            d[new] = d[old]
     for c in KEEP:
         if c not in d:
             d[c] = float("nan")
@@ -63,6 +67,9 @@ def download(out=Path("data/bets"), divs=DIVS, seasons=SEASONS, get=None, pause=
     if not frames:
         sys.exit("no data downloaded: " + "; ".join(gaps[:5]))
     df = pd.concat(frames, ignore_index=True).drop_duplicates(["Div", "Date", "HomeTeam", "AwayTeam"])
+    cov = df.groupby("season").agg(matches=("Div", "size"), bet365=("B365H", lambda x: x.notna().mean()), pinnacle=("PSH", lambda x: x.notna().mean()), pinnacle_close=("PSCH", lambda x: x.notna().mean()))
+    (out / "coverage.txt").write_text(cov.round(3).to_string())
+    print("price coverage by season (share of matches with a price):\n" + cov.round(2).to_string())
     df.to_parquet(out / "matches.parquet")
     (out / "gaps.txt").write_text("\n".join(gaps))
     print(f"matches {len(df)} · seasons {df.season.nunique()} · leagues {df.Div.nunique()} · gaps {len(gaps)} · {df.Date.min():%Y-%m-%d} -> {df.Date.max():%Y-%m-%d}")
