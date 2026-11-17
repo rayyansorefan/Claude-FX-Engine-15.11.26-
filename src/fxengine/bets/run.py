@@ -3,39 +3,67 @@ Pre-registered list (docs/BETTING_PLAN.md): 6 rules, no more. Sealed holdout = t
 Gate: cluster-bootstrap (by match-week) lower bound of ROI > 0 at alpha 0.05/trials, AND mean above the random-bet challenger's 95th percentile.
 Usage: PYTHONPATH=src python -m fxengine.bets.run  -> docs/results/bets.{json,md}"""
 from __future__ import annotations
-import json
+import gc, json
 from pathlib import Path
 import numpy as np
 import pandas as pd
 from . import odds as O, sim
 from ..research import stats
 
+NEEDED = ["Div", "Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR", "season", "B365H", "B365D", "B365A", "PSH", "PSD", "PSA", "PSCH", "PSCD", "PSCA",
+          "B365>2.5", "B365<2.5", "P>2.5", "P<2.5"]            # the other columns (market max/avg, closing O/U) are not used by any rule
+
+
+def _release():
+    """Return freed memory to the operating system (glibc keeps it otherwise): the VM has ~200 MB spare."""
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+
+
 HOLDOUT_SEASONS = ("2526", "2627")
 RULES = ["F1_all_favourites", "L1_longshots_5plus", "V1_b365_vs_pinnacle_3pc", "OV1_over25_all", "UN1_under25_all", "D1_draws_all"]
 
 
-def bet_table(m: pd.DataFrame) -> pd.DataFrame:
-    """One row per selectable bet: 1X2 (H/D/A) and over/under 2.5, priced at Bet365 (pre-match snapshot)."""
-    rows = []
-    for r in m.to_dict("records"):                     # dict rows: column names like 'B365>2.5' are not valid attribute names
-        res = r["FTR"]
-        base = dict(div=r["Div"], season=r["season"], date=r["Date"], match=f"{r['Div']}-{r['Date']:%Y%m%d}-{r['HomeTeam']}-{r['AwayTeam']}", week=f"{r['Date']:%G-%V}")
-        o3 = (r["B365H"], r["B365D"], r["B365A"])
-        if not pd.isna(list(o3)).any():
-            fair_ps = O.fair_probs_shin(r["PSH"], r["PSD"], r["PSA"])
-            fair_psc = O.fair_probs_shin(r["PSCH"], r["PSCD"], r["PSCA"])
-            fav = int(np.argmin(o3))
-            for i, (sel, o) in enumerate(zip("HDA", o3)):
-                rows.append(dict(base, market="1X2", sel=sel, odds=float(o), won=bool(res == sel), is_fav=(i == fav),
-                                 fair_sharp=float(fair_ps[i]) if fair_ps is not None else np.nan,
-                                 fair_close=float(fair_psc[i]) if fair_psc is not None else np.nan))
-        if not (pd.isna(r["B365>2.5"]) or pd.isna(r["B365<2.5"])) and not (pd.isna(r["FTHG"]) or pd.isna(r["FTAG"])):
-            goals = r["FTHG"] + r["FTAG"]
-            ou = O.fair_probs_shin(r["P>2.5"], r["P<2.5"])
-            for i, (sel, o, won) in enumerate((("O25", r["B365>2.5"], goals > 2.5), ("U25", r["B365<2.5"], goals < 2.5))):
-                rows.append(dict(base, market="OU", sel=sel, odds=float(o), won=bool(won), is_fav=False,
-                                 fair_sharp=float(ou[i]) if ou is not None else np.nan, fair_close=np.nan))
-    return pd.DataFrame(rows)
+def bet_table(m: pd.DataFrame, chunk: int = 15000) -> pd.DataFrame:
+    """One row per selectable bet: 1X2 (H/D/A) and over/under 2.5, priced at Bet365 (pre-match snapshot).
+    Built with array operations (no Python object per bet): ~500k rows must fit in the VM's ~200 MB of spare memory."""
+    if len(m) > chunk:                                   # build in slices: the one-shot version needs ~125 MB of scratch space on top
+        return pd.concat([bet_table(m.iloc[i:i + chunk], chunk) for i in range(0, len(m), chunk)], ignore_index=True)
+    m = m.reset_index(drop=True)
+    d = m["Date"]
+    key = (m["Div"].astype(str) + "-" + d.dt.strftime("%Y%m%d") + "-" + m["HomeTeam"].astype(str) + "-" + m["AwayTeam"].astype(str)).to_numpy(object)
+    week = d.dt.strftime("%G-%V").to_numpy(object)
+    div, season, date = m["Div"].to_numpy(object), m["season"].to_numpy(object), d.to_numpy()
+    ftr = m["FTR"].to_numpy(object)
+    num = lambda cols: m[cols].to_numpy(float)
+    parts = []
+
+    def block(rows, market, sel, odds, won, is_fav, fair_sharp, fair_close):
+        parts.append(pd.DataFrame(dict(div=div[rows], season=season[rows], date=date[rows], match=key[rows], week=week[rows], market=market, sel=sel,
+                                       odds=odds, won=won, is_fav=is_fav, fair_sharp=fair_sharp, fair_close=fair_close)))
+
+    o3 = num(["B365H", "B365D", "B365A"])
+    r1 = np.flatnonzero(~np.isnan(o3).any(axis=1))
+    if len(r1):
+        o3 = o3[r1]
+        fs, fc = O.fair_probs_shin_arr(num(["PSH", "PSD", "PSA"])[r1]), O.fair_probs_shin_arr(num(["PSCH", "PSCD", "PSCA"])[r1])
+        fav = np.argmin(o3, axis=1)
+        for i, sel in enumerate("HDA"):
+            block(r1, "1X2", sel, o3[:, i], ftr[r1] == sel, fav == i, fs[:, i], fc[:, i])
+    ou = num(["B365>2.5", "B365<2.5"])
+    goals = m["FTHG"].to_numpy(float) + m["FTAG"].to_numpy(float)
+    r2 = np.flatnonzero(~np.isnan(ou).any(axis=1) & ~np.isnan(goals))
+    if len(r2):
+        fo = O.fair_probs_shin_arr(num(["P>2.5", "P<2.5"])[r2])
+        for i, (sel, won) in enumerate((("O25", goals[r2] > 2.5), ("U25", goals[r2] < 2.5))):
+            block(r2, "OU", sel, ou[r2, i], won, np.zeros(len(r2), bool), fo[:, i], np.full(len(r2), np.nan))
+    if not parts:
+        return pd.DataFrame()
+    return pd.concat(parts, ignore_index=True)
 
 
 def pick(b: pd.DataFrame, rule: str) -> pd.DataFrame:
@@ -67,8 +95,17 @@ def score(b: pd.DataFrame, rule: str, n_trials: int, rng) -> dict:
     r = profit(d)
     g = stats.gate_b(r, 100, n_trials, clusters=d.week.values)
     # random-bet challenger: same markets, a random selection per match, same sample size
-    pool_src = b[b.market.isin(d.market.unique())]
-    pool = np.concatenate([profit(pool_src.sample(frac=1.0, random_state=int(rng.integers(1 << 30))).groupby("match").head(1)) for _ in range(5)])
+    pool_src = b.loc[b.market.isin(d.market.unique()), ["match", "odds", "won"]]
+    pr = profit(pool_src)
+    codes = pd.factorize(pool_src["match"].to_numpy())[0]
+    pool = []
+    for _ in range(5):                                           # one random selection per match, drawn without copying the table
+        perm = rng.permutation(len(codes))
+        order = perm[np.argsort(codes[perm], kind="stable")]
+        first = np.r_[True, codes[order][1:] != codes[order][:-1]]
+        pool.append(pr[order[first]])
+    pool = np.concatenate(pool)
+    del pool_src, pr, codes
     ch = stats.challenger(float(r.mean()), pool, len(r))
     ov = pick(b, "F1_all_favourites") if False else d
     return dict(rule=rule, n=int(len(d)), weeks=g["n_eff"], hit_rate=round(float(d.won.mean()), 4), roi=round(float(r.mean()), 4),
@@ -96,22 +133,29 @@ def render(res) -> str:
 
 
 def main(path=Path("data/bets/matches.parquet"), out=Path("docs/results"), reg=Path("docs/bets_trials.jsonl")):
-    m = pd.read_parquet(path)
+    stats._chunked.__defaults__ = (400_000,)              # smaller resampling batches: ~35 MB less scratch memory, same numbers
+    m = pd.read_parquet(path, columns=NEEDED)
     m = m[~m.season.isin(HOLDOUT_SEASONS)]
     if m.empty:
         raise SystemExit("no research seasons available: run the download first")
+    seasons = f"{m.season.min()}..{m.season.max()}"
     b = bet_table(m)
+    del m
+    _release()
     prior = [json.loads(l)["name"] for l in reg.open()] if reg.exists() else []
     n_trials = len(set(prior) | set(RULES))
     rng = np.random.default_rng(3)
-    rules = [score(b, k, n_trials, rng) for k in RULES]
+    rules = []
+    for k in RULES:
+        rules.append(score(b, k, n_trials, rng))
+        _release()
     if any("roi" in r for r in rules):
         reg.parent.mkdir(parents=True, exist_ok=True)
         with reg.open("a") as f:
             for k in RULES:
                 if k not in prior:
                     f.write(json.dumps({"name": k, "note": "pre-registered in docs/BETTING_PLAN.md"}) + "\n")
-    res = dict(n_trials=n_trials, seasons=f"{m.season.min()}..{m.season.max()}", rules=rules)
+    res = dict(n_trials=n_trials, seasons=seasons, rules=rules)
     out.mkdir(parents=True, exist_ok=True)
     json.dump(res, open(out / "bets.json", "w"), indent=1, default=str)
     (out / "bets.md").write_text(render(res)); print(render(res))

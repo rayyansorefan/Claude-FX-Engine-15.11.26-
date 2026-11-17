@@ -33,3 +33,23 @@ def fair_probs_shin(*odds, iters=200):
         p = (np.sqrt(z * z + 4 * (1 - z) * q * q / s) - z) / (2 * (1 - z))
         lo, hi = (lo, z) if p.sum() < 1 else (z, hi)      # sum(p) falls as z rises: too small a sum means z is too big
     return p / p.sum()
+
+
+def fair_probs_shin_arr(odds, iters=200):
+    """Row-wise Shin for an (n, k) array of odds: same maths as fair_probs_shin, no Python loop over rows.
+    Rows with a missing odd or an odd <= 1 come back as NaN."""
+    o = np.asarray(odds, float)
+    out = np.full(o.shape, np.nan)
+    ok = ~np.isnan(o).any(axis=1) & (o > 1.0).all(axis=1)
+    if not ok.any():
+        return out
+    q = 1.0 / o[ok]
+    s = q.sum(axis=1, keepdims=True)
+    lo, hi = np.zeros_like(s), np.full_like(s, 0.4)
+    for _ in range(iters):
+        z = (lo + hi) / 2
+        p = (np.sqrt(z * z + 4 * (1 - z) * q * q / s) - z) / (2 * (1 - z))
+        small = p.sum(axis=1, keepdims=True) < 1                  # sum(p) falls as z rises: too small a sum means z is too big
+        lo, hi = np.where(small, lo, z), np.where(small, z, hi)
+    out[ok] = p / p.sum(axis=1, keepdims=True)
+    return out

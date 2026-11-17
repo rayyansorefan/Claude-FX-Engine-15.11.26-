@@ -83,3 +83,52 @@ def test_download_saves_raw_files_and_a_rerun_makes_no_requests(tmp_path):
     n = len(calls)
     df = D.download(tmp_path, divs=["E0", "E1"], seasons=["2324"], get=get, pause=0)
     assert n == 2 and len(calls) == n and len(df) == 1                # second run reads the cache, asks the site for nothing
+
+
+def _bet_table_reference(m: pd.DataFrame) -> pd.DataFrame:
+    """One row per selectable bet: 1X2 (H/D/A) and over/under 2.5, priced at Bet365 (pre-match snapshot)."""
+    rows = []
+    for r in m.to_dict("records"):                     # dict rows: column names like 'B365>2.5' are not valid attribute names
+        res = r["FTR"]
+        base = dict(div=r["Div"], season=r["season"], date=r["Date"], match=f"{r['Div']}-{r['Date']:%Y%m%d}-{r['HomeTeam']}-{r['AwayTeam']}", week=f"{r['Date']:%G-%V}")
+        o3 = (r["B365H"], r["B365D"], r["B365A"])
+        if not pd.isna(list(o3)).any():
+            fair_ps = O.fair_probs_shin(r["PSH"], r["PSD"], r["PSA"])
+            fair_psc = O.fair_probs_shin(r["PSCH"], r["PSCD"], r["PSCA"])
+            fav = int(np.argmin(o3))
+            for i, (sel, o) in enumerate(zip("HDA", o3)):
+                rows.append(dict(base, market="1X2", sel=sel, odds=float(o), won=bool(res == sel), is_fav=(i == fav),
+                                 fair_sharp=float(fair_ps[i]) if fair_ps is not None else np.nan,
+                                 fair_close=float(fair_psc[i]) if fair_psc is not None else np.nan))
+        if not (pd.isna(r["B365>2.5"]) or pd.isna(r["B365<2.5"])) and not (pd.isna(r["FTHG"]) or pd.isna(r["FTAG"])):
+            goals = r["FTHG"] + r["FTAG"]
+            ou = O.fair_probs_shin(r["P>2.5"], r["P<2.5"])
+            for i, (sel, o, won) in enumerate((("O25", r["B365>2.5"], goals > 2.5), ("U25", r["B365<2.5"], goals < 2.5))):
+                rows.append(dict(base, market="OU", sel=sel, odds=float(o), won=bool(won), is_fav=False,
+                                 fair_sharp=float(ou[i]) if ou is not None else np.nan, fair_close=np.nan))
+    return pd.DataFrame(rows)
+
+
+def test_vectorised_bet_table_matches_the_slow_reference_exactly():
+    m = _matches(1200, seed=9)
+    rng = np.random.default_rng(0)
+    for c in ["B365H", "PSH", "PSCD", "B365>2.5", "P<2.5", "FTHG"]:                 # sprinkle missing values
+        m.loc[rng.random(len(m)) < 0.07, c] = np.nan
+    m.loc[rng.random(len(m)) < 0.03, "PSA"] = 1.0                                   # invalid odds (<=1)
+    new = R.bet_table(m)
+    ref = _bet_table_reference(m)
+    k = ["match", "sel"]
+    new, ref = new.sort_values(k).reset_index(drop=True), ref.sort_values(k).reset_index(drop=True)
+    assert len(new) == len(ref) and len(new) > 3000
+    for c in ["div", "season", "date", "match", "week", "market", "sel", "won", "is_fav"]:
+        assert (new[c].to_numpy() == ref[c].to_numpy()).all(), c
+    for c in ["odds", "fair_sharp", "fair_close"]:
+        assert np.allclose(new[c].to_numpy(float), ref[c].to_numpy(float), equal_nan=True, atol=1e-9), c
+
+
+def test_bet_table_in_slices_equals_one_shot():
+    m = _matches(1000, seed=4)
+    a, b = R.bet_table(m, chunk=10**6), R.bet_table(m, chunk=137)
+    k = ["match", "sel"]
+    a, b = a.sort_values(k).reset_index(drop=True), b.sort_values(k).reset_index(drop=True)
+    assert len(a) == len(b) and (a.match.to_numpy() == b.match.to_numpy()).all() and np.allclose(a.odds, b.odds) and np.allclose(a.fair_sharp, b.fair_sharp, equal_nan=True)

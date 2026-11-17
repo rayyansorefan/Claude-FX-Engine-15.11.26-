@@ -8,6 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export PYTHONPATH=src
 PY=.venv/bin/python; [ -x "$PY" ] || PY=python3
+echo 1000 > /proc/$$/oom_score_adj 2>/dev/null || true   # if memory ever runs out the kernel stops THIS job first, never the FX engine
 mkdir -p data/bets docs/results
 if [ "${1:-all}" != "research" ]; then
   $PY -m fxengine.bets.data            # writes data/bets/matches.parquet + gaps.txt; a bad file is listed, never fatal
