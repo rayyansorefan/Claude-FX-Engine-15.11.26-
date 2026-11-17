@@ -117,11 +117,11 @@ def track(conn, env, send, root, now):
             if idx == 0:
                 _alert(conn, env, send, c, 0, "NEW", M.new(c), ev["ts"], now)
                 continue
-            if ev["to"] == "TRIGGERED":
-                txt, kind = M.triggered(c, t.fill), "TRIGGERED"
-            elif "HALFWAY" in ev["detail"]:
+            if "HALFWAY" in ev["detail"]:                    # must come first: a halfway event carries to_state == TRIGGERED
                 a, why = advice(t, m5, ev["ts"])
                 txt, kind = M.halfway(c, a, why), "HALFWAY"
+            elif ev["to"] == "TRIGGERED" and ev["frm"] == "PUBLISHED":
+                txt, kind = M.triggered(c, t.fill), "TRIGGERED"
             elif ev["to"] == RESOLVED:
                 o = t.outcome
                 conn.execute("INSERT OR REPLACE INTO outcomes VALUES(?,?,?,?,?,?)", (c["run_id"], o.reason, o.net_r, o.fill, o.exit, str(ev["ts"])))

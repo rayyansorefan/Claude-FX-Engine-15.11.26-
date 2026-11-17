@@ -139,7 +139,7 @@ def test_scan_result_is_persisted_and_new_alert_carries_reason_and_cancel(tmp_pa
     import json
     assert json.load(open(tmp_path / "data" / "latest_scan.json"))["candidates"][0]["pair"] == "EURUSD"
     new = [m for m in bag.msgs if m.startswith("🟢 NEW")][0]
-    assert "Strength gap" in new and "Cancel if close <= 1.09950" in new and len(new.split("\n")) == 3
+    assert "Strength gap" in new and "cancel if close <= 1.09950" in new and "UNPROVEN" in new and len(new.split("\n")) == 3
 
 
 def test_halfway_advice_uses_only_bars_closed_at_the_event(tmp_path):
@@ -168,3 +168,24 @@ def test_401_alert_says_exactly_what_to_do_and_audit_reports_longest_silence(tmp
     conn.commit()
     txt = audit_text(conn, now)
     assert "longest silence 24h 300 min" in txt and len(txt.split("\n")) == 5
+
+
+def test_halfway_warning_is_sent_as_halfway_not_as_a_second_triggered(tmp_path):
+    """Regression (Tue 17 Nov, EURGBP): the halfway event carries to_state TRIGGERED and was sent as a duplicate 'TRIGGERED'."""
+    px = np.r_[np.full(60, 1.1000), np.linspace(1.1000, 1.1016, 8), np.linspace(1.1016, 1.1000, 10), np.full(20, 1.1000)]
+    idx = pd.date_range(T0, periods=len(px), freq="5min", tz="UTC")
+    o = np.r_[px[0], px[:-1]]
+    d = pd.DataFrame({"bid_o": o, "bid_h": np.maximum(o, px) + 1e-5, "bid_l": np.minimum(o, px) - 1e-5, "bid_c": px,
+                      "ask_o": o + 3e-5, "ask_h": px + 3e-5, "ask_l": px + 3e-5, "ask_c": px + 3e-5, "volume": 1.0}, index=idx)
+    store.merge_save("EURUSD", "M5", d, tmp_path)
+    store.merge_save("EURUSD", "H1", resample(d, "H1", base="M5"), tmp_path)
+    now = d.index[-1] + pd.Timedelta(minutes=6)
+    conn = DB.connect(str(tmp_path / "e.db"))
+    bag = Bag()
+    c = dict(cand(d.index[40] + pd.Timedelta(minutes=5)), stop=1.0990, target=1.1050, entry=1.1010)     # 0.5R adverse = ~1.1001
+    for _ in range(3):
+        loop.run_cycle(conn, {}, now, send=bag, root=tmp_path, refresh_fn=lambda: None, scan_fn=lambda: [c])
+    heads = [m.split(" ·")[0] for m in bag.msgs]
+    assert heads == ["🟢 NEW", "▶️ TRIGGERED", "⚠️ HALFWAY"], heads               # exactly ONE triggered, then the halfway warning
+    assert "Advice:" in bag.msgs[2] and "HOLD" in bag.msgs[2] + "EXIT"
+    assert all(len(m.split("\n")) <= 3 for m in bag.msgs)

@@ -13,18 +13,18 @@ def hhmm(ts):
 
 
 def why(c) -> str:
-    """First line of the setup's reason, shortened for a phone screen."""
-    r = str(c.get("reason") or c["type"]).split("\n")[0]
-    return r if len(r) <= 90 else r[:87] + "..."
+    """First sentence of the setup's reason, kept short for a phone screen."""
+    r = str(c.get("reason") or c["type"]).split("\n")[0].split(";")[0]
+    return r if len(r) <= 58 else r[:55] + "..."
 
 
 def new(c) -> str:
     inv = c.get("invalidation")
-    cancel = f" · Cancel if close {'<=' if c['direction'] == 'long' else '>='} {p(c['pair'], inv)}" if inv is not None else ""
-    return (f"🟢 NEW · {c['pair']} {c['direction'].upper()} ({c['tf']} {c['type']}) · {why(c)}\n"
-            f"{c['entry_kind'].title()} entry {p(c['pair'], c['entry'])} · Stop {p(c['pair'], c['stop'])} · Target {p(c['pair'], c['target'])} · "
+    cancel = f" · cancel if close {'<=' if c['direction'] == 'long' else '>='} {p(c['pair'], inv)}" if inv is not None else ""
+    return (f"🟢 NEW · {c['pair']} {c['direction'].upper()} · {c['tf']} {c['type']} · UNPROVEN\n"
+            f"{c['entry_kind'].title()} {p(c['pair'], c['entry'])} · stop {p(c['pair'], c['stop'])} · target {p(c['pair'], c['target'])} · "
             f"{c['lots_for_20gbp_risk']} lots (£20 risk)\n"
-            f"Expires {hhmm(c['expires'])} UTC{cancel} · UNPROVEN: this rule failed its backtests")
+            f"{why(c)} · expires {hhmm(c['expires'])} UTC{cancel}")
 
 
 def triggered(c, fill) -> str:
