@@ -4,10 +4,13 @@ Every bet is a PAPER bet in a local SQLite ledger: nothing goes to any bookmaker
 Background thread: every --every seconds it refreshes fixtures, auto-places qualifying paper bets (V1/V1P) and settles finished matches."""
 from __future__ import annotations
 import argparse, json, threading, time
+from html import escape as html_escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from . import dashboard, paper
 
+AUTO = [60]                                   # page reloads itself every N seconds (0 = never), like the FX dashboard's --auto
+FX_HOST = ["127.0.0.1"]
 FX_PORT = [8787]                              # where the FX dashboard listens (same host); shown as the other tab on /hub
 LOCK = threading.Lock()                       # one writer at a time; the ledger is tiny
 
@@ -22,13 +25,15 @@ nav a{margin-left:auto;color:var(--mute);font-size:12px}nav small{color:var(--mu
 iframe{flex:1;border:0;width:100%;background:var(--bg)}
 </style></head><body>
 <nav role="tablist"><button role="tab" id="t-fx" onclick="show('fx')">FX Engine</button><button role="tab" id="t-bk" onclick="show('bk')">Bookie Engine</button>
-<small>two separate engines, one page</small><a id="open" target="_blank" rel="noopener">open this tab on its own</a></nav>
+<small>two separate engines, one page__AUTOCHIP__</small><a id="open" target="_blank" rel="noopener">open this tab on its own</a></nav>
 <iframe id="f" title="engine dashboard"></iframe>
 <script>
-var H=location.hostname,U={fx:location.protocol+'//'+H+':__FXPORT__/',bk:'/'};
-function show(k){document.getElementById('f').src=U[k];document.getElementById('open').href=U[k];
+var H=location.hostname,U={fx:'/fx',bk:'/'},OWN={fx:location.protocol+'//'+H+':__FXPORT__/',bk:'/'},CUR='bk';
+function show(k){document.getElementById('f').src=U[k];document.getElementById('open').href=OWN[k];CUR=k;
  ['fx','bk'].forEach(function(x){document.getElementById('t-'+x).setAttribute('aria-selected',x===k)});
  try{localStorage.setItem('hubtab',k)}catch(e){};history.replaceState(null,'','#'+k)}
+var AUTO=__AUTO__;if(AUTO){setInterval(function(){try{var f=document.getElementById('f'),d=f.contentDocument,a=d&&d.activeElement;
+ if(document.hidden||(a&&/INPUT|TEXTAREA/.test(a.tagName)))return;f.contentWindow.location.reload()}catch(e){}},AUTO*1000)}
 var k=(location.hash||'').slice(1);if(k!=='fx'&&k!=='bk'){try{k=localStorage.getItem('hubtab')}catch(e){}}show(k==='fx'?'fx':'bk');
 </script></body></html>"""
 
@@ -40,7 +45,7 @@ def _results(path=Path("docs/results/bets.json")):
 def page(conn) -> str:
     with LOCK:
         st = paper.state(conn)
-    return dashboard.render(_results(), paper=st)
+    return dashboard.render(_results(), paper=st, auto=AUTO[0])
 
 
 def api_bet(conn, body: dict) -> tuple[int, dict]:
@@ -56,6 +61,17 @@ def api_bet(conn, body: dict) -> tuple[int, dict]:
         return 400, dict(ok=False, error=str(e) if isinstance(e, ValueError) else "Enter a stake in pounds.")
 
 
+def fx_page() -> str:
+    """Read-only relay of the FX dashboard's front page (fixed upstream URL, nothing from the request is used), so the hub can reload it in place."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"http://{FX_HOST[0]}:{FX_PORT[0]}/", timeout=15) as r:
+            return r.read().decode("utf-8", "replace")
+    except Exception as e:
+        return ("<!doctype html><meta charset='utf-8'><body style='background:#111110;color:#f0efec;font:15px system-ui;padding:24px'><b>FX dashboard not reachable</b>"
+                f"<p style='color:#8d8c84'>Tried http://{html_escape(str(FX_HOST[0]))}:{FX_PORT[0]}/ ({type(e).__name__}). Is the fxdash service running?</p></body>")
+
+
 def make_handler(conn, tick_fn=None):
     class H(BaseHTTPRequestHandler):
         def _send(self, code, body, ctype="application/json"):
@@ -68,7 +84,9 @@ def make_handler(conn, tick_fn=None):
             if self.path.split("?")[0] in ("/", "/index.html"):
                 return self._send(200, page(conn), "text/html")
             if self.path.split("?")[0] == "/hub":
-                return self._send(200, HUB.replace("__FXPORT__", str(FX_PORT[0])), "text/html")
+                return self._send(200, HUB.replace("__FXPORT__", str(FX_PORT[0])).replace("__AUTO__", str(AUTO[0])).replace("__AUTOCHIP__", f" · refreshes every {AUTO[0]}s" if AUTO[0] else ""), "text/html")
+            if self.path.split("?")[0] == "/fx":
+                return self._send(200, fx_page(), "text/html")
             if self.path == "/api/state":
                 with LOCK:
                     return self._send(200, json.dumps(paper.state(conn), default=str))
@@ -101,11 +119,12 @@ def main():
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8789)
     ap.add_argument("--fx-port", type=int, default=8787, help="FX dashboard port, for the FX tab on /hub")
+    ap.add_argument("--auto", type=int, default=60, help="page auto-refresh seconds (0 = off)")
     ap.add_argument("--every", type=int, default=1800, help="seconds between automatic fixture/result checks (0 = off)")
     a = ap.parse_args()
     if a.host in ("0.0.0.0", "::"):
         raise SystemExit("Refusing to bind to all interfaces: use 127.0.0.1 or the VM's Tailscale IP.")
-    FX_PORT[0] = a.fx_port
+    FX_PORT[0], AUTO[0], FX_HOST[0] = a.fx_port, a.auto, a.host
     conn = paper.connect()
 
     def loop():

@@ -219,7 +219,7 @@ def render_paper(p: dict) -> str:        # kept for callers/tests that want the 
     return _paper_tab(p)
 
 
-def render(res: dict | None, paper: dict | None = None) -> str:
+def render(res: dict | None, paper: dict | None = None, auto: int = 0) -> str:
     rules = (res or {}).get("rules", [])
     lvl = level(res)
     scored = [r for r in rules if "roi" in r]
@@ -251,7 +251,11 @@ def render(res: dict | None, paper: dict | None = None) -> str:
     tabs = [("paper", "Paper trading")] if paper is not None else []
     tabs += [("research", "Research"), ("rules", "Rules"), ("odds", "£1,000 odds"), ("about", "About")]
     seasons, trials = E(str((res or {}).get("seasons", "—"))), (res or {}).get("n_trials", "—")
-    now = datetime.now().strftime("%a %d %b %Y %H:%M")
+    try:
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Europe/London")).strftime("%a %d %b %Y %H:%M:%S %Z")      # UK time, like the FX dashboard
+    except Exception:
+        now = datetime.now().strftime("%a %d %b %Y %H:%M:%S")
     sections = []
     if paper is not None:
         sections.append(f'<div class="tab" id="paper">{_paper_tab(paper)}</div>')
@@ -266,11 +270,12 @@ def render(res: dict | None, paper: dict | None = None) -> str:
                     '<li>Only money you can afford to lose entirely. This engine never logs in, never places or suggests a bet; any real bet is yours alone, at your own risk.</li>'
                     '<li>Latest seasons are sealed: the engine has never looked at them. They are opened once, only if a rule clears the gate.</li></ul></div></div>')
     body = (f'<div class="wrap"><div class="top"><span class="brand">BOOKIE ENGINE</span><span class="pill {state}">{label}</span><span class="chip">seasons {seasons}</span>'
-            f'<span class="chip">{trials} rules tried</span><span class="chip">latest seasons sealed</span><span class="chip">paper only · never places a bet</span><span class="sp"></span><span class="mono muted">{now}</span></div>'
+            f'<span class="chip">{trials} rules tried</span><span class="chip">latest seasons sealed</span><span class="chip">paper only · never places a bet</span>{f'<span class="chip">refreshes every {auto}s</span>' if auto else ''}<span class="sp"></span><span class="mono muted">{now}</span></div>'
             f'<div class="tabs">{"".join(f"<button data-t={k!r}>{v}</button>".replace(chr(39), chr(34)) for k, v in tabs)}</div>{"".join(sections)}'
             '<footer>Generated from docs/results/bets.json · numbers are shown only if they are in that file</footer></div>')
+    refresh = (f"<script>setInterval(function(){{var a=document.activeElement;if(window.top!==window.self||document.hidden||(a&&a.tagName==='INPUT'))return;location.reload()}},{int(auto) * 1000})</script>" if auto else "")
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bookie Engine</title>'
-            f'<style>{CSS}</style></head><body>{body}{JS}</body></html>')
+            f'<style>{CSS}</style></head><body>{body}{JS}{refresh}</body></html>')
 
 
 def write(res_path=Path("docs/results/bets.json"), out=Path("docs/results/bets.html")) -> Path:

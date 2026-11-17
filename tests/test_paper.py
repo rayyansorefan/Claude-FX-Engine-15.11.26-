@@ -101,6 +101,18 @@ def test_server_places_paper_bets_over_http_and_rejects_non_json():
     assert post("/api/bet", dict(id=fx(0)["id"], market="1X2", sel="D", stake="abc"))[0] == 400
     assert post("/api/bet", dict(id="nope", market="1X2", sel="H", stake=1))[0] == 404
     assert post("/api/bet", dict(id=fx(0)["id"], market="1X2", sel="D", stake=1), ctype="text/plain")[0] == 415
+    import http.server
+    class Up(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200); self.end_headers(); self.wfile.write(b"<html>FXPAGE-OK</html>")
+        def log_message(self, *a): pass
+    up = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Up); threading.Thread(target=up.serve_forever, daemon=True).start()
+    S.FX_HOST[0], S.FX_PORT[0] = "127.0.0.1", up.server_address[1]
+    assert "FXPAGE-OK" in urllib.request.urlopen(base + "/fx").read().decode()                  # relayed, same-origin
+    S.FX_PORT[0] = 1                                                                            # nothing there -> friendly message, not a crash
+    assert "FX dashboard not reachable" in urllib.request.urlopen(base + "/fx").read().decode()
+    up.shutdown()
+    assert "setInterval" in urllib.request.urlopen(base + "/hub").read().decode() and "refreshes every 60s" in urllib.request.urlopen(base + "/hub").read().decode()
     assert post("/api/tick", {})[0] == 200 and P.available(c) == 95.0
     srv.shutdown()
 
@@ -109,3 +121,11 @@ def test_fixtures_accept_pinnacle_under_pp_names():
     csv = "Div,Date,Time,HomeTeam,AwayTeam,B365H,B365D,B365A,PPH,PPD,PPA\nE0,21/11/2026,15:00,A,B,3.0,3.4,2.4,2.5,3.4,3.2\n"
     f = P.parse_fixtures(csv)[0]
     assert f["ps"] == [2.5, 3.4, 3.2] and any(s == "H" for _, _, s, _ in P.qualifies(f))
+
+
+def test_live_page_refreshes_itself_but_the_static_file_does_not():
+    c = P.connect(":memory:")
+    live = D.render(None, paper=P.state(c, TODAY), auto=60)
+    assert "setInterval" in live and "60000" in live and "refreshes every 60s" in live and "tagName===&#x27;INPUT&#x27;" not in live
+    assert "setInterval" not in D.render(None, paper=P.state(c, TODAY)) and "setInterval" not in D.render(None)
+    assert "setInterval" in S.page(c)                                  # the server's own page uses the default 60s
