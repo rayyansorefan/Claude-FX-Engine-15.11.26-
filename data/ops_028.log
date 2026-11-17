@@ -1,0 +1,45 @@
+{
+ "USD": {
+  "last": "2026-10-01",
+  "missing_months": []
+ },
+ "EUR": {
+  "last": "2026-01-01",
+  "missing_months": [
+   "2026-02",
+   "2026-03",
+   "2026-04",
+   "2026-05"
+  ]
+ },
+ "GBP": {
+  "last": "2026-01-01",
+  "missing_months": [
+   "2026-02",
+   "2026-03",
+   "2026-04",
+   "2026-05"
+  ]
+ },
+ "JPY": {
+  "last": "2026-09-01",
+  "missing_months": []
+ },
+ "CHF": {
+  "last": "2026-10-01",
+  "missing_months": []
+ },
+ "AUD": {
+  "last": "2026-10-01",
+  "missing_months": []
+ },
+ "CAD": {
+  "last": "2026-10-01",
+  "missing_months": []
+ },
+ "NZD": {
+  "last": "2026-10-01",
+  "missing_months": []
+ }
+}
+saved data/rates.csv rows 850
