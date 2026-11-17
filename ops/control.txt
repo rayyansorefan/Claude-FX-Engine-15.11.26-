@@ -8,3 +8,4 @@ resume 2
 resume 3
 resume 4
 kill 021
+resume 6
