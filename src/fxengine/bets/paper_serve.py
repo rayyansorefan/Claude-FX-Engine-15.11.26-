@@ -72,6 +72,20 @@ def fx_page() -> str:
                 f"<p style='color:#8d8c84'>Tried http://{html_escape(str(FX_HOST[0]))}:{FX_PORT[0]}/ ({type(e).__name__}). Is the fxdash service running?</p></body>")
 
 
+def api_check(conn, body: dict) -> tuple[int, dict]:
+    """OPTION 2: value check of a Bet365 price against the sharp price. Read-only, nothing is recorded."""
+    with LOCK:
+        row = conn.execute("SELECT json FROM fixtures WHERE id=?", (str(body.get("id", "")),)).fetchone()
+    if not row:
+        return 404, dict(ok=False, error="That match is no longer in the list. Refresh prices.")
+    try:
+        pr = float(body["price"]) if body.get("price") not in (None, "") else None
+    except (TypeError, ValueError):
+        return 400, dict(ok=False, error="Enter Bet365's price as a number, e.g. 2.40.")
+    out = paper.check_bet(json.loads(row["json"]), str(body.get("sel", "")), pr)
+    return (200 if out.get("ok") else 400), out
+
+
 def make_handler(conn, tick_fn=None):
     class H(BaseHTTPRequestHandler):
         def _send(self, code, body, ctype="application/json"):
@@ -102,6 +116,9 @@ def make_handler(conn, tick_fn=None):
                 return self._send(400, json.dumps(dict(ok=False, error="bad request")))
             if self.path == "/api/bet":
                 code, out = api_bet(conn, body)
+                return self._send(code, json.dumps(out))
+            if self.path == "/api/check":
+                code, out = api_check(conn, body)
                 return self._send(code, json.dumps(out))
             if self.path == "/api/tick":
                 with LOCK:

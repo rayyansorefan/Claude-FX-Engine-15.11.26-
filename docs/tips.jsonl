@@ -1,0 +1,4 @@
+# Tipster picks (Option 1). One JSON object per line; lines starting with # are ignored. The paper server reads this file every 30 minutes.
+# A pick becomes a PAPER bet (flat stake, TIPSTER's own virtual £100) once the match is in the free fixtures file AND Bet365's price >= min_odds.
+# Football 1X2 only (market "1X2", sel "H" | "D" | "A"): that is all the free data prices. p = my stated chance; why = the reason (kept with the bet).
+# {"id":"2026-11-21-arsenal-chelsea-H","date":"2026-11-21","home":"Arsenal","away":"Chelsea","market":"1X2","sel":"H","p":0.45,"min_odds":2.40,"stake":2.0,"why":"..."}

@@ -62,6 +62,8 @@ ul.lim{margin:6px 0 0;padding-left:18px;color:var(--ink2);font-size:13.5px}ul.li
 .pk button:hover,.btn:hover{border-color:var(--s1);color:var(--ink)}.pk button i{display:block;font:normal 11px ui-monospace,Menlo,monospace;color:var(--mute)}
 .ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0}.ctl input{font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
 .ctl input[type=number]{width:90px}.ctl input[type=search]{flex:1;min-width:160px}
+.ctl select{font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 10px;max-width:100%}
+.ckout{margin-top:10px}.ckbox{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--card)}.ckbox.good{border-color:var(--good)}.ckbox.warn{border-color:var(--warn)}.ckbox.crit{border-color:var(--crit)}
 .paperbanner{border:1px solid var(--s1);background:color-mix(in srgb,var(--s1) 10%,var(--card));border-radius:10px;padding:8px 14px;margin:0 0 12px;font-size:13px;color:var(--ink2)}
 footer{color:var(--mute);font-size:12px;text-align:center;margin-top:14px}
 @media (max-width:640px){.lrow{grid-template-columns:1fr}.lnum{grid-column:1}}
@@ -76,7 +78,15 @@ fetch('/api/bet',{method:'POST',headers:{'Content-Type':'application/json'},body
 .then(function(r){return r.json()}).then(function(j){if(j.ok){location.reload()}else{alert(j.error||'Could not place that paper bet');btn.disabled=false}})
 .catch(function(){alert('Could not reach the paper server');btn.disabled=false})}
 function tick(b){b.disabled=true;b.textContent='Checking...';fetch('/api/tick',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(function(){location.reload()}).catch(function(){b.disabled=false})}
+function ckfill(){var o=document.getElementById('ck-match');var op=o.options[o.selectedIndex];if(!op)return;var b=(op.dataset.b||'').split(','),i=document.getElementById('ck-sel').selectedIndex;document.getElementById('ck-price').value=b[i]||''}
+function ck(btn){var o=document.getElementById('ck-match');var out=document.getElementById('ck-out');btn.disabled=true;
+fetch('/api/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:o.value,sel:document.getElementById('ck-sel').value,price:document.getElementById('ck-price').value})})
+.then(function(r){return r.json()}).then(function(j){btn.disabled=false;
+ if(!j.ok){out.innerHTML='<div class="ckbox warn">'+(j.error||'Could not check that')+'</div>';return}
+ out.innerHTML='<div class="ckbox '+j.tone+'"><b>'+j.verdict+'</b><div class="nums" style="margin-top:10px"><div><small>Bet365 price</small><b>'+j.price.toFixed(2)+'</b></div><div><small>Fair price (sharp)</small><b>'+j.fair_odds.toFixed(2)+'</b></div><div><small>Edge vs fair price</small><b>'+(j.edge*100).toFixed(1)+'%</b></div><div><small>Per £10 staked, on average</small><b>'+(j.per10>=0?'+':'-')+'£'+Math.abs(j.per10).toFixed(2)+'</b></div></div><p class="muted" style="font-size:12px;margin:8px 0 0">'+j.note+'</p></div>'})
+.catch(function(){btn.disabled=false;out.innerHTML='<div class="ckbox warn">Could not reach the server.</div>'})}
 function filt(q){q=q.toLowerCase();document.querySelectorAll('.fx').forEach(function(e){e.style.display=e.dataset.q.indexOf(q)>-1?'':'none'})}
+if(document.getElementById('ck-match'))ckfill();
 </script>"""
 
 
@@ -190,7 +200,8 @@ def _bet_rows(bets, n=30):
 
 
 def _paper_tab(p: dict) -> str:
-    eq, roi = p["equity"], p["roi"]
+    man = next((r for r in p["board"] if r["rule"] == "MANUAL"), None) or dict(equity=p["start"], at_risk=0.0, curve=[p["start"]], roi=None, n=0, won=0)
+    eq, roi = man["equity"], man["roi"]
     cls = "up" if eq > p["start"] else "dn" if eq < p["start"] else ""
     fx = []
     for f in p["fixtures"]:
@@ -203,16 +214,83 @@ def _paper_tab(p: dict) -> str:
             fx.append(f'<div class="fx" data-q="{q}"><div class="m">{E(f["home"])} v {E(f["away"])}<div class="t">{E(f["date"])} {E(f["time"])} · {E(f["div"])}</div></div><div class="pk">{"".join(btns)}</div></div>')
     rules = "".join(f'<tr><td>{E(k)}</td><td class="r num">{v["n"]}</td><td class="r num">{v["won"]}</td><td class="r num">{_gbp(v["pnl"], True)}</td><td class="r num">{pct(v["pnl"] / v["staked"], True) if v["staked"] else "n/a"}</td></tr>' for k, v in sorted(p["by_rule"].items()))
     rcls = "up" if (roi or 0) > 0 else "dn" if (roi or 0) < 0 else ""
-    return f"""<div class="paperbanner"><b>PAPER ONLY.</b> Pretend money. Nothing is ever sent to Bet365 or any bookmaker. Prices are Bet365's from football-data.co.uk's free fixtures file and may differ from live prices. Last check: {E(p["last_tick"] or "never")} UTC.</div>
-<div class="kpis"><div class="kpi"><small>Virtual bankroll</small><b class="{cls}">£{eq:.2f}</b><span>start £{p["start"]:.0f}</span></div><div class="kpi"><small>Free to stake</small><b>£{p["available"]:.2f}</b><span>after open bets</span></div>
-<div class="kpi"><small>Open bets</small><b>{len(p["open"])}</b><span>waiting for the match</span></div><div class="kpi"><small>Settled</small><b>{p["n_settled"]}</b><span>{p["won"]} won</span></div>
+    return f"""<div class="paperbanner"><b>PAPER ONLY.</b> Pretend money (your own manual bets live here; the strategies are on the Scoreboard tab). Nothing is ever sent to Bet365 or any bookmaker. Prices are Bet365's from football-data.co.uk's free fixtures file and may differ from live prices. Last check: {E(p["last_tick"] or "never")} UTC.</div>
+<div class="kpis"><div class="kpi"><small>Your bankroll</small><b class="{cls}">£{eq:.2f}</b><span>start £{p["start"]:.0f} · manual bets</span></div><div class="kpi"><small>Free to stake</small><b>£{man["equity"] - man["at_risk"]:.2f}</b><span>after your open bets</span></div>
+<div class="kpi"><small>Open bets</small><b>{len(p["open"])}</b><span>all strategies</span></div><div class="kpi"><small>Your settled bets</small><b>{man["n"]}</b><span>{man["won"]} won</span></div>
 <div class="kpi"><small>Return on stakes</small><b class="{rcls}">{pct(roi, True)}</b><span>settled bets only</span></div></div>
-<div class="grid"><div class="card c12"><h3>Virtual bankroll after each settled bet</h3>{_curve(p["curve"], p["start"])}</div>
+<div class="grid"><div class="card c12"><h3>Your bankroll after each settled bet</h3>{_curve(man["curve"], p["start"])}</div>
 <div class="card c12"><h3>Place a paper bet</h3><div class="ctl"><label class="muted">Stake £ <input id="stake" type="number" min="{p["min_stake"]}" step="0.5" value="{p["auto_stake"]:.2f}"></label>
 <input type="search" placeholder="Search team or league (e.g. Arsenal, E0)" oninput="filt(this.value)"><button class="btn" onclick="tick(this)">Refresh prices &amp; results</button></div>
 {"".join(fx) or '<p class="muted">No upcoming matches loaded yet. The free fixtures file only has matches once the site posts them; this page checks every 30 minutes by itself.</p>'}</div>
 <div class="card c6"><h3>Open paper bets</h3>{_bet_rows(p["open"])}</div><div class="card c6"><h3>Settled paper bets</h3>{_bet_rows(p["settled"])}</div>
-{('<div class="card c12"><h3>By strategy</h3><table class="tbl"><tr><th>Strategy</th><th class="r">Settled</th><th class="r">Won</th><th class="r">P/L</th><th class="r">Return</th></tr>' + rules + '</table><p class="muted" style="font-size:12px;margin:8px 0 0">V1 / V1P = automatic bets from the research rule (Shin / plain margin removal), flat £' + f"{p['auto_stake']:.2f}" + ' each. MANUAL = your clicks.</p></div>') if rules else ""}</div>"""
+</div>"""
+
+
+COLORS = {"V1": "var(--s1)", "V1P": "var(--warn)", "TIPSTER": "var(--good)", "MANUAL": "var(--ink2)"}
+
+
+def _multi_curve(board) -> str:
+    rows = [r for r in board if len(r["curve"]) >= 2]
+    if not rows:
+        return '<p class="muted">The lines appear once bets start settling.</p>'
+    allv = [v for r in rows for v in r["curve"]] + [100.0]
+    lo, hi = min(allv), max(allv)
+    pad = (hi - lo) * 0.1 or 1
+    lo, hi = lo - pad, hi + pad
+    W, H = 700, 170
+    mx = max(len(r["curve"]) for r in rows) - 1 or 1
+    X = lambda i: 8 + i / mx * (W - 16)
+    Y = lambda v: H - 10 - (v - lo) / (hi - lo) * (H - 20)
+    o = [f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="Virtual bankroll of each strategy after each settled bet"><line x1="0" y1="{Y(100):.1f}" x2="{W}" y2="{Y(100):.1f}" class="zero"/>'
+         f'<text x="{W - 4}" y="{Y(100) - 4:.1f}" class="tick" text-anchor="end">£100 start</text>']
+    for r in rows:
+        pts = " ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(r["curve"]))
+        o.append(f'<polyline points="{pts}" fill="none" stroke="{COLORS.get(r["rule"], "var(--mute)")}" stroke-width="2.2" stroke-linejoin="round"/>')
+    leg = "".join(f'<span><i style="background:{COLORS.get(r["rule"], "var(--mute)")}"></i>{E(r["rule"])}</span>' for r in rows)
+    return "".join(o) + f'</svg><div class="legend">{leg}</div>'
+
+
+def _board_tab(p: dict) -> str:
+    rows = []
+    for r in p["board"]:
+        rng = f'{pct(r["lo"], True)} to {pct(r["hi"], True)}' if r["lo"] is not None else "needs 30+ bets"
+        cls = "up" if (r["pnl"] or 0) > 0 else "dn" if (r["pnl"] or 0) < 0 else ""
+        rows.append(f'<tr><td><b style="color:{COLORS.get(r["rule"], "var(--ink)")}">{E(r["rule"])}</b><div class="muted" style="font-size:11px">{E(r["note"])}</div></td>'
+                    f'<td class="r num">{r["n"]}</td><td class="r num">{r["won"]}</td><td class="r num">{pct(r["won"] / r["n"]) if r["n"] else "n/a"}</td>'
+                    f'<td class="r num {cls}">{_gbp(r["pnl"], True)}</td><td class="r num {cls}">{pct(r["roi"], True)}</td><td class="r num">{rng}</td>'
+                    f'<td class="r num">£{r["equity"]:.2f}</td><td class="r num">{r["open"]}</td></tr>')
+    return f"""<div class="paperbanner"><b>PAPER ONLY.</b> Each strategy bets with its <b>own virtual £100</b> on the same matches, so the comparison is fair. Nothing is ever sent to a bookmaker.</div>
+<div class="verdict warn" style="border-color:var(--warn);background:color-mix(in srgb,var(--warn) 10%,var(--card))"><b>Which makes more money?</b> {E(p["verdict"])}</div>
+<div class="card"><h3>Scoreboard · settled bets only</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:720px"><tr><th>Strategy</th><th class="r">Settled</th><th class="r">Won</th><th class="r">Hit rate</th><th class="r">P/L</th><th class="r">Return per £1</th><th class="r">95% range</th><th class="r">Bankroll</th><th class="r">Open</th></tr>{"".join(rows)}</table></div>
+<p class="muted" style="font-size:12px;margin:8px 0 0">A strategy only counts as better when its whole 95% range is above zero with at least 100 settled bets. Backing every favourite loses about 4.8% per £1 in 95,558 historical bets, so that is the bar to beat.</p></div>
+<div class="card" style="margin-top:12px"><h3>Virtual bankroll of each strategy</h3>{_multi_curve(p["board"])}</div>
+<div class="card" style="margin-top:12px"><h3>How the two ideas are tested</h3><ul class="lim"><li><b>Option 2, value checker (V1, V1P):</b> bets automatically, flat £2, only when Bet365's price beats the sharp Pinnacle price by 3% or more.</li>
+<li><b>Option 1, tipster (TIPSTER):</b> Claude's researched picks, flat £2, placed at Bet365's current price if it is at least the pick's minimum price. Football only: Home / Draw / Away prices, because that is all the free data prices.</li>
+<li>Claude's picks cannot be fairly backtested (it has seen past results in training), so both run forward on live fixtures. Expect weeks before the numbers mean anything.</li></ul></div>"""
+
+
+def _check_tab(p: dict) -> str:
+    opts = []
+    for f in p["fixtures"]:
+        if f.get("ps") and all(f["ps"]) and f.get("b365") and all(f["b365"]):
+            opts.append(f'<option value="{E(f["id"], quote=True)}" data-b="{",".join(str(x) for x in f["b365"])}">{E(f["date"])} · {E(f["home"])} v {E(f["away"])}</option>')
+    form = (f'<div class="ctl"><select id="ck-match" onchange="ckfill()">{"".join(opts)}</select><select id="ck-sel" onchange="ckfill()"><option value="H">Home win</option><option value="D">Draw</option><option value="A">Away win</option></select>'
+            '<label class="muted">Bet365 price <input id="ck-price" type="number" step="0.01" min="1.01" placeholder="2.40"></label><button class="btn" onclick="ck(this)">Check this bet</button></div><div class="ckout" id="ck-out"></div>'
+            ) if opts else '<p class="muted">No upcoming matches with a sharp (Pinnacle) price yet. The free fixtures file is only updated around each weekend; this page checks every 30 minutes by itself.</p>'
+    return f"""<div class="card"><h3>Check a bet · is Bet365's price worth it?</h3><p class="muted" style="margin-top:0">Pick the match and outcome, type the price you see on Bet365 right now, and it compares it with the sharp market's margin-free fair price. It never places a bet and records nothing.</p>{form}</div>
+<div class="card" style="margin-top:12px"><h3>How to read it</h3><ul class="lim"><li><b>Edge</b> = how far Bet365's price is above (+) or below (−) the fair price. Beating the sharp price by 3%+ is rare; most prices are below it, by roughly the bookmaker's margin.</li>
+<li>"Per £10 staked" is the average result if Pinnacle's price is the truth. One bet can still win or lose; the average is what the edge tells you.</li><li>Football Home / Draw / Away only: that is what the free data has sharp prices for.</li></ul></div>"""
+
+
+def _tips_tab(p: dict) -> str:
+    if not p["tips"]:
+        body = '<p class="muted">No tips posted yet. When Claude researches a round of fixtures, the picks appear here with the reasons, and each is placed as a paper bet automatically once the match and price are available.</p>'
+    else:
+        rows = "".join(f'<tr><td>{E(t.get("date", ""))}</td><td>{E(t.get("home", ""))} v {E(t.get("away", ""))}</td><td>{E(SELNAME.get(t.get("sel", ""), t.get("sel", "")))}</td>'
+                       f'<td class="r num">{pct(t.get("p"))}</td><td class="r num">{t.get("min_odds", "")}</td><td>{E(t["status"])}</td><td class="muted">{E(t["detail"])}</td><td class="muted">{E(str(t.get("why", ""))[:160])}</td></tr>' for t in p["tips"])
+        body = ('<div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:820px"><tr><th>Date</th><th>Match</th><th>Pick</th><th class="r">Claude\'s chance</th><th class="r">Min price</th><th>Status</th><th>Detail</th><th>Reason</th></tr>'
+                + rows + "</table></div>")
+    return f'<div class="card"><h3>Tipster picks · Option 1</h3>{body}<p class="muted" style="font-size:12px;margin:8px 0 0">Picks are read from docs/tips.jsonl on the betting-wip branch (public). Football 1X2 only. A pick is placed only if Bet365\'s price is at least its minimum.</p></div>'
 
 
 def render_paper(p: dict) -> str:        # kept for callers/tests that want the paper panel on its own
@@ -248,7 +326,7 @@ def render(res: dict | None, paper: dict | None = None, auto: int = 0) -> str:
             f'<div class="nums"><div><small>Return per £1</small><b>{pct(r["roi"], True, 2)}</b></div><div><small>{lvl} range</small><b style="font-size:13px">{pct(r["ci95_lo"], True)} to {pct(r["ci95_hi"], True)}</b></div>'
             f'<div><small>Bets · hit rate</small><b style="font-size:14px">{r["n"]:,} · {pct(r["hit_rate"])}</b></div><div><small>Beat the closing line</small><b>{pct(r.get("clv_vs_close"), True)}</b></div></div>'
             f'{_seasons(r.get("by_season")) and "<small class=muted>Return by season</small>" + _seasons(r.get("by_season"))}</div>')
-    tabs = [("paper", "Paper trading")] if paper is not None else []
+    tabs = [("board", "Scoreboard"), ("check", "Check a bet"), ("paper", "Paper trading"), ("tips", "Tips")] if paper is not None else []
     tabs += [("research", "Research"), ("rules", "Rules"), ("odds", "£1,000 odds"), ("about", "About")]
     seasons, trials = E(str((res or {}).get("seasons", "—"))), (res or {}).get("n_trials", "—")
     try:
@@ -258,7 +336,7 @@ def render(res: dict | None, paper: dict | None = None, auto: int = 0) -> str:
         now = datetime.now().strftime("%a %d %b %Y %H:%M:%S")
     sections = []
     if paper is not None:
-        sections.append(f'<div class="tab" id="paper">{_paper_tab(paper)}</div>')
+        sections.append(f'<div class="tab" id="board">{_board_tab(paper)}</div><div class="tab" id="check">{_check_tab(paper)}</div><div class="tab" id="paper">{_paper_tab(paper)}</div><div class="tab" id="tips">{_tips_tab(paper)}</div>')
     sections.append(f'<div class="tab" id="research">{verdict}<div class="card"><h3>Did any rule make money after the bookmaker\'s cut? · profit per £1 staked at Bet365\'s own historical price</h3>'
                     f'<div class="scroll">{_forest(rules, lvl) or "<p class=muted>No scored rules yet.</p>"}</div>'
                     f'<div class="legend"><span><i style="background:var(--s2)"></i>no proven edge</span><span><i style="background:var(--good)"></i>cleared the gate</span><span><i style="background:var(--s1)"></i>random-bet 95th percentile</span><span>dot = result · line = {lvl} range (already includes the penalty for trying several rules) · dashed = break-even</span></div></div></div>')

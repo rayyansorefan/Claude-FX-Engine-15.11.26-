@@ -46,3 +46,11 @@ pre-registered gates, trial registry, sealed holdout, hypothetical scoring, nega
     2. `cd ~/bets && nohup bash deploy/run_bets.sh > data/bets.log 2>&1 &`   (about 6-10 minutes; then read `docs/results/bets.md`)
 - Runner jobs `bets` / `bets_research` are whitelisted in src/fxengine/ops/runner.py but only usable after betting code is merged to `engine` (merging restarts the live FX services: Rayyan's call).
 - Phase 4 (forward tracking) needs a free odds feed with sign-up (The Odds API free tier, no card): flagged, not started.
+
+## Update 2026-11-17 (later): paper trading + the two ideas, tested head to head
+- Paper server (service `bookiepaper`, Tailscale only, port 8789, page /hub with FX + Bookie tabs, 60 s refresh). Free football-data.co.uk fixtures + results.
+- Each strategy has its OWN virtual £100: V1 / V1P (Option 2, the value checker as an automatic rule), TIPSTER (Option 1, Claude's researched picks, from docs/tips.jsonl), MANUAL (the owner's clicks).
+- "Check a bet" (Option 2, interactive): compares a Bet365 price with Pinnacle's margin-free fair price (Shin and proportional). Read-only.
+- Verdict rule: no winner is named until every automatic strategy has 100+ settled bets; "better" needs the whole 95% range above zero. Bar to beat: backing every favourite lost 4.8% per £1 over 95,558 historical bets.
+- Tipster cannot be backtested honestly (the model has seen past results in training): forward paper only. No tips are posted until a proper research pass exists; fabricating picks would only measure guessing.
+- Limits: football 1X2 only (free data has no sharp prices for other markets or sports); Bet365 live prices are not available free, so any real bet needs the owner to check the live price.

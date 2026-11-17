@@ -129,3 +129,87 @@ def test_live_page_refreshes_itself_but_the_static_file_does_not():
     assert "setInterval" in live and "60000" in live and "refreshes every 60s" in live and "tagName===&#x27;INPUT&#x27;" not in live
     assert "setInterval" not in D.render(None, paper=P.state(c, TODAY)) and "setInterval" not in D.render(None)
     assert "setInterval" in S.page(c)                                  # the server's own page uses the default 60s
+
+
+FX_PS = ("Div,Date,Time,HomeTeam,AwayTeam,B365H,B365D,B365A,PPH,PPD,PPA\n"
+         "E0,21/11/2026,15:00,Arsenal,Chelsea,3.00,3.40,2.40,2.50,3.40,3.20\n"
+         "E0,22/11/2026,14:00,Manchester United,Liverpool,2.20,3.60,3.30,2.30,3.60,3.30\n")
+
+
+def _db_with_fixtures():
+    c = P.connect(":memory:")
+    for f in P.parse_fixtures(FX_PS):
+        c.execute("INSERT INTO fixtures VALUES(?,?,?)", (f["id"], f["date"], json.dumps(f)))
+    c.commit()
+    return c
+
+
+def test_check_bet_prices_against_the_sharp_fair_price():
+    f = P.parse_fixtures(FX_PS)[0]
+    good = P.check_bet(f, "H")                                   # Bet365 3.00 vs Pinnacle 2.50 -> clearly better
+    assert good["ok"] and good["tone"] == "good" and good["edge"] > 0.15 and good["per10"] > 1.5
+    poor = P.check_bet(f, "A", 2.20)
+    assert poor["tone"] == "crit" and poor["edge"] < 0 and "paying" in poor["verdict"]
+    assert not P.check_bet(f, "O25")["ok"] and not P.check_bet(P.parse_fixtures(FX_CSV)[1], "H")["ok"] and not P.check_bet(f, "H", 0.5)["ok"]
+
+
+def test_each_strategy_has_its_own_virtual_100():
+    c = _db_with_fixtures()
+    f = P.parse_fixtures(FX_PS)[0]
+    P.place(c, f, "1X2", "D", 100.0, rule="MANUAL", today=TODAY)         # manual spends everything
+    assert P.available(c, "MANUAL") == 0.0 and P.available(c, "V1") == 100.0
+    P.place(c, f, "1X2", "H", 2.0, rule="V1", source="auto", today=TODAY)  # ...but V1 still has its own cash
+    with pytest.raises(ValueError, match="Not enough"):
+        P.place(c, f, "1X2", "A", 1.0, rule="MANUAL", today=TODAY)
+
+
+def test_tips_are_matched_fuzzily_placed_at_the_current_price_and_never_twice():
+    c = _db_with_fixtures()
+    tips = [dict(id="t1", date="2026-11-21", home="Arsenal FC", away="Chelsea", market="1X2", sel="H", p=0.45, min_odds=2.8, why="form"),
+            dict(id="t2", date="2026-11-22", home="Man United", away="Liverpool FC", market="1X2", sel="H", p=0.4, min_odds=2.5, why="home"),   # price 2.20 < 2.5
+            dict(id="t3", date="2026-11-21", home="Nobody", away="Nowhere", market="1X2", sel="D", p=0.3, min_odds=3.0, why="x")]
+    r = P.ingest_tips(c, tips, TODAY)
+    assert r == dict(placed=1, waiting=2, expired=0)
+    b = c.execute("SELECT * FROM bets").fetchall()
+    assert len(b) == 1 and b[0]["rule"] == "TIPSTER" and b[0]["odds"] == 3.0 and b[0]["p"] == 0.45 and b[0]["note"] == "form" and b[0]["source"] == "tip"
+    assert P.ingest_tips(c, tips, TODAY)["placed"] == 0 and c.execute("SELECT COUNT(*) FROM bets").fetchone()[0] == 1
+    assert P.ingest_tips(c, tips, date(2026, 11, 23))["expired"] == 2                                 # past kick-off: unmatched / price never reached
+    st = {t["id"]: t["status"] for t in P.state(c, date(2026, 11, 23))["tips"]}
+    assert st == {"t1": "placed", "t2": "expired", "t3": "expired"}
+
+
+def test_old_ledgers_are_upgraded_in_place(tmp_path):
+    import sqlite3
+    db = tmp_path / "old.db"
+    o = sqlite3.connect(db)
+    o.executescript("CREATE TABLE bets(id INTEGER PRIMARY KEY, placed_at TEXT, source TEXT, rule TEXT, div TEXT, date TEXT, home TEXT, away TEXT, market TEXT, sel TEXT, odds REAL, stake REAL, status TEXT DEFAULT 'open', pnl REAL, settled_at TEXT, UNIQUE(div,date,home,away,market,sel,rule));"
+                    "INSERT INTO bets(placed_at,source,rule,div,date,home,away,market,sel,odds,stake) VALUES('x','manual','MANUAL','E0','2026-11-21','A','B','1X2','H',2.0,5.0);")
+    o.commit(); o.close()
+    c = P.connect(db)
+    assert {"p", "note"} <= {r[1] for r in c.execute("PRAGMA table_info(bets)")} and c.execute("SELECT COUNT(*) FROM bets").fetchone()[0] == 1
+
+
+def _row(rule, n, roi, lo=None):
+    return dict(rule=rule, n=n, roi=roi, lo=lo)
+
+
+def test_scoreboard_refuses_to_name_a_winner_on_too_little_evidence():
+    assert "Too early: no" in P.scoreboard_verdict([_row("V1", 0, None), _row("TIPSTER", 0, None)])
+    assert "Too early to call" in P.scoreboard_verdict([_row("V1", 40, 0.2), _row("TIPSTER", 150, -0.05)])
+    assert "No strategy has a proven profit" in P.scoreboard_verdict([_row("V1", 150, 0.05, -0.03), _row("TIPSTER", 150, -0.05, -0.1)])
+    assert "whole 95% range is above zero" in P.scoreboard_verdict([_row("V1", 150, 0.08, 0.01), _row("TIPSTER", 150, -0.05, -0.1)])
+
+
+def test_strategy_stats_gives_a_range_only_with_enough_bets():
+    def b(i, won): return dict(id=i, rule="V1", stake=2.0, pnl=(4.0 if won else -2.0), status="won" if won else "lost", settled_at=f"2026-11-{i % 28 + 1:02d}T10:00")
+    few = P.strategy_stats([b(i, i % 3 == 0) for i in range(10)], [], "V1")
+    many = P.strategy_stats([b(i, i % 3 == 0) for i in range(60)], [], "V1")
+    assert few["lo"] is None and many["lo"] is not None and many["lo"] < many["roi"] < many["hi"] and many["equity"] == round(100 + many["pnl"], 2)
+
+
+def test_dashboard_has_the_new_tabs_and_the_server_checks_bets():
+    c = _db_with_fixtures()
+    h = D.render(None, paper=P.state(c, TODAY))
+    assert all(x in h for x in ("Scoreboard", "Check a bet", "Tipster picks", "Which makes more money?", 'id="ck-match"', "Arsenal v Chelsea"))
+    assert S.api_check(c, dict(id="E0|2026-11-21|Arsenal|Chelsea", sel="H", price="3.0"))[1]["tone"] == "good"
+    assert S.api_check(c, dict(id="nope", sel="H"))[0] == 404 and S.api_check(c, dict(id="E0|2026-11-21|Arsenal|Chelsea", sel="H", price="abc"))[0] == 400
