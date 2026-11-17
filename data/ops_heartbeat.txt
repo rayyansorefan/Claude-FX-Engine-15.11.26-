@@ -1,1 +1,1 @@
-alive 2026-11-17 19:10 UTC · running none · halted True · deploy rolled-back · memory free 509 MB · load 0.34
+alive 2026-11-17 19:22 UTC · running none · halted True · deploy skipped-known-bad · memory free 364 MB · load 0.01
