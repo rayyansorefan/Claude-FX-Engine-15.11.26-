@@ -1,16 +1,15 @@
-# Live positions (written 2026-11-17 15:45 UTC)
+# Live positions (written 2026-11-17 15:55 UTC)
 
-Unfinished setups: 3
+Unfinished setups: 2
 
-- GBPUSD SHORT asia_breakout [TRIGGERED] created 2026-11-16 10:00
-  FILLED at 1.31876. entry 1.31883 stop 1.32092 target 1.31466. Unrealised -0.84R, best so far +0.89R, worst -1.01R. Target is 2.80R away. Held 356 of 384 five-minute bars (2h until the time limit).
 - EURGBP SHORT asia_breakout [TRIGGERED] created 2026-11-17 08:00
-  FILLED at 0.83371. entry 0.83377 stop 0.83442 target 0.83247. Unrealised +0.57R, best so far +1.88R, worst -0.86R. Target is 1.34R away. Held 92 of 384 five-minute bars (24h until the time limit).
+  FILLED at 0.83371. entry 0.83377 stop 0.83442 target 0.83247. Unrealised +0.49R, best so far +1.88R, worst -0.86R. Target is 1.42R away. Held 94 of 384 five-minute bars (24h until the time limit).
 - AUDUSD SHORT E1_strength [TRIGGERED] created 2026-11-17 08:00
-  FILLED at 0.67310. entry 0.67316 stop 0.67676 target 0.66596. Unrealised -0.16R, best so far +0.29R, worst -0.35R. Target is 2.14R away. Held 92 of 576 five-minute bars (40h until the time limit).
+  FILLED at 0.67310. entry 0.67316 stop 0.67676 target 0.66596. Unrealised -0.12R, best so far +0.29R, worst -0.35R. Target is 2.10R away. Held 94 of 576 five-minute bars (40h until the time limit).
 
-Last 7 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
+Last 8 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
+- GBPUSD asia_breakout: STOP -1.11R at 2026-11-17 15:50 · best +0.89R, worst -1.11R · STALLED
 - EURJPY asia_breakout: STOP -1.08R at 2026-11-17 15:20 · best +0.93R, worst -1.04R · STALLED
 - EURUSD asia_breakout: TARGET +1.90R at 2026-11-17 13:35 · best +2.15R, worst -0.65R
 - USDCHF trend_pullback: STOP -1.10R at 2026-11-17 09:20
