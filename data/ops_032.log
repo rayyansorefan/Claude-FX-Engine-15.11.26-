@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/rayyansorefan/fx/src/fxengine/backtest/run_exits.py", line 166, in <module>
+    main()
+    ~~~~^^
+  File "/home/rayyansorefan/fx/src/fxengine/backtest/run_exits.py", line 155, in main
+    trials.log_trial(r, {"grid": 9}, "exit-rule test, pre-registered in docs/EXPERIMENTS.md", reg=reg)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rayyansorefan/fx/src/fxengine/research/trials.py", line 30, in log_trial
+    with reg.open("a") as f:
+         ~~~~~~~~^^^^^
+  File "/usr/lib/python3.13/pathlib/_local.py", line 539, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: 'docs/trials.jsonl'
