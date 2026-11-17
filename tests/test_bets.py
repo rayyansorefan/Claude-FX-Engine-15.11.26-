@@ -62,3 +62,24 @@ def test_parse_handles_missing_columns_and_dates():
     csv = "Div,Date,HomeTeam,AwayTeam,FTHG,FTAG,FTR,B365H,B365D,B365A\nE0,12/08/2023,A,B,1,0,H,2.0,3.4,3.9\n"
     p = D.parse(csv, "E0", "2324")
     assert len(p) == 1 and p.Date.iloc[0] == pd.Timestamp("2023-08-12") and np.isnan(p["PSH"].iloc[0])
+
+
+def test_parse_coerces_text_odds_so_parquet_never_fails(tmp_path):
+    csv = ("Div,Date,HomeTeam,AwayTeam,FTHG,FTAG,FTR,B365H,B365D,B365A,PSCH\n"
+           "E0,12/08/2023,A,B,1,0,H,2.0,3.4,3.9,2.21\nE0,13/08/2023,C,D,2,2,D,2.0,3.4,3.9,-\n")
+    p = D.parse(csv, "E0", "2324")
+    assert str(p["PSCH"].dtype) == "float64" and np.isnan(p["PSCH"].iloc[1])
+    p.to_parquet(tmp_path / "x.parquet")                              # the exact step that crashed on the VM
+
+
+def test_download_saves_raw_files_and_a_rerun_makes_no_requests(tmp_path):
+    calls = []
+    class R:
+        def __init__(s, c, t=""): s.status_code, s.content = c, t.encode()
+    csv = "Div,Date,HomeTeam,AwayTeam,FTHG,FTAG,FTR,B365H,B365D,B365A\nE0,12/08/2023,A,B,1,0,H,2.0,3.4,3.9\n"
+    def get(u):
+        calls.append(u); return R(200, csv) if "/E0.csv" in u else R(404)
+    D.download(tmp_path, divs=["E0", "E1"], seasons=["2324"], get=get, pause=0)
+    n = len(calls)
+    df = D.download(tmp_path, divs=["E0", "E1"], seasons=["2324"], get=get, pause=0)
+    assert n == 2 and len(calls) == n and len(df) == 1                # second run reads the cache, asks the site for nothing
