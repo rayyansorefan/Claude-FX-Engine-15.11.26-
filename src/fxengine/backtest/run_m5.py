@@ -10,6 +10,7 @@ data window and holdout are unchanged. What changes is how a setup is scored onc
 Usage: PYTHONPATH=src python -m fxengine.backtest.run_m5   -> docs/results/m5_rerun.{json,md}"""
 from __future__ import annotations
 import json, sys
+from collections.abc import Mapping
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -88,6 +89,27 @@ def track_m5(setup, arr_m5, j0, cost, trail_hook=None):
     return track_arrays(setup, arr_m5, FIVE, cost, j0, j0 + span, after_bar=hook)
 
 
+class PairCache(Mapping):
+    """pair -> value, computed on demand and kept for ONE pair at a time, so peak memory is one pair, not ten
+    (the eager version held every pair's M5 plus three prepared timeframes: 1.26 GB on 161k rows)."""
+    def __init__(self, keys, loader):
+        self._keys, self._loader, self._k, self._v = list(keys), loader, None, None
+
+    def __getitem__(self, k):
+        if k not in self._keys:
+            raise KeyError(k)
+        if self._k != k:
+            self._k = self._v = None                    # drop the previous pair BEFORE loading the next
+            self._v, self._k = self._loader(k), k
+        return self._v
+
+    def __iter__(self):
+        return iter(self._keys)
+
+    def __len__(self):
+        return len(self._keys)
+
+
 def run_variant(variant, tfname, frames_tf, m5s, use_invalidation=True, rng=None):
     tf = tf_delta(tfname)
     sigs = signals_for(variant, frames_tf)
@@ -95,9 +117,11 @@ def run_variant(variant, tfname, frames_tf, m5s, use_invalidation=True, rng=None
     rows, pool = [], {k: [] for k in COSTS}
     rng = rng or np.random.default_rng(11)
     real = []                                        # (sym, risk_atr, rr, kind, expiry, max_hold) for the challenger
+    cur, arr = None, None
     for (sym, stype), sig in sigs.items():
         d, m5 = frames_tf[sym], m5s[sym]
-        arr = bar_arrays(m5)
+        if sym != cur:
+            cur, arr = sym, bar_arrays(m5)
         free_until = pd.Timestamp.min.tz_localize("UTC")
         for row in sig.itertuples():
             created = d.index[row.pos] + tf
@@ -121,31 +145,36 @@ def run_variant(variant, tfname, frames_tf, m5s, use_invalidation=True, rng=None
                 real.append((sym, abs(row.entry - row.stop) / a, abs(row.target - row.entry) / abs(row.entry - row.stop),
                              row.kind, int(row.expiry_bars), int(row.max_hold)))
     df = pd.DataFrame(rows)
-    # ---- random-entry challenger: same mechanics, random bar, random direction
+    # ---- random-entry challenger: same mechanics, random bar, random direction. Draws are made first and processed
+    # grouped by pair so each pair's data is loaded once (random pair order would thrash the one-pair cache).
     n_pool = min(CHALLENGER_POOL, 3 * max(len(real), 1))
+    by_sym = {}
     for _ in range(n_pool if real else 0):
         sym, risk_atr, rr, kind, exp_b, hold = real[rng.integers(len(real))]
+        by_sym.setdefault(sym, []).append((risk_atr, rr, kind, exp_b, hold, float(rng.random()), bool(rng.integers(2))))
+    for sym, items in by_sym.items():
         d, m5 = frames_tf[sym], m5s[sym]
-        p = int(rng.integers(v1.WARMUP, len(d) - 1))
-        if variant.startswith("v1") and not (7 <= d.index[p].hour <= 19):      # v1 only trades 07-19 UTC; sample the same hours
-            continue
-        a = float(d.atr.iloc[p])
-        if not a > 0:
-            continue
-        long = bool(rng.integers(2))
-        e = float(d.bid_c.iloc[p]); sign = 1 if long else -1
-        created = d.index[p] + tf
-        s = Setup(run_id="ch", symbol=sym, direction="long" if long else "short", setup_type="challenger", version="R0", created_at=created,
-                  entry=e, entry_kind=kind, stop=e - sign * risk_atr * a, target=e + sign * rr * risk_atr * a,
-                  expires_at=created + exp_b * tf, max_hold_bars=hold * int(tf // FIVE))
-        j0 = int(m5.index.searchsorted(created))
-        if j0 >= len(m5):
-            continue
-        hook = _trailer(d, tf, long) if trail else None
-        for k, cm in COSTS.items():
-            t = track_m5(s, arr_m5 := bar_arrays(m5), j0, cm, hook)
-            if t.outcome and t.fill is not None:
-                pool[k].append(t.outcome.net_r)
+        arr_m5 = bar_arrays(m5)
+        for risk_atr, rr, kind, exp_b, hold, u, long in items:
+            p = v1.WARMUP + int(u * max(len(d) - 2 - v1.WARMUP, 0))
+            if variant.startswith("v1") and not (7 <= d.index[p].hour <= 19):      # v1 only trades 07-19 UTC; sample the same hours
+                continue
+            a = float(d.atr.iloc[p])
+            if not a > 0:
+                continue
+            e = float(d.bid_c.iloc[p]); sign = 1 if long else -1
+            created = d.index[p] + tf
+            s = Setup(run_id="ch", symbol=sym, direction="long" if long else "short", setup_type="challenger", version="R0", created_at=created,
+                      entry=e, entry_kind=kind, stop=e - sign * risk_atr * a, target=e + sign * rr * risk_atr * a,
+                      expires_at=created + exp_b * tf, max_hold_bars=hold * int(tf // FIVE))
+            j0 = int(m5.index.searchsorted(created))
+            if j0 >= len(m5):
+                continue
+            hook = _trailer(d, tf, long) if trail else None
+            for k, cm in COSTS.items():
+                t = track_m5(s, arr_m5, j0, cm, hook)
+                if t.outcome and t.fill is not None:
+                    pool[k].append(t.outcome.net_r)
     return df, pool
 
 
@@ -186,22 +215,22 @@ def render(res) -> str:
 
 
 def main(root="data/candles", reg=Path("docs/trials.jsonl"), out=Path("docs/results"), variants=VARIANTS):
-    m5s, frames = {}, {"M15": {}, "H1": {}, "H4": {}}
-    for sym in PAIRS:
+    def load_m5(sym):
         d = store.load(sym, "M5", Path(root))
         if d.empty:
             sys.exit(f"missing M5 data for {sym}")
-        m5s[sym] = split.research_view(d)
-    if all(len(d) == 0 for d in m5s.values()):
+        return split.research_view(d)
+    m5s = PairCache(PAIRS, load_m5)
+    n_rows = {s: len(m5s[s]) for s in PAIRS}                 # one pass, one pair in memory at a time
+    if all(n == 0 for n in n_rows.values()):
         sys.exit("research window empty: the stored prices start after the holdout boundary. Run the history job first.")
-    for sym, d in m5s.items():
-        for tf in frames:
-            frames[tf][sym] = prepare(resample(d, tf, base="M5"))
+    frames = {tf: PairCache(PAIRS, lambda s, tf=tf: prepare(resample(m5s[s], tf, base="M5"))) for tf in ("M15", "H1")}
+    frames["H4"] = {s: prepare(resample(m5s[s], "H4", base="M5")) for s in PAIRS if n_rows[s]}      # small; E1/E5 need every pair at once
     trials.ensure_seed(reg)
     seen = {json.loads(l)["name"] for l in reg.open()} if reg.exists() else set()
     pending = "R0_m5_rerun_measured_cost" not in seen                 # logged only AFTER a run that actually scored setups
     n_trials = trials.count_trials(reg) + (1 if pending else 0)
-    res = dict(version="R0-M5", n_trials=n_trials, period=[str(min(f.index.min() for f in m5s.values())), str(max(f.index.max() for f in m5s.values()))], summary={})
+    res = dict(version="R0-M5", n_trials=n_trials, period=[str(min(f.index.min() for f in frames["H4"].values())), str(max(f.index.max() for f in frames["H4"].values()))], summary={})
     for variant, tfname in variants:
         df, pool = run_variant(variant, tfname, frames[tfname], m5s)
         res["summary"][variant] = summarise(df, pool, n_trials)

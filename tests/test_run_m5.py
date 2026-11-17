@@ -60,3 +60,18 @@ def test_m5_rerun_end_to_end(tmp_path):
     assert v["scored"] > 20 and v["pair_days"] <= v["scored"] and v["mde_r"] > 0 and v["challenger_pct"] is not None
     assert (tmp_path / "r" / "m5_rerun.md").exists() and "challenger" in (tmp_path / "r" / "m5_rerun.md").read_text()
     assert (tmp_path / "t.jsonl").read_text().count("\n") == 1          # logged once as a trial
+
+
+def test_bootstrap_is_chunked_with_bounded_memory_and_same_answers():
+    import tracemalloc
+    rng = np.random.default_rng(3)
+    r = rng.normal(0.02, 1.0, 6000)
+    days = np.repeat(np.arange(3000), 2)
+    tracemalloc.start()
+    lo, hi = stats.cluster_bootstrap_ci(r, days, n=10000)
+    lo2, hi2 = stats.bootstrap_ci(r, n=10000)
+    peak = tracemalloc.get_traced_memory()[1] / 1e6
+    tracemalloc.stop()
+    assert peak < 120, peak                                  # was ~1 GB for the cluster bootstrap at this size
+    assert abs((lo + hi) / 2 - r.mean()) < 0.06 and lo < r.mean() < hi and lo2 < r.mean() < hi2
+    assert (hi - lo) > (hi2 - lo2) * 0.8                     # cluster CI is not narrower than the naive one

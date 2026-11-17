@@ -10,13 +10,25 @@ def expectancy(r) -> float:
     return float(r.mean()) if len(r) else float("nan")
 
 
+def _chunked(draw, n, row_len, budget=2_000_000):
+    """Run `draw(m)` (m resamples -> m means) in chunks so a (n x row_len) table is never held at once:
+    10,000 resamples of 8,000 trades is 640 MB in one piece, which is more than the whole VM has spare."""
+    chunk = max(10, int(budget // max(row_len, 1)))
+    out, done = [], 0
+    while done < n:
+        m = min(chunk, n - done)
+        out.append(draw(m))
+        done += m
+    return np.concatenate(out)
+
+
 def bootstrap_ci(r, alpha=0.05, n=10000, seed=7):
     """Percentile bootstrap CI of the mean (trades treated as independent). Returns (lo, hi)."""
     r = np.asarray(r, float)
     if len(r) < 2:
         return (float("nan"), float("nan"))
     rng = np.random.default_rng(seed)
-    means = rng.choice(r, size=(n, len(r)), replace=True).mean(axis=1)
+    means = _chunked(lambda m: rng.choice(r, size=(m, len(r)), replace=True).mean(axis=1), n, len(r))
     return float(np.quantile(means, alpha / 2)), float(np.quantile(means, 1 - alpha / 2))
 
 
@@ -30,8 +42,10 @@ def cluster_bootstrap_ci(r, clusters, alpha=0.05, n=10000, seed=7):
         return (float("nan"), float("nan"))
     sums, cnts = np.bincount(inv, weights=r, minlength=k), np.bincount(inv, minlength=k).astype(float)
     rng = np.random.default_rng(seed)
-    idx = rng.integers(0, k, size=(n, k))
-    means = sums[idx].sum(axis=1) / cnts[idx].sum(axis=1)
+    def draw(m):
+        idx = rng.integers(0, k, size=(m, k))
+        return sums[idx].sum(axis=1) / cnts[idx].sum(axis=1)
+    means = _chunked(draw, n, k)
     return float(np.quantile(means, alpha / 2)), float(np.quantile(means, 1 - alpha / 2))
 
 
@@ -68,7 +82,7 @@ def challenger(real_mean: float, pool, n: int, draws=2000, seed=7) -> dict:
     if len(pool) < 10 or n < 1:
         return {"pct": float("nan"), "p95": float("nan"), "pool_mean": float("nan"), "pool_n": int(len(pool))}
     rng = np.random.default_rng(seed)
-    means = rng.choice(pool, size=(draws, n), replace=True).mean(axis=1)
+    means = _chunked(lambda m: rng.choice(pool, size=(m, n), replace=True).mean(axis=1), draws, n)
     return {"pct": float((means < real_mean).mean() * 100), "p95": float(np.quantile(means, 0.95)),
             "pool_mean": float(pool.mean()), "pool_n": int(len(pool))}
 
