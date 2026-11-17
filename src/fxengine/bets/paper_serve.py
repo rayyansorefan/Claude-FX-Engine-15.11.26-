@@ -13,13 +13,12 @@ LOCK = threading.Lock()                       # one writer at a time; the ledger
 
 
 HUB = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Engines</title>
-<style>:root{--bg:#f6f7f9;--card:#fff;--ink:#14181f;--mut:#5b6573;--line:#e3e7ee;--accent:#2563eb}
-@media (prefers-color-scheme:dark){:root{--bg:#0e1116;--card:#171b22;--ink:#e8ecf2;--mut:#9aa5b4;--line:#28303b;--accent:#6ea0ff}}
-*{box-sizing:border-box}html,body{height:100%;margin:0}body{display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:15px system-ui,-apple-system,Segoe UI,sans-serif}
-nav{display:flex;gap:6px;align-items:center;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--line)}
-nav button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--bg);color:var(--mut);border-radius:9px;padding:7px 14px;cursor:pointer}
-nav button[aria-selected=true]{background:var(--accent);border-color:var(--accent);color:#fff}
-nav a{margin-left:auto;color:var(--mut);font-size:12.5px}nav small{color:var(--mut);margin-left:8px;font-size:12px}
+<style>:root{--bg:#111110;--card:#1a1a19;--line:#2c2c2a;--ink:#f0efec;--ink2:#c3c2b7;--mute:#8d8c84;--s1:#3987e5}
+*{box-sizing:border-box}html,body{height:100%;margin:0}body{display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,'Inter','Segoe UI',sans-serif}
+nav{display:flex;gap:4px;align-items:center;padding:0 12px;background:var(--bg);border-bottom:1px solid var(--line)}
+nav button{background:none;border:0;color:var(--ink2);padding:11px 14px;font:600 12px inherit;font-family:inherit;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-bottom:2px solid transparent}
+nav button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--s1)}
+nav a{margin-left:auto;color:var(--mute);font-size:12px}nav small{color:var(--mute);margin-left:8px;font-size:11px}
 iframe{flex:1;border:0;width:100%;background:var(--bg)}
 </style></head><body>
 <nav role="tablist"><button role="tab" id="t-fx" onclick="show('fx')">FX Engine</button><button role="tab" id="t-bk" onclick="show('bk')">Bookie Engine</button>

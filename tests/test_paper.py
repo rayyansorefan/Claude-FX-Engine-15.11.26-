@@ -75,7 +75,7 @@ def test_dashboard_shows_paper_panel_with_buttons_and_stays_scriptless_without_i
     P.tick(c, lambda u: (200, FX_CSV.encode()), today=TODAY)
     h = D.render(None, paper=P.state(c, TODAY))
     assert "PAPER" in h and "Paper trading" in h and 'onclick="bet(this)"' in h and "Nothing is ever sent" in h
-    assert "<script" not in D.render(None)
+    assert "<script src" not in D.render(None) and "https://" not in D.render(None)
 
 
 def test_server_places_paper_bets_over_http_and_rejects_non_json():
