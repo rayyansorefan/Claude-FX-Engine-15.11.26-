@@ -121,7 +121,7 @@ def render(res) -> str:
     L = ["# Betting research (historical Bet365 prices, margin included)", "",
          f"Trials: {res['n_trials']} (alpha = 0.05/{res['n_trials']}). Seasons {res['seasons']}. Sealed: {', '.join(HOLDOUT_SEASONS)}.",
          "ROI = profit per £1 staked at Bet365's price. margin_paid = average gap between price-implied chance and actual hit rate. CLV = price vs Pinnacle's margin-free closing price (>0 = beat the close).", "",
-         "| rule | bets | hit | ROI | 95% CI (clustered) | MDE | CLV vs close | random-bet p95 | passes | £100->£1000 / ruin (5% stakes) |", "|---|---|---|---|---|---|---|---|---|---|"]
+         f"| rule | bets | hit | ROI | CI (clustered, {100 * (1 - 0.1 / res['n_trials']):.1f}% after the multi-rule penalty) | MDE | CLV vs close | random-bet p95 | passes | £100->£1000 / ruin (5% stakes) |", "|---|---|---|---|---|---|---|---|---|---|"]
     for r in res["rules"]:
         if "roi" not in r:
             L.append(f"| {r['rule']} | {r['n']} | {r['verdict']} |||||||"); continue

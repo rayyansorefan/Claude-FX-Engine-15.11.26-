@@ -20,11 +20,17 @@ def _num(x):
     return isinstance(x, (int, float)) and not (isinstance(x, float) and math.isnan(x))
 
 
+def level(res):
+    """Coverage of the shown range: gate_b uses alpha*2 two-sided with alpha = 0.05/trials, i.e. 1 - 0.1/trials (98.3% for 6 rules)."""
+    n = max(1, (res or {}).get("n_trials", 1) or 1)
+    return f"{100 * (1 - 0.1 / n):.1f}%"
+
+
 def pct(x, signed=False, d=1):
     return "n/a" if not _num(x) else (f"{x * 100:+.{d}f}%" if signed else f"{x * 100:.{d}f}%")
 
 
-def _forest(rules) -> str:
+def _forest(rules, lvl='95%') -> str:
     rs = [r for r in rules if "roi" in r]
     if not rs:
         return ""
@@ -35,7 +41,7 @@ def _forest(rules) -> str:
     W, LBL, RH, TOP = 760, 190, 54, 26
     H = TOP + RH * len(rs) + 34
     X = lambda v: LBL + (v - lo) / (hi - lo) * (W - LBL - 16)
-    o = [f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="Return on each £1 staked for each rule, with 95% confidence ranges">']
+    o = [f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="Return on each £1 staked for each rule, with {lvl} confidence ranges">']
     step = 0.05 if hi - lo > 0.25 else 0.02 if hi - lo > 0.1 else 0.01
     t = math.ceil(lo / step) * step
     while t <= hi:
@@ -131,6 +137,7 @@ footer{color:var(--mut);font-size:12.5px;text-align:center;margin-top:8px}
 
 def render(res: dict | None) -> str:
     rules = (res or {}).get("rules", [])
+    lvl = level(res)
     scored = [r for r in rules if "roi" in r]
     passed = [r for r in scored if r["passes"]]
     if not scored:
@@ -143,7 +150,7 @@ def render(res: dict | None) -> str:
     else:
         avg = sum(r["roi"] for r in scored) / len(scored)
         verdict = (f'<div class="verdict no"><div class="big">{pct(avg, True)}</div><div><div class="vt">No proven edge: every rule loses to the bookmaker\'s margin</div>'
-                   f'<div class="vs">Average return per £1 staked across {len(scored)} pre-registered rules. A rule only counts if its whole 95% range is above zero after the multiple-testing penalty and it beats random betting.</div></div></div>')
+                   f'<div class="vs">Average return per £1 staked across {len(scored)} pre-registered rules. A rule only counts if its whole {lvl} range is above zero after the multiple-testing penalty and it beats random betting.</div></div></div>')
     cards = []
     for r in rules:
         name, desc = NAMES.get(r["rule"], (r["rule"], ""))
@@ -154,7 +161,7 @@ def render(res: dict | None) -> str:
         cls = "ok" if r["passes"] else "no"
         cards.append(
             f'<div class="card"><span class="badge {cls}">{"CLEARED GATE" if r["passes"] else "NO EDGE"}</span><h3>{E(name)}</h3><div class="d">{E(desc)}</div>'
-            f'<div class="kv"><div><span>Return per £1</span><b>{pct(r["roi"], True, 2)}</b></div><div><span>95% range</span><b>{pct(r["ci95_lo"], True)} to {pct(r["ci95_hi"], True)}</b></div>'
+            f'<div class="kv"><div><span>Return per £1</span><b>{pct(r["roi"], True, 2)}</b></div><div><span>{lvl} range</span><b>{pct(r["ci95_lo"], True)} to {pct(r["ci95_hi"], True)}</b></div>'
             f'<div><span>Bets · hit rate</span><b>{r["n"]:,} · {pct(r["hit_rate"])}</b></div><div><span>Beat the closing line</span><b>{pct(r.get("clv_vs_close"), True)}</b></div></div>'
             f'<div class="d" style="margin:6px 0 2px">Return by season (green up, red down)</div>{_seasons(r.get("by_season"))}</div>')
     seasons = E(str((res or {}).get("seasons", "—")))
@@ -162,8 +169,8 @@ def render(res: dict | None) -> str:
     body = f"""<div class="wrap"><header><h1>Bookie Engine<small>research only</small></h1>
 <div class="chips"><span class="chip">Seasons {seasons}</span><span class="chip">{trials} rules tried</span><span class="chip">Latest seasons sealed (never looked at)</span><span class="chip">Never places a bet</span></div></header>
 {verdict}
-<section><h2>Did any rule make money after the bookmaker's cut?</h2><p class="sub">Each row: profit per £1 staked at Bet365's own historical price. Dot = result, line = 95% range, blue triangle = the level random betting beats only 5% of the time.</p>
-<div class="scroll">{_forest(rules) or '<p class="vs">No scored rules yet.</p>'}</div>
+<section><h2>Did any rule make money after the bookmaker's cut?</h2><p class="sub">Each row: profit per £1 staked at Bet365's own historical price. Dot = result, line = {lvl} range (already includes the penalty for trying several rules), blue triangle = the level random betting beats only 5% of the time.</p>
+<div class="scroll">{_forest(rules, lvl) or '<p class="vs">No scored rules yet.</p>'}</div>
 <div class="legend"><span><i style="background:var(--no)"></i>no proven edge</span><span><i style="background:var(--ok)"></i>cleared the gate</span><span><i style="background:var(--accent)"></i>random-bet 95th percentile</span><span>dashed line = break-even</span></div></section>
 <section><h2>The rules, one by one</h2><p class="sub">Past results on past matches. A winning past is not a promise.</p><div class="cards">{"".join(cards) or '<p class="vs">Nothing to show yet.</p>'}</div></section>
 <section><h2>Chance of turning £100 into £1,000</h2><p class="sub">Replaying each rule's real historical bets with 5% of the bankroll staked each time. Green = reaches £1,000, red = bankroll gone.</p>
