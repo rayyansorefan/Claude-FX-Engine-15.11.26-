@@ -1,0 +1,28 @@
+# Exit-rule test (pre-registered): does protecting profit after a good run beat the frozen exits?
+
+9 rules, none closes at market (each only places a protective stop at least 0.15R behind price). Live H1 rules at M5 resolution, research window only. Trials counted: 21.
+Method: choose the best rule on the earlier half of history (before 2025-01-20), then test ONLY that rule on the later half.
+
+Every rule, change in average result per trade (R, positive = better than the frozen exit), earlier half | later half, stressed costs:
+
+| rule | earlier half | later half | trades (later) |
+|---|---|---|---|
+| A1_breakeven_at_0.75R | -0.022 | -0.002 | 3977 |
+| A2_breakeven_at_1R | -0.022 | -0.011 | 3977 |
+| A3_breakeven_at_1.5R **(chosen)** | -0.003 | -0.014 | 3977 |
+| B1_trail_0.5R_behind_peak | -0.020 | -0.009 | 3977 |
+| B2_trail_1R_behind_peak | -0.018 | -0.015 | 3977 |
+| B3_trail_1.5R_behind_peak | -0.019 | -0.015 | 3977 |
+| C1_keep_40pc_of_peak | -0.022 | -0.011 | 3977 |
+| C2_keep_50pc_of_peak | -0.026 | -0.013 | 3977 |
+| C3_keep_60pc_of_peak | -0.019 | -0.011 | 3977 |
+
+Chosen on the earlier half: **A3_breakeven_at_1.5R**. Test on the later half it never saw:
+
+| cost | trades | frozen exit | with rule | delta | 95% CI (clustered) | winners cut short | losers saved | candidate |
+|---|---|---|---|---|---|---|---|---|
+| stressed | 3977 | -0.154 | -0.168 | -0.014 | [-0.023, -0.004] | 2.7% | 3.3% | no |
+| measured | 3964 | -0.137 | -0.149 | -0.013 | [-0.022, -0.004] | 2.8% | 3.3% | no |
+
+Verdict: the best rule does not beat the frozen exit on unseen data under both cost models. Live rules stay unchanged.
+

@@ -10,3 +10,12 @@
 {"name": "E2_donchian@H4", "note": "historical trial, seeded from the Mac registry so the multiple-testing divisor is complete", "params": {"seeded": "2026-11-16"}}
 {"name": "E4_donchian_trail@H4", "note": "historical trial, seeded from the Mac registry so the multiple-testing divisor is complete", "params": {"seeded": "2026-11-16"}}
 {"name": "E5_strength_trail@H4", "note": "historical trial, seeded from the Mac registry so the multiple-testing divisor is complete", "params": {"seeded": "2026-11-16"}}
+{"name": "A1_breakeven_at_0.75R", "note": "exit-rule test, pre-registered in docs/EXPERIMENTS.md", "params": {"grid": 9}}
+{"name": "A2_breakeven_at_1R", "note": "exit-rule test, pre-registered in docs/EXPERIMENTS.md", "params": {"grid": 9}}
+{"name": "A3_breakeven_at_1.5R", "note": "exit-rule test, pre-registered in docs/EXPERIMENTS.md", "params": {"grid": 9}}
+{"name": "B1_trail_0.5R_behind_peak", "note": "exit-rule test, pre-registered in docs/EXPERIMENTS.md", "params": {"grid": 9}}
+{"name": "B2_trail_1R_behind_peak", "note": "exit-rule test, pre-registered in docs/EXPERIMENTS.md", "params": {"grid": 9}}
+{"name": "B3_trail_1.5R_behind_peak", "note": "exit-rule test, pre-registered in docs/EXPERIMENTS.md", "params": {"grid": 9}}
+{"name": "C1_keep_40pc_of_peak", "note": "exit-rule test, pre-registered in docs/EXPERIMENTS.md", "params": {"grid": 9}}
+{"name": "C2_keep_50pc_of_peak", "note": "exit-rule test, pre-registered in docs/EXPERIMENTS.md", "params": {"grid": 9}}
+{"name": "C3_keep_60pc_of_peak", "note": "exit-rule test, pre-registered in docs/EXPERIMENTS.md", "params": {"grid": 9}}
