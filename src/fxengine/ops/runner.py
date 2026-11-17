@@ -35,7 +35,7 @@ JOBS = {
 }
 SAFE_DURING_JOB = ("src/fxengine/dashboard/", "src/fxengine/live/", "src/fxengine/alerts/", "tests/", "docs/", "STATUS.md", "CLAUDE.md", "ops/")
 JOB_MEM = {"history": "450M", "r0": "600M", "batch3": "600M", "full_research": "600M", "tests": "500M"}   # default 300M
-RESULT_GLOBS = ["docs/results/*.md", "docs/results/*.json", "docs/trials.jsonl", "data/ops_*.log", "data/ops_report.txt"]
+RESULT_GLOBS = ["docs/results/*.md", "docs/results/*.json", "docs/trials.jsonl", "data/ops_*.log", "data/ops_report.txt", "data/ops_heartbeat.txt", "docs/hypotheses.jsonl"]
 STATE = REPO / "data" / "ops_state.json"
 RESULTS_DIR = REPO.parent / "fx-results"
 
@@ -305,6 +305,21 @@ def control(st, run=sh):
     save_state(st)
 
 
+HEARTBEAT_S = 600
+
+
+def write_heartbeat(st, sync=""):
+    try:
+        mem = next(int(l.split()[1]) // 1024 for l in open("/proc/meminfo") if l.startswith("MemAvailable"))
+        load = open("/proc/loadavg").read().split()[0]
+    except Exception:
+        mem, load = -1, "?"
+    (REPO / "data").mkdir(exist_ok=True)
+    (REPO / "data" / "ops_heartbeat.txt").write_text(
+        f"alive {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())} · running {(st.get('running') or {}).get('id', 'none')} · "
+        f"halted {bool(st.get('halted'))} · deploy {sync} · memory free {mem} MB · load {load}\n")
+
+
 def tick(run=sh):
     st = load_state()
     sync = sync_code(st, run)
@@ -322,7 +337,12 @@ def tick(run=sh):
             if jid not in st["done"]:
                 start_job(jid, name, st, run)
                 break
-    pushed = push_results(st, run) if finished else "skipped"
+    now = time.time()
+    beat = now - st.get("hb", 0) >= HEARTBEAT_S
+    if beat:                                                       # proof of life even when no job finishes (silence = a problem)
+        write_heartbeat(st, sync)
+        st["hb"] = now
+    pushed = push_results(st, run) if (finished or beat) else "skipped"
     save_state(st)
     return dict(sync=sync, running=st.get("running"), finished=finished, pushed=pushed)
 
