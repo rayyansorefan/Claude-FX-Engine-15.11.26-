@@ -135,7 +135,94 @@ footer{color:var(--mut);font-size:12.5px;text-align:center;margin-top:8px}
 """
 
 
-def render(res: dict | None) -> str:
+PAPER_CSS = """
+.paper{border:2px solid var(--accent)}.ptag{display:inline-block;background:var(--accent);color:#fff;border-radius:6px;padding:1px 8px;font-size:11.5px;font-weight:700;letter-spacing:.04em;margin-right:8px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:10px 0 14px}.stat{background:var(--bg);border-radius:10px;padding:10px 12px}.stat span{display:block;color:var(--mut);font-size:11.5px}.stat b{font-size:20px}
+.up{color:var(--ok)}.dn{color:var(--no)}
+.fx{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}.fx .m{font-size:13.5px;font-weight:600}.fx .t{color:var(--mut);font-size:11.5px;font-weight:400}
+.pk{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end}.pk button{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:5px 9px;cursor:pointer;min-width:54px}.pk button:hover{border-color:var(--accent)}.pk button i{display:block;font-style:normal;color:var(--mut);font-size:10.5px}
+.ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0}.ctl input{font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 10px}.ctl input[type=number]{width:90px}.ctl input[type=search]{flex:1;min-width:160px}
+table.t2{width:100%;border-collapse:collapse;font-size:13px}table.t2 th{color:var(--mut);font-weight:500;text-align:left;padding:4px 6px;font-size:11.5px}table.t2 td{padding:6px;border-top:1px solid var(--line)}
+.scrollx{overflow-x:auto}.w{color:var(--ok);font-weight:650}.l{color:var(--no);font-weight:650}
+"""
+
+JS = """
+<script>
+function bet(btn){var s=parseFloat(document.getElementById('stake').value);btn.disabled=true;
+fetch('/api/bet',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:btn.dataset.id,market:btn.dataset.m,sel:btn.dataset.s,stake:s})})
+.then(function(r){return r.json()}).then(function(j){if(j.ok){location.reload()}else{alert(j.error||'Could not place that paper bet');btn.disabled=false}})
+.catch(function(){alert('Could not reach the paper server');btn.disabled=false})}
+function tick(b){b.disabled=true;b.textContent='Checking...';fetch('/api/tick',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(function(){location.reload()}).catch(function(){b.disabled=false})}
+function filt(q){q=q.toLowerCase();document.querySelectorAll('.fx').forEach(function(e){e.style.display=e.dataset.q.indexOf(q)>-1?'':'none'})}
+</script>
+"""
+
+SELNAME = {"H": "Home", "D": "Draw", "A": "Away", "O25": "Over 2.5", "U25": "Under 2.5"}
+
+
+def _gbp(x, signed=False):
+    return "n/a" if not _num(x) else (f"{'+' if signed and x > 0 else '-' if x < 0 else ''}£{abs(x):.2f}")
+
+
+def _curve(curve, start) -> str:
+    if len(curve) < 2:
+        return '<p class="vs">The bankroll chart appears after the first paper bet settles.</p>'
+    lo, hi = min(curve + [start]), max(curve + [start])
+    pad = (hi - lo) * 0.1 or 1
+    lo, hi = lo - pad, hi + pad
+    W, H = 700, 150
+    X = lambda i: 8 + i / (len(curve) - 1) * (W - 16)
+    Y = lambda v: H - 10 - (v - lo) / (hi - lo) * (H - 20)
+    pts = " ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(curve))
+    col = "var(--ok)" if curve[-1] >= start else "var(--no)"
+    return (f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="Virtual bankroll after each settled paper bet"><line x1="0" y1="{Y(start):.1f}" x2="{W}" y2="{Y(start):.1f}" class="zero"/>'
+            f'<text x="{W - 4}" y="{Y(start) - 4:.1f}" class="tick" text-anchor="end">£{start:.0f} start</text><polyline points="{pts}" fill="none" stroke="{col}" stroke-width="2.5" stroke-linejoin="round"/>'
+            f'<circle cx="{X(len(curve) - 1):.1f}" cy="{Y(curve[-1]):.1f}" r="4.5" fill="{col}"/></svg>')
+
+
+def _bet_rows(bets, n=30):
+    if not bets:
+        return '<p class="vs">None yet.</p>'
+    rows = []
+    for b in bets[:n]:
+        st = {"won": '<span class="w">WON</span>', "lost": '<span class="l">LOST</span>'}.get(b["status"], "open")
+        rows.append(f'<tr><td>{E(b["date"])}</td><td>{E(b["home"])} v {E(b["away"])}</td><td>{E(SELNAME.get(b["sel"], b["sel"]))}</td><td>{b["odds"]:.2f}</td><td>£{b["stake"]:.2f}</td>'
+                    f'<td>{st}</td><td>{_gbp(b["pnl"], True) if b["pnl"] is not None else ""}</td><td>{E(b["rule"])}</td></tr>')
+    return ('<div class="scrollx"><table class="t2"><tr><th>Date</th><th>Match</th><th>Pick</th><th>Price</th><th>Stake</th><th>Status</th><th>P/L</th><th>By</th></tr>'
+            + "".join(rows) + "</table></div>")
+
+
+def render_paper(p: dict) -> str:
+    eq = p["equity"]
+    cls = "up" if eq > p["start"] else "dn" if eq < p["start"] else ""
+    fx = []
+    for f in p["fixtures"]:
+        btns = []
+        for m, sel, o in (("1X2", "H", f["b365"][0]), ("1X2", "D", f["b365"][1]), ("1X2", "A", f["b365"][2]), ("OU", "O25", f["ou"][0]), ("OU", "U25", f["ou"][1])):
+            if o:
+                btns.append(f'<button data-id="{E(f["id"], quote=True)}" data-m="{m}" data-s="{sel}" onclick="bet(this)">{SELNAME[sel]}<i>{o:.2f}</i></button>')
+        if btns:
+            q = E(f'{f["home"]} {f["away"]} {f["div"]} {f["date"]}'.lower(), quote=True)
+            fx.append(f'<div class="fx" data-q="{q}"><div class="m">{E(f["home"])} v {E(f["away"])}<div class="t">{E(f["date"])} {E(f["time"])} · {E(f["div"])}</div></div><div class="pk">{"".join(btns)}</div></div>')
+    roi = p["roi"]
+    rules = "".join(f'<tr><td>{E(k)}</td><td>{v["n"]}</td><td>{v["won"]}</td><td>{_gbp(v["pnl"], True)}</td><td>{pct(v["pnl"] / v["staked"], True) if v["staked"] else "n/a"}</td></tr>' for k, v in sorted(p["by_rule"].items()))
+    tick = E(p["last_tick"] or "never")
+    return f"""<section class="paper"><h2><span class="ptag">PAPER</span>Paper trading · £{p["start"]:.0f} virtual bankroll</h2>
+<p class="sub">Pretend money only. Nothing is ever sent to Bet365 or any bookmaker. Prices are Bet365's from football-data.co.uk's free fixtures file and may differ from what you'd see live. Last check: {tick} UTC.</p>
+<div class="stats"><div class="stat"><span>Virtual bankroll</span><b class="{cls}">£{eq:.2f}</b></div><div class="stat"><span>Free to stake</span><b>£{p["available"]:.2f}</b></div>
+<div class="stat"><span>Open bets</span><b>{len(p["open"])}</b></div><div class="stat"><span>Settled (won)</span><b>{p["n_settled"]} ({p["won"]})</b></div>
+<div class="stat"><span>Return on stakes</span><b class="{"up" if (roi or 0) > 0 else "dn" if (roi or 0) < 0 else ""}">{pct(roi, True)}</b></div></div>
+{_curve(p["curve"], p["start"])}
+<h2 style="margin-top:14px">Place a paper bet</h2><div class="ctl"><label>Stake £ <input id="stake" type="number" min="{p["min_stake"]}" step="0.5" value="{p["auto_stake"]:.2f}"></label>
+<input type="search" placeholder="Search team or league (e.g. Arsenal, E0)" oninput="filt(this.value)"><button class="pbtn" onclick="tick(this)" style="font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer">Refresh prices &amp; results</button></div>
+{"".join(fx) or '<p class="vs">No upcoming matches loaded yet. Press "Refresh prices &amp; results".</p>'}
+<h2 style="margin-top:16px">Open paper bets</h2>{_bet_rows(p["open"])}
+<h2 style="margin-top:16px">Settled paper bets</h2>{_bet_rows(p["settled"])}
+{('<h2 style="margin-top:16px">By strategy</h2><div class="scrollx"><table class="t2"><tr><th>Strategy</th><th>Settled</th><th>Won</th><th>P/L</th><th>Return</th></tr>' + rules + '</table></div><p class="sub" style="margin-top:6px">V1 / V1P = automatic bets from the research rule (Shin / plain margin removal), flat £' + f"{p['auto_stake']:.2f}" + ' each. MANUAL = your clicks.</p>') if rules else ""}
+</section>{JS}"""
+
+
+def render(res: dict | None, paper: dict | None = None) -> str:
     rules = (res or {}).get("rules", [])
     lvl = level(res)
     scored = [r for r in rules if "roi" in r]
@@ -167,7 +254,8 @@ def render(res: dict | None) -> str:
     seasons = E(str((res or {}).get("seasons", "—")))
     trials = (res or {}).get("n_trials", "—")
     body = f"""<div class="wrap"><header><h1>Bookie Engine<small>research only</small></h1>
-<div class="chips"><span class="chip">Seasons {seasons}</span><span class="chip">{trials} rules tried</span><span class="chip">Latest seasons sealed (never looked at)</span><span class="chip">Never places a bet</span></div></header>
+<div class="chips">{'<span class="chip">PAPER ONLY</span>' if paper is not None else ''}<span class="chip">Seasons {seasons}</span><span class="chip">{trials} rules tried</span><span class="chip">Latest seasons sealed (never looked at)</span><span class="chip">Never places a bet</span></div></header>
+{render_paper(paper) if paper is not None else ""}
 {verdict}
 <section><h2>Did any rule make money after the bookmaker's cut?</h2><p class="sub">Each row: profit per £1 staked at Bet365's own historical price. Dot = result, line = {lvl} range (already includes the penalty for trying several rules), blue triangle = the level random betting beats only 5% of the time.</p>
 <div class="scroll">{_forest(rules, lvl) or '<p class="vs">No scored rules yet.</p>'}</div>
@@ -180,7 +268,7 @@ def render(res: dict | None) -> str:
 <li>Free data has no stake limits. Bet365 limits or closes accounts that win, so real profit would be lower than any backtest.</li>
 <li>Only money you can afford to lose entirely. This engine never logs in, never places or suggests a bet; any bet is yours alone, at your own risk.</li></ul></section>
 <footer>Generated from docs/results/bets.json · numbers are shown only if they are in that file</footer></div>"""
-    return f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bookie Engine</title><style>{CSS}</style></head><body>{body}</body></html>'
+    return f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bookie Engine</title><style>{CSS}{PAPER_CSS if paper is not None else ''}</style></head><body>{body}</body></html>'
 
 
 def write(res_path=Path("docs/results/bets.json"), out=Path("docs/results/bets.html")) -> Path:
