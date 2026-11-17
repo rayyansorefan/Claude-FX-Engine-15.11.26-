@@ -11,6 +11,7 @@ from ..data import store, rates as R
 from ..data.daily import daily_bars_ny
 from ..engine.tracker import Setup, bar_arrays, track_arrays
 from ..research import split, trials
+from ..research.diagnose import trade_fields
 from ..setups import v3
 from . import run_m5 as M
 
@@ -56,7 +57,8 @@ def run_experiment(name, frames, m5s, sigs, diffs=None, rng=None):
             rows.append(dict(symbol=sym, type=name, created=created, day=f"{sym}-{created:%Y%m%d}", reason=o.reason if o else "OPEN",
                              triggered=ts.fill is not None, bars=o.bars_held if o else 0,
                              **{f"net_r_{k}": (r.outcome.net_r if r.outcome else 0.0) for k, r in res.items()},
-                             **{f"trig_{k}": r.fill is not None for k, r in res.items()}))
+                             **{f"trig_{k}": r.fill is not None for k, r in res.items()},
+                             **trade_fields(o, row.direction, created)))
             real.append(hold)
     df = pd.DataFrame(rows)
     # ---- random-entry challenger: random Friday close, random direction, same stop/target ATR multiples, a real hold length

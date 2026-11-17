@@ -31,6 +31,7 @@ JOBS = {
     "tests": ".venv/bin/pytest -q",
     "full_research": "bash deploy/research_once.sh",
     "report": ".venv/bin/python -m fxengine.ops.report",
+    "diagnose": ".venv/bin/python -m fxengine.research.diagnose",
 }
 JOB_MEM = {"history": "450M", "r0": "600M", "batch3": "600M", "full_research": "600M", "tests": "500M"}   # default 300M
 RESULT_GLOBS = ["docs/results/*.md", "docs/results/*.json", "docs/trials.jsonl", "data/ops_*.log", "data/ops_report.txt"]

@@ -117,7 +117,7 @@ def test_live_pnl_panel_numbers_and_charts_tab(tmp_path, monkeypatch):
                    expires=str(now), entry=1.1, stop=1.09, target=1.12, entry_kind="stop", stop_pips=100, lots_for_20gbp_risk=.1, score=1.0)
         DB.add_setup(c, f"r{i}", rec)
         c.execute("INSERT INTO events VALUES(?,?,?,?,?,?)", (f"r{i}", 0, rec["created"], None, "PUBLISHED", "published"))
-        c.execute("INSERT INTO outcomes VALUES(?,?,?,?,?,?)", (f"r{i}", reason, r, 1.1, 1.1, str(now - pd.Timedelta(minutes=30 + i))))
+        c.execute("INSERT INTO outcomes(run_id,reason,net_r,fill,exit,resolved_at) VALUES(?,?,?,?,?,?)", (f"r{i}", reason, r, 1.1, 1.1, str(now - pd.Timedelta(minutes=30 + i))))
     c.commit()
     html = db.build(root=tmp_path / "data" / "candles", out=None, now=now)
     assert "Live profit &amp; loss" in html

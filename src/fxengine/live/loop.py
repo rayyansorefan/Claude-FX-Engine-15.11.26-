@@ -124,7 +124,8 @@ def track(conn, env, send, root, now):
                 txt, kind = M.triggered(c, t.fill), "TRIGGERED"
             elif ev["to"] == RESOLVED:
                 o = t.outcome
-                conn.execute("INSERT OR REPLACE INTO outcomes VALUES(?,?,?,?,?,?)", (c["run_id"], o.reason, o.net_r, o.fill, o.exit, str(ev["ts"])))
+                conn.execute("INSERT OR REPLACE INTO outcomes(run_id,reason,net_r,fill,exit,resolved_at,gross_r,mfe_r,mae_r) VALUES(?,?,?,?,?,?,?,?,?)",
+                             (c["run_id"], o.reason, o.net_r, o.fill, o.exit, str(ev["ts"]), o.gross_r, o.mfe_r, o.mae_r))
                 txt, kind = M.resolved(c, o.reason, o.net_r), o.reason
             else:
                 continue

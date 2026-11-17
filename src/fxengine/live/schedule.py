@@ -28,8 +28,13 @@ def eod(conn, day):
     rows = conn.execute("SELECT o.reason, o.net_r FROM outcomes o JOIN setups s USING(run_id) WHERE s.day=?", (day,)).fetchall()
     pub = conn.execute("SELECT COUNT(*) FROM setups WHERE day=?", (day,)).fetchone()[0]
     net = sum(r["net_r"] for r in rows)
+    from ..research.diagnose import live_line
+    try:
+        why_line = live_line(conn)
+    except Exception:
+        why_line = "Why trades lose: not available."
     return (f"📊 END OF DAY · {pub} published · {sum(r['reason'] == 'TARGET' for r in rows)} target · {sum(r['reason'] == 'STOP' for r in rows)} stop\n"
-            f"Hypothetical net {net * 20:+.0f} GBP ({net:+.1f}R). Research only.")
+            f"Hypothetical net {net * 20:+.0f} GBP ({net:+.1f}R). Research only.\n{why_line}")
 
 
 def daily_jobs(conn, env, now, send=telegram.send):

@@ -19,6 +19,11 @@ def connect(path="data/engine.db"):
     c = sqlite3.connect(path)
     c.row_factory = sqlite3.Row
     c.executescript(SCHEMA)
+    have = {r[1] for r in c.execute("PRAGMA table_info(outcomes)")}
+    for col in ("gross_r", "mfe_r", "mae_r"):                    # diagnostics added later: migrate in place, never lose rows
+        if col not in have:
+            c.execute(f"ALTER TABLE outcomes ADD COLUMN {col} REAL")
+    c.commit()
     return c
 
 

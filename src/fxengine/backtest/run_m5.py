@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from ..data import store
+from ..research.diagnose import trade_fields
 from ..data.resample import resample
 from ..data.timeframes import tf_delta
 from ..engine.costs import CostModel, BASE_SPREAD_PIPS
@@ -139,7 +140,8 @@ def run_variant(variant, tfname, frames_tf, m5s, use_invalidation=True, rng=None
             rows.append(dict(symbol=sym, type=stype, created=created, day=f"{sym}-{created:%Y%m%d}",
                              reason=o.reason if o else "OPEN", triggered=ts.fill is not None, bars=o.bars_held if o else 0,
                              **{f"net_r_{k}": (r.outcome.net_r if r.outcome else 0.0) for k, r in res.items()},
-                             **{f"trig_{k}": r.fill is not None for k, r in res.items()}))
+                             **{f"trig_{k}": r.fill is not None for k, r in res.items()},
+                             **trade_fields(o, row.direction, created)))
             a = float(d.atr.iloc[row.pos])
             if a > 0:
                 real.append((sym, abs(row.entry - row.stop) / a, abs(row.target - row.entry) / abs(row.entry - row.stop),
