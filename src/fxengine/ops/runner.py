@@ -219,7 +219,7 @@ def start_job(jid, name, st, run=sh):
     if root_job:
         props += [f"-E OPS_USER={shlex.quote(USER)}", f"-E OPS_DIR={shlex.quote(str(REPO))}"]
     if not root_job:
-        props += [f"-p MemoryMax={JOB_MEM.get(name, '300M')}", "-p MemorySwapMax=256M", "-p OOMScoreAdjust=500"]
+        props += [f"-p MemoryMax={JOB_MEM.get(name, '300M')}", "-p MemorySwapMax=1G", "-p OOMScoreAdjust=500"]
     who = f"--uid={shlex.quote(USER)} --gid={shlex.quote(USER)} " if (IS_ROOT and not root_job and USER) else ""
     base = "systemd-run " if IS_ROOT else f"{uenv()}systemd-run --user "
     cmd = f"{base}--unit={unit_name(jid)} {who}{' '.join(props)} bash -c {shlex.quote(inner)}"

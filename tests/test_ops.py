@@ -56,7 +56,7 @@ def test_start_job_quotes_everything_and_never_puts_ids_in_shell_text_unquoted(r
     R.start_job("001", "history", st, fake)
     cmd = fake.cmds[-1][0]
     assert cmd.startswith("systemd-run --unit=fxjob-001 ") and "--uid=owner" in cmd and "--nice=19" in cmd
-    assert "MemoryMax=450M" in cmd and "MemorySwapMax=256M" in cmd and "--collect" in cmd
+    assert "MemoryMax=450M" in cmd and "MemorySwapMax=1G" in cmd and "--collect" in cmd
     assert fake.cmds[-1][1] is False                           # root mode: the systemd-run call itself runs privileged
     assert st["running"]["unit"] == "fxjob-001"
 

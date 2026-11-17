@@ -6,8 +6,14 @@
 #  4) kernel software watchdog: if PID 1 hangs, the VM reboots itself (free, no cloud API)
 set -euo pipefail
 apt-get install -y earlyoom
+# 2 GB swap file (free: uses spare disk). Jobs are capped per unit; this only absorbs short peaks so earlyoom does not fire.
+if ! swapon --show=NAME --noheadings | grep -q fxswap; then
+  [ -f /fxswap ] || { fallocate -l 2G /fxswap && chmod 600 /fxswap && mkswap /fxswap; }
+  swapon /fxswap
+  grep -q '^/fxswap' /etc/fstab || echo '/fxswap none swap sw 0 0' >> /etc/fstab
+fi
 cat > /etc/default/earlyoom <<'EOF'
-EARLYOOM_ARGS="-m 15 -s 100 -r 0"
+EARLYOOM_ARGS="-m 5 -s 8 -r 0"
 EOF
 systemctl enable --now earlyoom
 systemctl restart earlyoom
