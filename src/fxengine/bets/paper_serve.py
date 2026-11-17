@@ -8,7 +8,30 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from . import dashboard, paper
 
+FX_PORT = [8787]                              # where the FX dashboard listens (same host); shown as the other tab on /hub
 LOCK = threading.Lock()                       # one writer at a time; the ledger is tiny
+
+
+HUB = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Engines</title>
+<style>:root{--bg:#f6f7f9;--card:#fff;--ink:#14181f;--mut:#5b6573;--line:#e3e7ee;--accent:#2563eb}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1116;--card:#171b22;--ink:#e8ecf2;--mut:#9aa5b4;--line:#28303b;--accent:#6ea0ff}}
+*{box-sizing:border-box}html,body{height:100%;margin:0}body{display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:15px system-ui,-apple-system,Segoe UI,sans-serif}
+nav{display:flex;gap:6px;align-items:center;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--line)}
+nav button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--bg);color:var(--mut);border-radius:9px;padding:7px 14px;cursor:pointer}
+nav button[aria-selected=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+nav a{margin-left:auto;color:var(--mut);font-size:12.5px}nav small{color:var(--mut);margin-left:8px;font-size:12px}
+iframe{flex:1;border:0;width:100%;background:var(--bg)}
+</style></head><body>
+<nav role="tablist"><button role="tab" id="t-fx" onclick="show('fx')">FX Engine</button><button role="tab" id="t-bk" onclick="show('bk')">Bookie Engine</button>
+<small>two separate engines, one page</small><a id="open" target="_blank" rel="noopener">open this tab on its own</a></nav>
+<iframe id="f" title="engine dashboard"></iframe>
+<script>
+var H=location.hostname,U={fx:location.protocol+'//'+H+':__FXPORT__/',bk:'/'};
+function show(k){document.getElementById('f').src=U[k];document.getElementById('open').href=U[k];
+ ['fx','bk'].forEach(function(x){document.getElementById('t-'+x).setAttribute('aria-selected',x===k)});
+ try{localStorage.setItem('hubtab',k)}catch(e){};history.replaceState(null,'','#'+k)}
+var k=(location.hash||'').slice(1);if(k!=='fx'&&k!=='bk'){try{k=localStorage.getItem('hubtab')}catch(e){}}show(k==='fx'?'fx':'bk');
+</script></body></html>"""
 
 
 def _results(path=Path("docs/results/bets.json")):
@@ -45,6 +68,8 @@ def make_handler(conn, tick_fn=None):
         def do_GET(self):
             if self.path.split("?")[0] in ("/", "/index.html"):
                 return self._send(200, page(conn), "text/html")
+            if self.path.split("?")[0] == "/hub":
+                return self._send(200, HUB.replace("__FXPORT__", str(FX_PORT[0])), "text/html")
             if self.path == "/api/state":
                 with LOCK:
                     return self._send(200, json.dumps(paper.state(conn), default=str))
@@ -76,10 +101,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8789)
+    ap.add_argument("--fx-port", type=int, default=8787, help="FX dashboard port, for the FX tab on /hub")
     ap.add_argument("--every", type=int, default=1800, help="seconds between automatic fixture/result checks (0 = off)")
     a = ap.parse_args()
     if a.host in ("0.0.0.0", "::"):
         raise SystemExit("Refusing to bind to all interfaces: use 127.0.0.1 or the VM's Tailscale IP.")
+    FX_PORT[0] = a.fx_port
     conn = paper.connect()
 
     def loop():
@@ -91,7 +118,7 @@ def main():
                 print("tick failed", type(e).__name__, flush=True)
             time.sleep(a.every)
     threading.Thread(target=loop, daemon=True).start()
-    print(f"paper dashboard on http://{a.host}:{a.port}  (paper bets only)", flush=True)
+    print(f"paper dashboard on http://{a.host}:{a.port}  (paper bets only); both engines on one page: http://{a.host}:{a.port}/hub", flush=True)
     ThreadingHTTPServer((a.host, a.port), make_handler(conn)).serve_forever()
 
 

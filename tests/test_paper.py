@@ -94,6 +94,8 @@ def test_server_places_paper_bets_over_http_and_rejects_non_json():
         except urllib.error.HTTPError as e:
             return e.code, json.loads(e.read())
     assert "PAPER" in urllib.request.urlopen(base + "/").read().decode()
+    hub = urllib.request.urlopen(base + "/hub").read().decode()
+    assert "FX Engine" in hub and "Bookie Engine" in hub and ":8787/" in hub and "__FXPORT__" not in hub
     assert post("/api/bet", dict(id=fx(0)["id"], market="1X2", sel="H", stake=5))[0] == 200
     assert post("/api/bet", dict(id=fx(0)["id"], market="1X2", sel="H", stake=5))[0] == 400            # duplicate
     assert post("/api/bet", dict(id=fx(0)["id"], market="1X2", sel="D", stake="abc"))[0] == 400
