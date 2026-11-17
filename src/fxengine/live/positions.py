@@ -38,10 +38,17 @@ def snapshot(conn, root, now, out: Path = OUT) -> str:
             lines.append(describe(c, t, last, now))
         except Exception as e:                                       # one bad setup never hides the others
             lines.append(f"- {c.get('pair')} {c.get('run_id')}: could not describe ({type(e).__name__})")
-    done = conn.execute("""SELECT s.pair, s.type, o.reason, o.net_r, o.resolved_at FROM outcomes o JOIN setups s USING(run_id)
-                           ORDER BY o.resolved_at DESC LIMIT 12""").fetchall()
-    lines += ["", f"Last {len(done)} finished: reason, net R, when (as stored)", ""]
-    lines += [f"- {d['pair']} {d['type']}: {d['reason']} {d['net_r']:+.2f}R at {str(d['resolved_at'])[:16]}" for d in done]
+    done = conn.execute("""SELECT s.pair, s.type, o.reason, o.net_r, o.fill, o.gross_r, o.mfe_r, o.mae_r, o.resolved_at FROM outcomes o
+                           JOIN setups s USING(run_id) ORDER BY o.resolved_at DESC LIMIT 15""").fetchall()
+    lines += ["", f"Last {len(done)} finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)", ""]
+    from ..research.diagnose import classify
+    for d in done:
+        mfe, mae = d["mfe_r"], d["mae_r"]
+        why = ""
+        if d["fill"] is not None and d["net_r"] is not None and d["net_r"] <= 0 and mfe is not None and d["gross_r"] is not None:
+            why = " · " + classify(dict(triggered=True, net_r=d["net_r"], gross_r=d["gross_r"], mfe_r=mfe))
+        extra = "" if mfe is None else f" · best {mfe:+.2f}R, worst {-mae:+.2f}R{why}"
+        lines.append(f"- {d['pair']} {d['type']}: {d['reason']} {d['net_r']:+.2f}R at {str(d['resolved_at'])[:16]}{extra}")
     text = "\n".join(lines) + "\n"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text)
