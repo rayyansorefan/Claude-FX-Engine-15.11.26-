@@ -695,7 +695,7 @@ svg .grid{stroke:var(--line);stroke-width:1}.zero{stroke:var(--mute);stroke-widt
 .why{color:var(--ink);font-size:15px;margin:8px 0}.tl{display:flex;gap:6px;flex-wrap:wrap}.tl .chip{font-size:12px}
 .empty{background:var(--card);border:1px dashed var(--line);border-radius:14px;padding:34px;text-align:center;font-size:17px}
 .sel button{font-size:14px;padding:7px 14px}.legend{font-size:13px}
-@media(max-width:600px){.hm{display:none}.top{gap:6px}.chip{padding:2px 8px;font-size:12px}.kpis{grid-template-columns:repeat(2,1fr);gap:8px}.kpi{padding:10px 12px}.kpi b{font-size:22px}.kpi small{font-size:11px}.kpi span{font-size:12px}.wrap{padding:10px 10px 30px}}
+@media(max-width:600px){.tbl td,.tbl th{font-size:12px;padding:6px 4px;white-space:normal}.tbl td.mono{white-space:nowrap}.hm{display:none}.top{gap:6px}.chip{padding:2px 8px;font-size:12px}.kpis{grid-template-columns:repeat(2,1fr);gap:8px}.kpi{padding:10px 12px}.kpi b{font-size:22px}.kpi small{font-size:11px}.kpi span{font-size:12px}.wrap{padding:10px 10px 30px}}
 .sample{background:var(--warn);color:#000;text-align:center;font-weight:700;padding:6px;border-radius:6px;margin-bottom:10px}
 p{margin:6px 0}
 """
@@ -791,6 +791,8 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     live = live_record(dbc) if dbc else []
     live_net = sum(r["net_r"] or 0 for r in live if r["reason"] in ("TARGET", "STOP", "TIMEOUT"))
     lp = live_pnl(dbc, root, now) if dbc else None
+    trades = trades_data(dbc, root, now) if dbc else []
+    fl = {t['run_id']: t for t in trades}                       # live R of open trades, reused by the setup log below
     uptime, next_cycle = ops_chips(dbc, now)
     livehtml = live_panel(lp)
     jr = J.load()
@@ -830,8 +832,18 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     # live record table
     done = [r for r in live if r["reason"]]
     wins, losses = sum(r["reason"] == "TARGET" for r in done), sum(r["reason"] in ("STOP",) for r in done)
-    lr = "".join(f"<tr><td class='mono'>{uk(r['created_at']):%d %b %H:%M}</td><td>{r['pair']} {r['rec']['direction'].upper()}</td><td>{e(STRATS.get(r['type'], (r['type'],))[0])}</td>"
-                 f"<td>{e(r['reason'] or r['state'] or 'PENDING')}</td><td class='num {'up' if (r['net_r'] or 0) > 0 else 'dn'}'>{'' if r['net_r'] is None else f'{r['net_r'] * RISK:+.0f} GBP'}</td></tr>" for r in live[:15])
+    def _state_pl(r):
+        t = fl.get(r["run_id"])
+        if r["reason"]:
+            v = (r["net_r"] or 0) * RISK
+            return e(r["reason"]), ("up" if v > 0 else "dn"), ("" if r["net_r"] is None else f"{v:+.0f} GBP")
+        if t and t.get("float_r") is not None:                    # open: show the live result, not just 'TRIGGERED'
+            v = t["float_r"] * RISK
+            return "OPEN (live)", ("up" if v > 0 else "dn"), f"{v:+.0f} GBP ({t['float_r']:+.2f}R)"
+        return e(r["state"] or "PENDING"), "", ""
+    lr = "".join(f"<tr><td class='mono'>{uk(r['created_at']):%d %b %H:%M}</td><td>{r['pair']} {r['rec']['direction'].upper()}</td>"
+                 f"<td>{e(STRATS.get(r['type'], (r['type'],))[0])}</td><td>{st_}</td><td class='num {cl_}'>{pl_}</td></tr>"
+                 for r in live[:15] for st_, cl_, pl_ in [_state_pl(r)])
     livetbl = (f"<p class='muted'>Published {len(live)} · resolved {len(done)} · target {wins} · stop {losses} · "
                f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><table class='tbl'><tr><th>Created (UK)</th><th>Setup</th><th>Rule</th><th>Outcome</th><th class='r'>P&amp;L</th></tr>{lr}</table>"
               if live else "<p class='muted'>No live setups recorded yet. This fills in once the live loop publishes its first setup.</p>")
@@ -881,7 +893,6 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
         levels.setdefault(sym, [])
         levels[sym] = key_levels(m5k) + levels[sym]
     ptable = pair_table(root, cands, levels)
-    trades = trades_data(dbc, root, now) if dbc else []
     tcards = "".join(trade_card(i, t, now) for i, t in enumerate(trades)) or (
         "<div class='empty'><b>No trades right now.</b><br><span class='muted'>The engine scans every hour while the market is open and publishes a setup only when a "
         "frozen rule fires. Nothing is a valid outcome.</span></div>")
