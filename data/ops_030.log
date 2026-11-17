@@ -2,3 +2,4 @@ v1_M15 {'stressed': (18719, -0.282247641318249, False), 'normal': (18724, -0.179
 v1_H1 {'stressed': (7954, -0.1469005585368036, False), 'normal': (7944, -0.09605501629695914, False), 'measured': (7968, -0.12496138042891364, False)}
 E1_strength {'stressed': (633, -0.055115840101354896, False), 'normal': (633, -0.03949710979925898, False), 'measured': (633, -0.04630746937491626, False)}
 E2_donchian {'stressed': (496, -0.11838229637890303, False), 'normal': (496, -0.1064602858400271, False), 'measured': (496, -0.10861018344620481, False)}
+E4_donchian_trail {'stressed': (415, -0.10653361959304747, False), 'normal': (415, -0.08372256632005869, False), 'measured': (415, -0.09474426168057117, False)}
