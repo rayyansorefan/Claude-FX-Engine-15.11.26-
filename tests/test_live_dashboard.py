@@ -142,7 +142,7 @@ def test_top_bar_shows_uptime_and_next_cycle(tmp_path, monkeypatch):
     html = db.build(root=tmp_path / "data" / "candles", out=None, now=now)
     assert "uptime 90.0% (9 of 10 cycles, 7d)" in html and "next cycle 10:05 UK" in html
     sat = db.build(root=tmp_path / "data" / "candles", out=None, now=pd.Timestamp("2026-11-21 12:00", tz="UTC"))
-    assert "market opens Sun 22:00 UTC" in sat
+    assert "market opens Sun 22:00 UK" in sat
 
 
 def test_server_never_makes_a_visitor_wait_for_a_rebuild(monkeypatch):
