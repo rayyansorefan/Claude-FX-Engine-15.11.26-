@@ -23,9 +23,23 @@ too few scored trades with diagnostics to say anything
 
 too few scored trades with diagnostics to say anything
 
-## batch3_E6  (n=0)
+## batch3_E6  (n=116)
 
-too few scored trades with diagnostics to say anything
+Win rate 44% · mean +0.154R · **No winner-vs-loser pattern survives the multiple-testing and half-sample checks (treat differences as noise).**
+
+| class | n | share | mean net R | mean best (MFE) | mean worst (MAE) |
+|---|---|---|---|---|---|
+| WIN | 51 | 44% | +1.236 | 1.77 | 0.36 |
+| WRONG_WAY | 44 | 38% | -0.685 | 0.18 | 0.78 |
+| STALLED | 10 | 9% | -0.769 | 0.67 | 0.87 |
+| GAVE_BACK | 9 | 8% | -0.817 | 1.36 | 0.84 |
+| COST_DRAG | 2 | 2% | -0.019 | 1.43 | 0.40 |
+
+Winners vs losers: best excursion 1.766 vs 0.459 R, worst excursion 0.359 vs 0.788 R.
+
+Exits: 14% of losers had been 1R+ ahead
+
+Buckets tested 14 (needs |z| >= 2.91): none survive
 
 ## live_ledger  (n=0)
 

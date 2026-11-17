@@ -1,0 +1,48 @@
+# Trade post-mortem (automatic, deterministic)
+
+Classes: WRONG_WAY = never 0.5R ahead (signal wrong) · GAVE_BACK = was 1R+ ahead then lost (exit problem) · STALLED = 0.5-1R ahead then failed · COST_DRAG = right direction, costs ate it.
+A pattern counts only with >= 30 trades, a Bonferroni-corrected test over every bucket checked, and the same sign in both halves of the sample.
+
+## m5_rerun_E1_strength  (n=0)
+
+too few scored trades with diagnostics to say anything
+
+## m5_rerun_E2_donchian  (n=0)
+
+too few scored trades with diagnostics to say anything
+
+## m5_rerun_E4_donchian_trail  (n=0)
+
+too few scored trades with diagnostics to say anything
+
+## m5_rerun_v1_H1  (n=0)
+
+too few scored trades with diagnostics to say anything
+
+## m5_rerun_v1_M15  (n=0)
+
+too few scored trades with diagnostics to say anything
+
+## batch3_E6  (n=116)
+
+Win rate 44% · mean +0.154R · **No winner-vs-loser pattern survives the multiple-testing and half-sample checks (treat differences as noise).**
+
+| class | n | share | mean net R | mean best (MFE) | mean worst (MAE) |
+|---|---|---|---|---|---|
+| WIN | 51 | 44% | +1.236 | 1.77 | 0.36 |
+| WRONG_WAY | 44 | 38% | -0.685 | 0.18 | 0.78 |
+| STALLED | 10 | 9% | -0.769 | 0.67 | 0.87 |
+| GAVE_BACK | 9 | 8% | -0.817 | 1.36 | 0.84 |
+| COST_DRAG | 2 | 2% | -0.019 | 1.43 | 0.40 |
+
+Winners vs losers: best excursion 1.766 vs 0.459 R, worst excursion 0.359 vs 0.788 R.
+
+Exits: 14% of losers had been 1R+ ahead
+
+Buckets tested 14 (needs |z| >= 2.91): none survive
+
+## live_ledger  (n=0)
+
+too few scored trades with diagnostics to say anything
+
+new candidate hypotheses logged: 0

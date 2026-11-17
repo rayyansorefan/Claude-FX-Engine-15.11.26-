@@ -26,8 +26,176 @@
  },
  {
   "name": "batch3_E6",
-  "n": 0,
-  "verdict": "too few scored trades with diagnostics to say anything"
+  "n": 116,
+  "win_rate": 0.44,
+  "mean_net_r": 0.154,
+  "losers": 65,
+  "main_loss_cause": {
+   "klass": "WRONG_WAY",
+   "n": 44,
+   "share": 0.379,
+   "mean_net_r": -0.685,
+   "mean_mfe_r": 0.18,
+   "mean_mae_r": 0.78
+  },
+  "classes": [
+   {
+    "klass": "WIN",
+    "n": 51,
+    "share": 0.44,
+    "mean_net_r": 1.236,
+    "mean_mfe_r": 1.77,
+    "mean_mae_r": 0.36
+   },
+   {
+    "klass": "WRONG_WAY",
+    "n": 44,
+    "share": 0.379,
+    "mean_net_r": -0.685,
+    "mean_mfe_r": 0.18,
+    "mean_mae_r": 0.78
+   },
+   {
+    "klass": "STALLED",
+    "n": 10,
+    "share": 0.086,
+    "mean_net_r": -0.769,
+    "mean_mfe_r": 0.67,
+    "mean_mae_r": 0.87
+   },
+   {
+    "klass": "GAVE_BACK",
+    "n": 9,
+    "share": 0.078,
+    "mean_net_r": -0.817,
+    "mean_mfe_r": 1.36,
+    "mean_mae_r": 0.84
+   },
+   {
+    "klass": "COST_DRAG",
+    "n": 2,
+    "share": 0.017,
+    "mean_net_r": -0.019,
+    "mean_mfe_r": 1.43,
+    "mean_mae_r": 0.4
+   }
+  ],
+  "winners_vs_losers": {
+   "n_win": 51,
+   "n_loss": 65,
+   "win_mfe": 1.766,
+   "loss_mfe": 0.459,
+   "win_mae": 0.359,
+   "loss_mae": 0.788,
+   "win_bars": 10814.275,
+   "loss_bars": 4638.754
+  },
+  "management": {
+   "share_of_losers_gave_back": 0.138,
+   "flag": false
+  },
+  "scan": {
+   "tests": 14,
+   "z_needed": 2.91,
+   "rows": [
+    {
+     "feature": "symbol",
+     "bucket": "AUDUSD",
+     "n": 11,
+     "status": "too few trades"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURGBP",
+     "n": 10,
+     "status": "too few trades"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURJPY",
+     "n": 12,
+     "status": "too few trades"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "EURUSD",
+     "n": 15,
+     "status": "too few trades"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPJPY",
+     "n": 8,
+     "status": "too few trades"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "GBPUSD",
+     "n": 14,
+     "status": "too few trades"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "NZDUSD",
+     "n": 13,
+     "status": "too few trades"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDCAD",
+     "n": 13,
+     "status": "too few trades"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDCHF",
+     "n": 10,
+     "status": "too few trades"
+    },
+    {
+     "feature": "symbol",
+     "bucket": "USDJPY",
+     "n": 10,
+     "status": "too few trades"
+    },
+    {
+     "feature": "direction",
+     "bucket": "long",
+     "n": 66,
+     "mean_net_r": 0.272,
+     "diff_vs_rest": 0.275,
+     "z": 1.22,
+     "z_needed": 2.91,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "direction",
+     "bucket": "short",
+     "n": 50,
+     "mean_net_r": -0.003,
+     "diff_vs_rest": -0.275,
+     "z": -1.22,
+     "z_needed": 2.91,
+     "stable_halves": true,
+     "status": "noise"
+    },
+    {
+     "feature": "session",
+     "bucket": "Late",
+     "n": 116,
+     "status": "too few trades"
+    },
+    {
+     "feature": "dow",
+     "bucket": "4",
+     "n": 116,
+     "status": "too few trades"
+    }
+   ],
+   "supported": []
+  },
+  "verdict": "No winner-vs-loser pattern survives the multiple-testing and half-sample checks (treat differences as noise)."
  },
  {
   "name": "live_ledger",
