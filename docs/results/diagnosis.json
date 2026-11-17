@@ -1,0 +1,37 @@
+[
+ {
+  "name": "m5_rerun_E1_strength",
+  "n": 0,
+  "verdict": "too few scored trades with diagnostics to say anything"
+ },
+ {
+  "name": "m5_rerun_E2_donchian",
+  "n": 0,
+  "verdict": "too few scored trades with diagnostics to say anything"
+ },
+ {
+  "name": "m5_rerun_E4_donchian_trail",
+  "n": 0,
+  "verdict": "too few scored trades with diagnostics to say anything"
+ },
+ {
+  "name": "m5_rerun_v1_H1",
+  "n": 0,
+  "verdict": "too few scored trades with diagnostics to say anything"
+ },
+ {
+  "name": "m5_rerun_v1_M15",
+  "n": 0,
+  "verdict": "too few scored trades with diagnostics to say anything"
+ },
+ {
+  "name": "batch3_E6",
+  "n": 0,
+  "verdict": "too few scored trades with diagnostics to say anything"
+ },
+ {
+  "name": "live_ledger",
+  "n": 0,
+  "verdict": "too few scored trades with diagnostics to say anything"
+ }
+]

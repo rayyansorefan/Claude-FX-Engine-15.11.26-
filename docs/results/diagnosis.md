@@ -1,0 +1,32 @@
+# Trade post-mortem (automatic, deterministic)
+
+Classes: WRONG_WAY = never 0.5R ahead (signal wrong) · GAVE_BACK = was 1R+ ahead then lost (exit problem) · STALLED = 0.5-1R ahead then failed · COST_DRAG = right direction, costs ate it.
+A pattern counts only with >= 30 trades, a Bonferroni-corrected test over every bucket checked, and the same sign in both halves of the sample.
+
+## m5_rerun_E1_strength  (n=0)
+
+too few scored trades with diagnostics to say anything
+
+## m5_rerun_E2_donchian  (n=0)
+
+too few scored trades with diagnostics to say anything
+
+## m5_rerun_E4_donchian_trail  (n=0)
+
+too few scored trades with diagnostics to say anything
+
+## m5_rerun_v1_H1  (n=0)
+
+too few scored trades with diagnostics to say anything
+
+## m5_rerun_v1_M15  (n=0)
+
+too few scored trades with diagnostics to say anything
+
+## batch3_E6  (n=0)
+
+too few scored trades with diagnostics to say anything
+
+## live_ledger  (n=0)
+
+too few scored trades with diagnostics to say anything
