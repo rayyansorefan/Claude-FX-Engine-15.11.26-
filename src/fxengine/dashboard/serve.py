@@ -110,7 +110,7 @@ def main():
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--open", action="store_true")
-    ap.add_argument("--auto", type=int, default=0)
+    ap.add_argument("--auto", type=int, default=60)           # reload the page itself every 60 s (the engine cycles every 5 min)
     ap.add_argument("--refresh", action="store_true")
     ap.add_argument("--cache", type=int, default=120)
     a = ap.parse_args()

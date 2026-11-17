@@ -20,3 +20,5 @@
 022 report
 023 batch3
 024 diagnose
+025 r0
+026 diagnose

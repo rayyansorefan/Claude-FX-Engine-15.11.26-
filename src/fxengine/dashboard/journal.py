@@ -61,7 +61,7 @@ def panel(df) -> str:
     bars = "".join(f"<div class='frow'><span>{n}</span><div class='fbar'><b style='width:{abs(v) / mx * 100:.0f}%;background:{'var(--good)' if v > 0 else 'var(--crit)'}'></b></div><em class='{up(v)}'>£{v:+.0f}</em></div>"
                    for n, v in a["sessions"].items())
     lo, hi = a["ci_r"]
-    return (f"<div class='kpis' style='margin:0 0 10px'>{tiles}</div><div class='grid'><div class='c6'><small class='muted'>P&L by time of day (UTC)</small>{bars}</div>"
+    return (f"<div class='kpis' style='margin:0 0 10px'>{tiles}</div><div class='grid'><div class='c6'><small class='muted'>P&L by time of day (as logged)</small>{bars}</div>"
             f"<div class='c6'><small class='muted'>Expectancy per trade</small><p class='mono' style='font-size:20px;margin:6px 0'>"
             f"<span class='{up(a['exp_r'])}'>{a['exp_r']:+.2f}R</span></p><small class='muted'>95% range {lo:+.2f}R to {hi:+.2f}R. "
             f"{'Too few trades to tell skill from luck.' if a['n'] < 100 else 'Enough trades for a first read.'}</small></div></div>")

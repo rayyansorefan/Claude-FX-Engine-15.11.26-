@@ -185,3 +185,11 @@ def test_state_file_is_written_atomically(repo):
     assert R.load_state()["done"] == {"a": 1} and not (repo / "data" / "ops_state.tmp").exists()
     (repo / "data" / "ops_state.json").write_text("{broken")                   # corrupt file does not crash the runner
     assert R.load_state() == {"done": {}, "running": None}
+
+
+def test_dashboard_only_changes_deploy_during_a_job_but_research_code_waits(repo):
+    run_ = {"done": {}, "running": {"id": "x"}}
+    rep = {"git rev-parse HEAD": "old", "git rev-parse origin/engine": "new", "is-active fxengine": "active\nactive\n", "NRestarts": "0\n"}
+    assert R.sync_code(dict(run_), Fake({**rep, "git diff --name-only": "src/fxengine/backtest/run_m5.py\nsrc/fxengine/dashboard/build.py\n"})) == "busy"
+    safe = Fake({**rep, "git diff --name-only": "src/fxengine/dashboard/build.py\nsrc/fxengine/live/messages.py\ntests/test_x.py\n"})
+    assert R.sync_code(dict(run_), safe) == "deployed" and safe.ran("restart fxengine fxdash")

@@ -33,6 +33,7 @@ JOBS = {
     "report": ".venv/bin/python -m fxengine.ops.report",
     "diagnose": ".venv/bin/python -m fxengine.research.diagnose",
 }
+SAFE_DURING_JOB = ("src/fxengine/dashboard/", "src/fxengine/live/", "src/fxengine/alerts/", "tests/", "docs/", "STATUS.md", "CLAUDE.md", "ops/")
 JOB_MEM = {"history": "450M", "r0": "600M", "batch3": "600M", "full_research": "600M", "tests": "500M"}   # default 300M
 RESULT_GLOBS = ["docs/results/*.md", "docs/results/*.json", "docs/trials.jsonl", "data/ops_*.log", "data/ops_report.txt"]
 STATE = REPO / "data" / "ops_state.json"
@@ -151,12 +152,15 @@ def services_healthy(run) -> bool:
 
 def sync_code(st, run=sh) -> str:
     """Pull new commits from origin/engine; install deps; restart services; verify; roll back (once) on failure."""
-    if st.get("running"):
-        return "busy"                                                # never change code under a running multi-step job
     q = shlex.quote(str(REPO))
     run(f"cd {q} && git fetch -q origin engine")
     local = run(f"cd {q} && git rev-parse HEAD").stdout.strip()
     remote = run(f"cd {q} && git rev-parse origin/engine").stdout.strip()
+    if st.get("running"):
+        # never change the code a running job is using; but dashboard / live-loop / alert changes cannot affect a research job
+        diff = run(f"cd {q} && git diff --name-only {local} {remote}").stdout.split() if remote and local != remote else []
+        if not remote or local == remote or not diff or any(not c.startswith(SAFE_DURING_JOB) for c in diff):
+            return "busy"
     if not remote or local == remote:
         return "up-to-date"
     if remote == st.get("bad_remote"):
