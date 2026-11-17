@@ -140,7 +140,7 @@ def test_top_bar_shows_uptime_and_next_cycle(tmp_path, monkeypatch):
         c.execute("INSERT INTO cycles VALUES(?,?,?,?,?,?)", (str(now - pd.Timedelta(minutes=5 * (i + 1))), 1 if i != 3 else 0, "OK" if i != 3 else "STALE", 1.0, 2.0, ""))
     c.commit()
     html = db.build(root=tmp_path / "data" / "candles", out=None, now=now)
-    assert "uptime 90.0% (9 of 10 cycles, 7d)" in html and "next cycle 10:05 UTC" in html
+    assert "uptime 90.0% (9 of 10 cycles, 7d)" in html and "next cycle 10:05 UK" in html
     sat = db.build(root=tmp_path / "data" / "candles", out=None, now=pd.Timestamp("2026-11-21 12:00", tz="UTC"))
     assert "market opens Sun 22:00 UTC" in sat
 

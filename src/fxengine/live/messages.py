@@ -9,7 +9,11 @@ def p(sym, v):
 
 
 def hhmm(ts):
-    return str(ts)[11:16]
+    """HH:MM in UK time (alerts are read in the UK). Timestamps are stored in UTC."""
+    import pandas as pd
+    t = pd.Timestamp(ts)
+    t = t.tz_localize("UTC") if t.tzinfo is None else t
+    return f"{t.tz_convert('Europe/London'):%H:%M}"
 
 
 def why(c) -> str:
@@ -24,7 +28,7 @@ def new(c) -> str:
     return (f"🟢 NEW · {c['pair']} {c['direction'].upper()} · {c['tf']} {c['type']} · UNPROVEN\n"
             f"Entry {p(c['pair'], c['entry'])} ({c['entry_kind']} order) · stop-loss {p(c['pair'], c['stop'])} · target {p(c['pair'], c['target'])} · "
             f"{c['lots_for_20gbp_risk']} lots (£20 risk)\n"
-            f"{why(c)} · expires {hhmm(c['expires'])} UTC{cancel}")
+            f"{why(c)} · expires {hhmm(c['expires'])} UK{cancel}")
 
 
 def triggered(c, fill) -> str:

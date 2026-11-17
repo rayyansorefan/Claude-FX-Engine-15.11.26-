@@ -164,15 +164,27 @@ def heat(st):
     order = list(st.iloc[-1].sort_values(ascending=False).index)
     rows = ""
     for c in order:
-        cells = "".join(f"<td style='background:{diverge(v, m)}' title='{c} {t:%d %b %H:%M}: {v:+.2f}%'></td>" for t, v in st[c].items())
+        cells = "".join(f"<td style='background:{diverge(v, m)}' title='{c} {uk(t):%d %b %H:%M}: {v:+.2f}%'></td>" for t, v in st[c].items())
         last = st[c].iloc[-1]
         rows += f"<tr><th>{c}</th>{cells}<td class='num {'up' if last > 0 else 'dn'}'>{last:+.2f}%</td></tr>"
     return f"<table class='heat'>{rows}</table><div class='scale'><span>weakest</span><i></i><span>strongest</span></div>"
 
 
+def uk(ts):
+    """Show times in UK local time (GMT in winter, BST in summer). Everything stored/computed stays UTC."""
+    ts = pd.Timestamp(ts)
+    return (ts.tz_localize("UTC") if ts.tzinfo is None else ts).tz_convert("Europe/London")
+
+
+def uk_off(now=None):
+    return int(uk(pd.Timestamp.now(tz="UTC") if now is None else now).utcoffset().total_seconds() // 3600)
+
+
 def sessions(vol):
     if vol is None:
         return "<p class='muted'>No data yet.</p>"
+    off = uk_off()                                   # bars and bands are drawn in UK hours
+    vol = pd.Series(np.roll(np.asarray(vol, dtype=float), off))
     W, Hh, top = 560, 190, 62
     bw = (W - 8) / 24
     mx = float(vol.max()) or 1
@@ -180,11 +192,11 @@ def sessions(vol):
     for h in range(24):
         hh = vol[h] / mx * (Hh - top - 24)
         bars += (f"<rect x='{4 + h * bw + 2:.1f}' y='{Hh - 20 - hh:.1f}' width='{bw - 4:.1f}' height='{hh:.1f}' rx='2' fill='var(--s1)' opacity='.85'>"
-                 f"<title>{h:02d}:00 UTC, relative range {vol[h]:.2f}</title></rect>")
+                 f"<title>{h:02d}:00 UK, relative range {vol[h]:.2f}</title></rect>")
         if h % 3 == 0:
             bars += f"<text x='{4 + h * bw + bw / 2:.1f}' y='{Hh - 5}' class='ax' text-anchor='middle'>{h:02d}</text>"
     bands = ""
-    for row, (name, a, b, col) in enumerate((("TOKYO", 0, 9, TOK["S2"]), ("LONDON", 7, 16, TOK["S1"]), ("NEW YORK", 12, 21, TOK["GOOD"]))):
+    for row, (name, a, b, col) in enumerate((("TOKYO", 0 + off, 9 + off, TOK["S2"]), ("LONDON", 7 + off, 16 + off, TOK["S1"]), ("NEW YORK", 12 + off, 21 + off, TOK["GOOD"]))):
         y0 = 2 + row * 18
         bands += (f"<rect x='{4 + a * bw:.1f}' y='{y0}' width='{(b - a) * bw:.1f}' height='14' rx='5' fill='{col}' opacity='.95'/>"
                   f"<text x='{4 + a * bw + 8:.1f}' y='{y0 + 10.5}' class='bt'>{name}</text>")
@@ -305,10 +317,10 @@ def ops_chips(c, now):
             if expected:
                 up = f"{min(ok, expected) / expected * 100:.1f}% ({min(ok, expected)} of {expected} cycles, 7d)"
     if market_closed(now):
-        nxt = f"market opens {next_open(now):%a %H:%M} UTC"
+        nxt = f"market opens {uk(next_open(now)):%a %H:%M} UK"
     else:
         n = now.floor("5min") + pd.Timedelta(minutes=5, seconds=20)
-        nxt = f"{n:%H:%M} UTC"
+        nxt = f"{uk(n):%H:%M} UK"
     return up, nxt
 
 
@@ -460,7 +472,7 @@ def trade_card(i, t, now):
     elif st == "OPEN" and t["fill_ts"]:
         when = f"open for {(now - pd.Timestamp(t['fill_ts'], unit='s', tz='UTC')).total_seconds() / 3600:.1f}h"
     else:
-        when = f"{t['resolved_at'][5:16]} UTC" if t["resolved_at"] else ""
+        when = f"{uk(t['resolved_at']):%d %b %H:%M} UK" if t["resolved_at"] else ""
     bar = ""
     if not t["closed"] and t["price"] is not None:
         a, b = t["stop"], t["target"]
@@ -547,7 +559,7 @@ def candle_data(root):
             rsi = 100 - 100 / (1 + up / dn.replace(0, np.nan))
             t = d.tail(300)
             rd = lambda s, k=5: [None if pd.isna(v) else round(float(v), k) for v in s.loc[t.index]]
-            out[sym][tf] = dict(t=[f"{i:%d %b %H:%M}" for i in t.index], ts=[int(i.timestamp()) for i in t.index], hr=[int(i.hour) for i in t.index], o=rd(t.bid_o), h=rd(t.bid_h),
+            out[sym][tf] = dict(t=[f"{uk(i):%d %b %H:%M}" for i in t.index], ts=[int(i.timestamp()) for i in t.index], hr=[int(i.hour) for i in t.index], o=rd(t.bid_o), h=rd(t.bid_h),
                                 l=rd(t.bid_l), c=rd(t.bid_c), e20=rd(e[20]), e50=rd(e[50]), e200=rd(e[200]), rsi=rd(rsi, 1))
     return out
 
@@ -818,10 +830,10 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     # live record table
     done = [r for r in live if r["reason"]]
     wins, losses = sum(r["reason"] == "TARGET" for r in done), sum(r["reason"] in ("STOP",) for r in done)
-    lr = "".join(f"<tr><td class='mono'>{r['created_at'][5:16]}</td><td>{r['pair']} {r['rec']['direction'].upper()}</td><td>{e(STRATS.get(r['type'], (r['type'],))[0])}</td>"
+    lr = "".join(f"<tr><td class='mono'>{uk(r['created_at']):%d %b %H:%M}</td><td>{r['pair']} {r['rec']['direction'].upper()}</td><td>{e(STRATS.get(r['type'], (r['type'],))[0])}</td>"
                  f"<td>{e(r['reason'] or r['state'] or 'PENDING')}</td><td class='num {'up' if (r['net_r'] or 0) > 0 else 'dn'}'>{'' if r['net_r'] is None else f'{r['net_r'] * RISK:+.0f} GBP'}</td></tr>" for r in live[:15])
     livetbl = (f"<p class='muted'>Published {len(live)} · resolved {len(done)} · target {wins} · stop {losses} · "
-               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><table class='tbl'><tr><th>Created (UTC)</th><th>Setup</th><th>Rule</th><th>Outcome</th><th class='r'>P&amp;L</th></tr>{lr}</table>"
+               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><table class='tbl'><tr><th>Created (UK)</th><th>Setup</th><th>Rule</th><th>Outcome</th><th class='r'>P&amp;L</th></tr>{lr}</table>"
               if live else "<p class='muted'>No live setups recorded yet. This fills in once the live loop publishes its first setup.</p>")
     # --- research
     m5tab = "".join(f"<tr><td><b>{e(v)}</b></td><td>{k}</td><td class='num'>{n:,}</td><td class='num'>{pdays:,}</td><td class='num'>{w:.0f}%</td>"
@@ -880,7 +892,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     page = f"""<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <title>FX Engine</title><style>{CSS}</style></head><body><div class='wrap'>{banner}
 <div class='top'><span class='brand'>FX ENGINE</span><span class='pill {state}'>{icon} {label}</span><span class='chip'>data age {'n/a' if age is None else f'{age:.0f} min'}</span><span class='chip'>uptime {uptime}</span><span class='chip'>next cycle {next_cycle}</span><span class='chip'>RESEARCH ONLY · NO ORDERS</span>
-<span class='sp'></span><span class='mono muted'>{now:%a %d %b %Y %H:%M} UTC</span></div>
+<span class='sp'></span><span class='mono muted'>{uk(now):%a %d %b %Y %H:%M} {uk(now):%Z}</span></div>
 <div class='tabs'><button data-t='overview'>Trades</button><button data-t='charts'>Charts</button><button data-t='market'>Market</button><button data-t='research'>Research</button><button data-t='performance'>Performance</button><button data-t='journal'>Journal</button><button data-t='system'>System</button></div>
 <div class='tab' id='overview'><div class='grid' style='margin-bottom:6px'>{livehtml}</div><h2 class='sec'>Your trades<small>{tcount}</small></h2><div class='trades'>{tcards}</div><div class='card' style='margin-top:16px'><h3>History · every published setup, scored as a hypothetical</h3>{livetbl}</div></div>
 <div class='tab' id='market'><div class='kpis'>{kpis}</div>
@@ -888,7 +900,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
 <div class='grid'><div class='card c7'><h3>Account balance if every backtest setup was taken · start £{START:,.0f}, £{RISK:.0f} risk each</h3>{acct}</div>
 <div class='card c5'><h3>Currency strength · 5-day momentum</h3>{heat(strength(root))}</div>
 
-<div class='card c6'><h3>Sessions &amp; typical volatility by hour (UTC)</h3>{sessions(vol_by_hour(root))}</div>
+<div class='card c6'><h3>Sessions &amp; typical volatility by hour (UK time)</h3>{sessions(vol_by_hour(root))}</div>
 <div class='card c6'><h3>Reality check</h3><p>Broker risk warnings in the UK and EU typically show <b>about 70–80%</b> of retail CFD and forex accounts losing money (roughly 50–90% by broker). Independent evidence that AI tools raise retail profitability is thin; the positive claims are vendor-reported. What holds up: costs matter, over-trading hurts, untested rules usually fail. This engine measures all three.</p></div></div></div>
 <div class='tab' id='research'><div class='grid'>
 <div class='card c12'><h3>Every strategy tested · 2023-11 to 2026-05 · stressed costs · last 6 months held back untouched</h3>
