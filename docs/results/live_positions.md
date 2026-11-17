@@ -1,9 +1,21 @@
-# Live positions (written 2025-06-03 16:11 UTC)
+# Live positions (written 2026-11-17 14:20 UTC)
 
-Unfinished setups: 1
+Unfinished setups: 4
 
-- EURUSD LONG E1_strength [TRIGGERED] created 2025-06-03 11:25
-  FILLED at 1.10106. entry 1.10100 stop 1.09900 target 1.10500. Unrealised -0.53R, best so far +0.28R, worst -0.53R. Target is 2.50R away. Held 32 of 144 five-minute bars (9h until the time limit).
+- GBPUSD SHORT asia_breakout [TRIGGERED] created 2026-11-16 10:00
+  FILLED at 1.31876. entry 1.31883 stop 1.32092 target 1.31466. Unrealised -0.33R, best so far +0.89R, worst -0.85R. Target is 2.29R away. Held 339 of 384 five-minute bars (4h until the time limit).
+- EURGBP SHORT asia_breakout [TRIGGERED] created 2026-11-17 08:00
+  FILLED at 0.83371. entry 0.83377 stop 0.83442 target 0.83247. Unrealised +1.55R, best so far +1.88R, worst -0.86R. Target is 0.35R away. Held 75 of 384 five-minute bars (26h until the time limit).
+- AUDUSD SHORT E1_strength [TRIGGERED] created 2026-11-17 08:00
+  FILLED at 0.67310. entry 0.67316 stop 0.67676 target 0.66596. Unrealised -0.10R, best so far +0.29R, worst -0.35R. Target is 2.08R away. Held 75 of 576 five-minute bars (42h until the time limit).
+- EURJPY SHORT asia_breakout [TRIGGERED] created 2026-11-17 09:00
+  FILLED at 175.00800. entry 175.01500 stop 175.27217 target 174.50065. Unrealised -0.38R, best so far +0.93R, worst -0.52R. Target is 2.35R away. Held 63 of 384 five-minute bars (27h until the time limit).
 
-Last 0 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
+Last 6 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
+- EURUSD asia_breakout: TARGET +1.90R at 2026-11-17 13:35 · best +2.15R, worst -0.65R
+- USDCHF trend_pullback: STOP -1.10R at 2026-11-17 09:20
+- GBPJPY asia_breakout: TARGET +1.95R at 2026-11-17 09:15
+- NZDUSD trend_pullback: STOP -1.14R at 2026-11-17 08:50
+- USDCAD asia_breakout: TARGET +1.79R at 2026-11-17 01:20
+- USDCHF trend_pullback: STOP -1.08R at 2026-11-16 15:20
