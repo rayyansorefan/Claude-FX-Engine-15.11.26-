@@ -1,1 +1,1 @@
-alive 2026-11-17 19:45 UTC · running none · halted True · deploy skipped-known-bad · memory free 290 MB · load 0.24
+alive 2026-11-17 19:56 UTC · running 033 · halted False · deploy busy · memory free 258 MB · load 1.87
