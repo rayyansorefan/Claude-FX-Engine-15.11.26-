@@ -197,6 +197,11 @@ def run_cycle(conn, env, now, send=telegram.send, root=store.ROOT, refresh_fn=No
     hb = Path("data/heartbeat.json")
     hb.parent.mkdir(exist_ok=True)
     hb.write_text(json.dumps(dict(ts=str(now), status=status, ok=ok)))
+    try:                                                              # evidence file for open positions; must never break a cycle
+        from .positions import snapshot
+        snapshot(conn, root, now)
+    except Exception:
+        pass
     return status
 
 
