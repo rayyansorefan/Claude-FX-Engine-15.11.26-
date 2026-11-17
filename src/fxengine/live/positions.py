@@ -25,7 +25,27 @@ def describe(c: dict, t, last_px: float | None, now) -> str:
             f"({max(0, s.max_hold_bars - t.bars_held) * 5 / 60:.0f}h until the time limit).")
 
 
+def backfill_outcomes(conn, root) -> int:
+    """Finished trades that were recorded before diagnostics existed get their best/worst point by replaying the stored prices
+    (deterministic: the same tracker the live loop uses). Idempotent."""
+    from .loop import replay
+    rows = conn.execute("""SELECT o.run_id, s.record FROM outcomes o JOIN setups s USING(run_id)
+                           WHERE o.fill IS NOT NULL AND o.mfe_r IS NULL""").fetchall()
+    n = 0
+    for r in rows:
+        try:
+            t, _ = replay(dict(json.loads(r["record"]), run_id=r["run_id"]), root)
+            if t.outcome is not None:
+                conn.execute("UPDATE outcomes SET gross_r=?, mfe_r=?, mae_r=? WHERE run_id=?", (t.outcome.gross_r, t.outcome.mfe_r, t.outcome.mae_r, r["run_id"]))
+                n += 1
+        except Exception:
+            continue
+    conn.commit()
+    return n
+
+
 def snapshot(conn, root, now, out: Path = OUT) -> str:
+    backfill_outcomes(conn, root)
     from .loop import replay
     from ..data import store
     rows = conn.execute("SELECT record FROM setups WHERE run_id NOT IN (SELECT run_id FROM outcomes) ORDER BY created_at").fetchall()

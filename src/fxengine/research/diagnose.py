@@ -47,6 +47,62 @@ def classify(row) -> str:
     return "STALLED"                  # 0.5-1R ahead, then failed
 
 
+def review(reason, net_r, fill, gross_r, mfe_r, mae_r, rr=None) -> str:
+    """Plain-English post-mortem of ONE finished trade, derived only from stored numbers (so it is reproducible). Improvements are
+    HYPOTHESES to be replayed on history, never live changes."""
+    if fill is None:
+        return f"Never filled ({str(reason).lower()}): no trade was taken, so there is no price path to learn from."
+    if mfe_r is None or mae_r is None or gross_r is None:
+        return "Detailed price path was not recorded for this trade (it closed before diagnostics were added)."
+    if reason == "TIMEOUT":
+        return (f"Time limit reached: neither stop nor target hit. Best point {mfe_r:+.2f}R, worst {-mae_r:+.2f}R, closed {net_r:+.2f}R. "
+                "Hypothesis: shorter hold limit or a nearer target for this rule (test on history).")
+    if net_r > 0:
+        left = mfe_r - gross_r
+        t = f"Win: best point {mfe_r:+.2f}R, closed {net_r:+.2f}R net" + (f"; left {left:.2f}R of the peak on the table." if left > 0.3 else "; exited close to the peak.")
+        t += (f" It dipped {mae_r:.2f}R against you first, close to the stop: entry timing may be improvable (hypothesis)." if mae_r >= 0.6
+              else f" Clean entry: never more than {mae_r:.2f}R against.")
+        return t
+    k = classify(dict(triggered=True, net_r=net_r, gross_r=gross_r, mfe_r=mfe_r))
+    pct = f" ({mfe_r / rr:.0%} of the way to the target)" if rr else ""
+    if k == "WRONG_WAY":
+        return (f"Loss, wrong way: never more than {mfe_r:.2f}R ahead. The signal or entry was wrong from the start, so no exit rule could have saved it. "
+                "Hypothesis: a stricter entry filter for this rule (test on history).")
+    if k == "STALLED":
+        return (f"Loss, stalled: reached {mfe_r:.2f}R{pct}, then reversed to the stop. Profit was available. "
+                "Hypothesis: an earlier break-even stop (exit test A1/A2) would have protected it.")
+    if k == "GAVE_BACK":
+        return (f"Loss, gave back: was {mfe_r:.2f}R ahead{pct} and still hit the stop. Profit was clearly available. "
+                "Hypothesis: a trailing or keep-a-share exit (exit tests B and C) would have protected it.")
+    return "Loss, cost drag: the direction was right but spread and costs ate the gain. Hypothesis: avoid thin hours or wide-spread moments (test on history)."
+
+
+def tally(items, need=MIN_CLASS_N) -> list[str]:
+    """Roll the per-trade reviews up per rule: how often each cause repeats. Plain lines for the History tab.
+    items: dicts with type, reason, net_r, fill, gross_r, mfe_r, mae_r (finished trades only)."""
+    by = {}
+    for it in items:
+        if it.get("fill") is None or it.get("net_r") is None:
+            continue
+        if it["net_r"] > 0:
+            k = "WIN"
+        elif it.get("mfe_r") is None or it.get("gross_r") is None:
+            k = "UNRECORDED"
+        else:
+            k = classify(dict(triggered=True, net_r=it["net_r"], gross_r=it["gross_r"], mfe_r=it["mfe_r"]))
+        by.setdefault(it["type"], {}).setdefault(k, 0)
+        by[it["type"]][k] += 1
+    names = {"WIN": "won", "WRONG_WAY": "wrong way", "STALLED": "stalled (was 0.5-1R ahead)", "GAVE_BACK": "gave back (was 1R+ ahead)",
+             "COST_DRAG": "cost drag", "UNRECORDED": "path not recorded"}
+    out = []
+    for typ, c in sorted(by.items()):
+        n = sum(c.values())
+        parts = ", ".join(f"{v} {names[k]}" for k, v in sorted(c.items(), key=lambda kv: -kv[1]))
+        left = max(0, need - n)
+        out.append(f"{typ}: {n} closed · {parts}. " + (f"{left} more closed trades before this rule's pattern can be judged." if left else "Enough trades to test: see the exit and entry tests."))
+    return out
+
+
 def prepare(df: pd.DataFrame, cost: str = "stressed") -> pd.DataFrame:
     """Normalise a research frame to: net_r, triggered, gross_r, mfe_r, mae_r, symbol, direction, hour, dow, created."""
     need = {"mfe_r", "mae_r", "gross_r"}

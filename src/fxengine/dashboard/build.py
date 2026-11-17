@@ -10,6 +10,7 @@ from ..calendar import market_closed
 from ..data import store
 from ..engine.costs import pip
 from ..research import stats
+from ..research import diagnose as D
 from . import journal as J
 
 PAIRS = ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD", "EURGBP", "EURJPY", "GBPJPY"]
@@ -423,10 +424,11 @@ def trades_data(c, root, now, closed_n=6):
         ev = [dict(ts=x["ts"], to=x["to_state"], d=x["detail"]) for x in c.execute("SELECT ts,to_state,detail FROM events WHERE run_id=? ORDER BY idx", (r["run_id"],))]
         pair, dirn = rec["pair"], rec["direction"]
         fill = fill_ts = None
-        price = ask = None
+        price = ask = peak = worst = None
         try:
             t, m5 = L.replay(dict(rec, run_id=r["run_id"]), root)
             fill, fill_ts = t.fill, (None if t.fill_time is None else int(pd.Timestamp(t.fill_time).timestamp()))
+            peak, worst = t.mfe, t.mae
         except Exception:
             m5 = store.load(pair, "M5", root, tail=3)
         if len(m5):
@@ -445,7 +447,7 @@ def trades_data(c, root, now, closed_n=6):
                         entry=rec["entry"], entry_kind=rec.get("entry_kind", ""), stop=rec["stop"], target=rec["target"], fill=fill, fill_ts=fill_ts,
                         created=int(pd.Timestamp(rec["created"]).timestamp()), created_s=rec["created"], expires_s=rec["expires"], price=price,
                         lots=rec.get("lots_for_20gbp_risk"), stop_pips=rec.get("stop_pips"), rr=reward / risk, reward_gbp=RISK * reward / risk,
-                        float_r=float_r, pnl_gbp=(None if not closed else float(r["net_r"] or 0) * RISK), reason=str(rec.get("reason", "")),
+                        float_r=float_r, peak_r=peak, worst_r=worst, pnl_gbp=(None if not closed else float(r["net_r"] or 0) * RISK), reason=str(rec.get("reason", "")),
                         pips_to_entry=(None if price is None else (rec["entry"] - price) / p_), score=rec.get("score"), events=ev,
                         resolved_at=r["resolved_at"]))
     return out
@@ -493,7 +495,7 @@ def trade_card(i, t, now):
 
 
 def live_record(c):
-    rows = c.execute("""SELECT s.run_id, s.created_at, s.pair, s.type, s.tf, s.record, o.reason, o.net_r,
+    rows = c.execute("""SELECT s.run_id, s.created_at, s.pair, s.type, s.tf, s.record, o.reason, o.net_r, o.fill, o.gross_r, o.mfe_r, o.mae_r,
         (SELECT to_state FROM events e WHERE e.run_id=s.run_id ORDER BY idx DESC LIMIT 1) AS state
         FROM setups s LEFT JOIN outcomes o USING(run_id) ORDER BY s.created_at DESC""").fetchall()
     return [dict(r) | {"rec": json.loads(r["record"])} for r in rows]
@@ -668,7 +670,7 @@ svg .grid{stroke:var(--line);stroke-width:1}.zero{stroke:var(--mute);stroke-widt
 .lc,.cc{position:relative}.cross{stroke:var(--mute);stroke-width:1;display:none}.tip{position:absolute;display:none;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:11px;pointer-events:none;white-space:nowrap;top:22px;z-index:3}
 .heat{border-collapse:separate;border-spacing:2px;width:100%}.heat th{width:42px;text-align:left;color:var(--ink2);font-size:11px}.heat td{height:18px;border-radius:2px}.heat td.num{width:62px;background:none;text-align:right;font-size:11px}
 .scale{display:flex;align-items:center;gap:8px;color:var(--mute);font-size:10px;margin-top:6px}.scale i{flex:1;height:5px;border-radius:3px;background:linear-gradient(90deg,#d03b3b,#383835,#3987e5)}
-.up{color:#3fb950}.dn{color:#ec6a5e}.muted{color:var(--mute)}
+.up{color:#3fb950}.dn{color:#ec6a5e}.muted{color:var(--mute)}.rv td{font-size:12px;color:var(--mute);padding:2px 6px 12px;border-bottom:1px solid var(--line)}
 .frow{display:grid;grid-template-columns:130px 1fr 64px;gap:10px;align-items:center;margin:7px 0}.fbar{height:12px;background:var(--line);border-radius:3px}.fbar b{display:block;height:100%;background:var(--s1);border-radius:3px}.frow em{font:600 12px ui-monospace,Menlo,monospace;text-align:right;font-style:normal}
 .split{display:flex;gap:14px;margin:8px 0;color:var(--ink2);font-size:11px;flex-wrap:wrap}
 .tbl{width:100%;border-collapse:collapse}.tbl th{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:5px 6px;border-bottom:1px solid var(--line)}.tbl td{padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top}.tbl td.num,.tbl th.r{text-align:right}.ci{width:160px;height:14px;display:block}
@@ -841,11 +843,29 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
             v = t["float_r"] * RISK
             return "OPEN (live)", ("up" if v > 0 else "dn"), f"{v:+.0f} GBP ({t['float_r']:+.2f}R)"
         return e(r["state"] or "PENDING"), "", ""
+    def _review(r):
+        rec = r["rec"]
+        risk = abs(rec["entry"] - rec["stop"]) or 1e-9
+        rr = abs(rec["target"] - rec["entry"]) / risk
+        if r["reason"]:
+            return D.review(r["reason"], r["net_r"], r["fill"], r["gross_r"], r["mfe_r"], r["mae_r"], rr)
+        t = fl.get(r["run_id"])
+        if t and t.get("float_r") is not None and t.get("peak_r") is not None:
+            back = t["peak_r"] - t["float_r"]
+            msg = f"Open: now {t['float_r']:+.2f}R, best so far {t['peak_r']:+.2f}R, worst {-t['worst_r']:+.2f}R."
+            return msg + (f" It has given back {back:.2f}R of its peak so far; the frozen rules still wait for the stop, target or time limit." if back >= 0.5 and t["peak_r"] >= 0.5 else "")
+        return "Waiting for the entry price to be reached."
     lr = "".join(f"<tr><td class='mono'>{uk(r['created_at']):%d %b %H:%M}</td><td>{r['pair']} {r['rec']['direction'].upper()}</td>"
                  f"<td>{e(STRATS.get(r['type'], (r['type'],))[0])}</td><td>{st_}</td><td class='num {cl_}'>{pl_}</td></tr>"
+                 f"<tr class='rv'><td colspan='5'><b>Review</b> · {e(_review(r))}</td></tr>"
                  for r in live[:15] for st_, cl_, pl_ in [_state_pl(r)])
+    lessons = D.tally([dict(type=r["type"], reason=r["reason"], net_r=r["net_r"], fill=r["fill"], gross_r=r["gross_r"], mfe_r=r["mfe_r"], mae_r=r["mae_r"])
+                       for r in live if r["reason"]])
+    lesson_html = ("<div class='card' style='margin-top:10px'><h3>What the engine is learning (per rule)</h3>" + "".join(f"<p class='muted'>{e(x)}</p>" for x in lessons) +
+                   "<p class='muted'>Rules only change through a pre-registered replay test on history (exit tests: docs/results/exits.md), never because of a single trade. "
+                   "Every review above is a hypothesis, not a live change.</p></div>") if lessons else ""
     livetbl = (f"<p class='muted'>Published {len(live)} · resolved {len(done)} · target {wins} · stop {losses} · "
-               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><table class='tbl'><tr><th>Created (UK)</th><th>Setup</th><th>Rule</th><th>Outcome</th><th class='r'>P&amp;L</th></tr>{lr}</table>"
+               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><table class='tbl'><tr><th>Created (UK)</th><th>Setup</th><th>Rule</th><th>Outcome</th><th class='r'>P&amp;L</th></tr>{lr}</table>{lesson_html}"
               if live else "<p class='muted'>No live setups recorded yet. This fills in once the live loop publishes its first setup.</p>")
     # --- research
     m5tab = "".join(f"<tr><td><b>{e(v)}</b></td><td>{k}</td><td class='num'>{n:,}</td><td class='num'>{pdays:,}</td><td class='num'>{w:.0f}%</td>"

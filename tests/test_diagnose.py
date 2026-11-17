@@ -67,3 +67,25 @@ def test_ledger_migrates_and_live_line_reads_it(tmp_path):
     c.execute("INSERT INTO outcomes(run_id,reason,net_r,fill,exit,resolved_at,gross_r,mfe_r,mae_r) VALUES('r1','STOP',-1.1,1,1,'x',-1.0,0.1,1.0)")
     c.commit()
     assert "wrong way" in D.live_line(c)
+
+
+def test_review_text_names_the_cause_and_a_hypothesis_never_a_live_change():
+    stalled = D.review("STOP", -1.1, 1.3, -1.0, 0.93, 1.1, rr=2.0)
+    assert "stalled" in stalled and "46%" in stalled and "break-even" in stalled
+    assert "wrong way" in D.review("STOP", -1.1, 1.3, -1.0, 0.1, 1.1, rr=2.0)
+    assert "gave back" in D.review("STOP", -1.1, 1.3, -1.0, 1.4, 1.1, rr=2.0)
+    win = D.review("TARGET", 1.9, 1.3, 2.0, 2.45, 0.65, rr=2.0)
+    assert "left" in win and "entry timing" in win
+    assert "not recorded" in D.review("STOP", -1.0, 1.3, None, None, None)
+    assert "Never filled" in D.review("EXPIRED", 0.0, None, None, None, None)
+
+
+def test_tally_rolls_reviews_up_per_rule_and_says_how_many_more_trades_are_needed():
+    items = [dict(type="asia_breakout", reason="TARGET", net_r=1.9, fill=1, gross_r=2.0, mfe_r=2.1, mae_r=0.3),
+             dict(type="asia_breakout", reason="STOP", net_r=-1.1, fill=1, gross_r=-1.0, mfe_r=0.93, mae_r=1.0),
+             dict(type="asia_breakout", reason="STOP", net_r=-1.1, fill=1, gross_r=-1.0, mfe_r=0.89, mae_r=1.0),
+             dict(type="trend_pullback", reason="STOP", net_r=-1.1, fill=1, gross_r=-1.0, mfe_r=0.1, mae_r=1.0),
+             dict(type="trend_pullback", reason="EXPIRED", net_r=0.0, fill=None, gross_r=None, mfe_r=None, mae_r=None)]
+    out = D.tally(items)
+    assert "asia_breakout: 3 closed" in out[0] and "2 stalled" in out[0] and "27 more closed trades" in out[0]
+    assert "trend_pullback: 1 closed" in out[1] and "wrong way" in out[1]
