@@ -22,7 +22,7 @@ def new(c) -> str:
     inv = c.get("invalidation")
     cancel = f" · cancel if close {'<=' if c['direction'] == 'long' else '>='} {p(c['pair'], inv)}" if inv is not None else ""
     return (f"🟢 NEW · {c['pair']} {c['direction'].upper()} · {c['tf']} {c['type']} · UNPROVEN\n"
-            f"{c['entry_kind'].title()} {p(c['pair'], c['entry'])} · stop {p(c['pair'], c['stop'])} · target {p(c['pair'], c['target'])} · "
+            f"Entry {p(c['pair'], c['entry'])} ({c['entry_kind']} order) · stop-loss {p(c['pair'], c['stop'])} · target {p(c['pair'], c['target'])} · "
             f"{c['lots_for_20gbp_risk']} lots (£20 risk)\n"
             f"{why(c)} · expires {hhmm(c['expires'])} UTC{cancel}")
 
