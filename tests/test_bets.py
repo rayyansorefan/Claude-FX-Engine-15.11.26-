@@ -132,3 +132,19 @@ def test_bet_table_in_slices_equals_one_shot():
     k = ["match", "sel"]
     a, b = a.sort_values(k).reset_index(drop=True), b.sort_values(k).reset_index(drop=True)
     assert len(a) == len(b) and (a.match.to_numpy() == b.match.to_numpy()).all() and np.allclose(a.odds, b.odds) and np.allclose(a.fair_sharp, b.fair_sharp, equal_nan=True)
+
+
+def test_dashboard_renders_real_numbers_only_and_handles_empty(tmp_path):
+    from fxengine.bets import dashboard as DB
+    assert "No results yet" in DB.render(None) and "nan" not in DB.render(None).lower().replace("financial", "")
+    res = dict(n_trials=6, seasons="1213..2425", rules=[
+        dict(rule="F1_all_favourites", n=1000, hit_rate=0.5, roi=-0.04, ci95_lo=-0.08, ci95_hi=0.0, mde=0.1, clv_vs_close=float("nan"), challenger_p95=-0.03, passes=False,
+             by_season={"1819": -0.05, "1920": 0.01}, sim=dict(p_goal=0.001, p_ruin=0.98, p_neither=0.019, median_bets=200, frac=0.05)),
+        dict(rule="V1_b365_vs_pinnacle_3pc", n=5, verdict="too few bets")])
+    h = DB.render(res)
+    assert "No proven edge" in h and "Back every favourite" in h and "too few bets" in h and "-4.0%" in h and "<script" not in h
+    res["rules"][0]["passes"] = True
+    assert "cleared the gate" in DB.render(res)
+    import json
+    (tmp_path / "bets.json").write_text(json.dumps(res))
+    assert DB.write(tmp_path / "bets.json", tmp_path / "bets.html").read_text().startswith("<!doctype html>")

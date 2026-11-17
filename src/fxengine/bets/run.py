@@ -159,6 +159,8 @@ def main(path=Path("data/bets/matches.parquet"), out=Path("docs/results"), reg=P
     out.mkdir(parents=True, exist_ok=True)
     json.dump(res, open(out / "bets.json", "w"), indent=1, default=str)
     (out / "bets.md").write_text(render(res)); print(render(res))
+    from . import dashboard
+    dashboard.write(out / "bets.json", out / "bets.html")
     return res
 
 

@@ -15,4 +15,4 @@ if [ "${1:-all}" != "research" ]; then
   echo "gaps: $(wc -l < data/bets/gaps.txt) files unavailable (see data/bets/gaps.txt)"
 fi
 $PY -m fxengine.bets.run                # writes docs/results/bets.{md,json}; appends the 6 rules to docs/bets_trials.jsonl once
-echo "betting research done -> docs/results/bets.md"
+echo "betting research done -> docs/results/bets.md and docs/results/bets.html (the dashboard)"
