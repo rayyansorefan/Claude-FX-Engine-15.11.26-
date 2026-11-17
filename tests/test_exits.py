@@ -46,3 +46,13 @@ def test_no_rule_closes_at_market_and_stops_stay_behind_price():
     for rule in X.RULES:
         t = _track(rule)
         assert t.outcome.reason in ("STOP", "TARGET", "TIMEOUT"), (rule, t.outcome.reason)
+
+
+def test_shortcut_is_exact_a_rule_that_never_triggers_gives_the_identical_result():
+    quiet = [(1.0999, 1.1004, 1.0998, 1.1002), (1.1002, 1.1006, 1.0990, 1.0992), (1.0992, 1.0993, 1.0970, 1.0975)]      # peak far below every trigger
+    arr, idx = _arr(quiet)
+    base = M.track_m5(_setup(idx), arr, 0, M.COSTS["stressed"])
+    assert base.outcome.mfe_r < min(v[1] for v in X.RULES.values())
+    for rule in X.RULES:
+        t = M.track_m5(_setup(idx), arr, 0, M.COSTS["stressed"], X.exit_hook(rule, arr))
+        assert t.outcome.net_r == base.outcome.net_r and t.outcome.reason == base.outcome.reason

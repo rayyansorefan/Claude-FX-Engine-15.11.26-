@@ -68,6 +68,10 @@ def run(frames, m5s, sigs, tf):
                        **{f"base_{k}": (base[k].outcome.net_r if base[k].outcome and base[k].fill is not None else np.nan) for k in MODES})
             for rule in RULES:
                 for k in MODES:
+                    bo = base[k].outcome
+                    if base[k].fill is not None and bo is not None and bo.mfe_r < RULES[rule][1]:
+                        rec[f"{rule}_{k}"] = bo.net_r             # the rule never triggers on this path, so the result is identical (exact shortcut, ~3x faster)
+                        continue
                     t = M.track_m5(s, arr, j0, M.COSTS[k], exit_hook(rule, arr))
                     rec[f"{rule}_{k}"] = t.outcome.net_r if t.outcome and t.fill is not None else np.nan
             rows.append(rec)
