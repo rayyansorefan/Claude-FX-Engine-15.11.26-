@@ -25,3 +25,4 @@
 029 diagnose
 030 r0
 031 diagnose
+032 exits

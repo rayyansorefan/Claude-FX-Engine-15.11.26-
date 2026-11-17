@@ -100,6 +100,11 @@ class Tracker:
         self.target = self.target if target is None else target
         self._log(ts, ADJUSTED, f"{detail}: stop={self.stop} target={self.target}")
 
+    def exit_at_close(self, ts, close_px, spread=0.0, reason="RULE_EXIT"):
+        """Research-only: close a live trade at the CLOSE of a bar that has already closed (long exits on bid, short on ask)."""
+        assert self.state in (TRIGGERED, ADJUSTED), "can only close a live trade"
+        self._resolve(ts, reason, close_px if self._long() else close_px + spread, exit_time=ts)
+
     def on_bar(self, b: Bar):
         if not self.active or b.close_time <= self.s.created_at:
             return []
