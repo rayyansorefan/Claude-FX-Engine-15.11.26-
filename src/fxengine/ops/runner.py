@@ -134,6 +134,11 @@ def _restore_trials(mine):
     if extra:
         with f.open("a") as fh:
             fh.write("\n".join(extra) + "\n")
+        try:                                                        # the runner may be root: the file must stay writable by the jobs' owner
+            st = REPO.stat()
+            os.chown(f, st.st_uid, st.st_gid)
+        except (OSError, AttributeError):
+            pass
 
 
 def precheck(remote, run) -> bool:

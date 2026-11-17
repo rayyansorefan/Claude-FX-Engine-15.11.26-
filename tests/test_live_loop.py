@@ -189,3 +189,27 @@ def test_halfway_warning_is_sent_as_halfway_not_as_a_second_triggered(tmp_path):
     assert heads == ["🟢 NEW", "▶️ TRIGGERED", "⚠️ HALFWAY"], heads               # exactly ONE triggered, then the halfway warning
     assert "Advice:" in bag.msgs[2] and "HOLD" in bag.msgs[2] + "EXIT"
     assert all(len(m.split("\n")) <= 3 for m in bag.msgs)
+
+
+def test_main_loop_survives_a_full_iteration_with_the_real_call_signatures(monkeypatch, tmp_path):
+    """Regression: a NameError in main() crashed the loop on startup, was invisible to the import pre-check, and was only caught by the deploy rollback."""
+    import inspect
+    from fxengine.live import loop as L, schedule
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(L, "load_env", lambda: {"OANDA_TOKEN": "x"})
+    monkeypatch.setattr(L, "run_cycle", lambda conn, env, now: "OK")
+    monkeypatch.setattr(L, "ping", lambda *a, **k: None)
+    seen = []
+    real_sig = inspect.signature(schedule.daily_jobs)
+    monkeypatch.setattr(schedule, "daily_jobs", lambda *a, **k: seen.append(real_sig.bind(*a, **k)))      # raises TypeError on a wrong call
+
+    class Stop(Exception):
+        pass
+
+    def stop(_):
+        raise Stop()
+    monkeypatch.setattr(L.time, "sleep", stop)
+    import pytest
+    with pytest.raises(Stop):
+        L.main()
+    assert len(seen) == 1

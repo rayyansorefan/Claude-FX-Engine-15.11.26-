@@ -249,7 +249,7 @@ def main():
     while True:
         now = pd.Timestamp.now(tz="UTC")
         st = run_cycle(conn, env, now)
-        schedule.daily_jobs(conn, env, now, root=root)
+        schedule.daily_jobs(conn, env, now, root=store.ROOT)
         ping(env, st in ("OK", "CLOSED"))
         nxt = (now.floor("5min") + FIVE + pd.Timedelta(seconds=20))
         time.sleep(max(5, (nxt - pd.Timestamp.now(tz="UTC")).total_seconds()))

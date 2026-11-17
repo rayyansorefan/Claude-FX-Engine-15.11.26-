@@ -26,3 +26,5 @@
 030 r0
 031 diagnose
 032 exits
+033 exits
+034 diagnose
