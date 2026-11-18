@@ -127,3 +127,7 @@ Next: entry-filter study on the historical trades using the recorded context (eq
 ## Entry-filter study (built 2026-11-18, pre-registered: 15 conditions + all pairs = 120, fixed thresholds; stocks/filters.py)
 For each rule that passed: choose the best condition on the EARLIER 60% of the research window, validate it ONCE on the LATER 40%; a condition must keep at least half the setups; helpful only if the clustered 95% range of its improvement on the unseen 40% is above zero.
 Measured behaviour on synthetic data: finds a planted real condition; adopts a useless one in at most 1 of 8 noise data sets. Nothing is applied automatically: adoption is a written decision (ops/stocks_filters.json), announced.
+
+## First entry-filter study results (2026-11-18)
+Six rules studied. HELPFUL on the unseen later 40%: BOLLINGER_REVERT and STOCH_PULLBACK, both with "US dollar not surging (from the FX data) & stock 5%+ above its 200-day": improvement +0.30% [+0.01, +0.72] and +0.35% [+0.00, +0.94]: marginal, and the two rules are near-duplicates, so ONE finding. Not helpful: RSI2 (the condition helped, +0.11% [+0.02, +0.20], but would remove more than half the setups: the throughput guard refuses it), MOM_12_1, IBS_REVERT, RS_PULLBACK.
+Decision (written, per the plan): NOT adopted. Both are CANDIDATES (ops/stocks_filter_candidates.json): the scanner tags each new setup that meets the condition and the Performance tab reports live results with and without it; the tag never removes a setup. Adoption needs live evidence.

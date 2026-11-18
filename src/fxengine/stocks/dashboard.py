@@ -89,6 +89,8 @@ def _trade_card(r: dict, held: dict | None = None) -> str:
     nh = "".join(f"<div><small>{E(a)}</small><b>{E(str(b))}</b><span>{E(str(c2))}</span></div>" for a, b, c2 in nums)
     why = "".join(f"<div>{E(x)}</div>" for x in (r.get("why") or [r["exit_text"]])[:2])
     chips = [f"signal {r['signal_date']}"] + ([f"entered {r['entry_price']:,.2f}"] if r.get("entry_price") else ["enters next open"]) + ([r["detail"]] if r.get("detail") else [])
+    if r.get("cand_ok") is True:
+        chips = ["FILTER ✓ (candidate, unproven): " + r["cand_filter"]] + chips
     if held:
         chips = [f"IN PAPER ACCOUNT · {held['shares']:g} shares · £{held['cost']:,.0f} · risk £{held['risk']:.0f}"] + chips
     tl = "".join(f"<span class='chip'>{E(x[:70])}</span>" for x in chips)
@@ -397,6 +399,11 @@ def _performance_tab(sp: dict | None, res: dict | None) -> str:
                 by.setdefault(c[key], []).append(c["gross"])
             body = "".join(f'<tr><td>{E(k)}</td><td class="r num">{len(v)}</td><td class="r num">{pct(sum(v) / len(v))}</td><td class="r num">{pct(sum(x > 0 for x in v) / len(v), False, 0)}</td></tr>' for k, v in sorted(by.items()))
             out.append(f'<div class="card" style="margin-top:12px"><h3>Forward test by {lab}</h3><table class="tbl"><tr><th>{lab.title()}</th><th class="r">Closed</th><th class="r">Avg gain</th><th class="r">Wins</th></tr>{body}</table></div>')
+    fwf = [(k, v["by_filter"]) for k, v in fw.items() if v.get("by_filter")]
+    if fwf:
+        body = "".join(f'<tr><td>{E(INFO.get(k, (k,))[0])}</td><td class="r num">{b.get("with", {}).get("n", 0)}</td><td class="r num">{pct(b["with"]["mean"]) if "with" in b else "—"}</td><td class="r num">{b.get("without", {}).get("n", 0)}</td><td class="r num">{pct(b["without"]["mean"]) if "without" in b else "—"}</td></tr>' for k, b in fwf)
+        out.append('<div class="card" style="margin-top:12px"><h3>Candidate filter · live results with and without it</h3><table class="tbl"><tr><th>Setup</th><th class="r">With: closed</th><th class="r">With: avg gain</th><th class="r">Without: closed</th><th class="r">Without: avg gain</th></tr>' + body + '</table>'
+                   '<p class="muted" style="font-size:12px;margin:8px 0 0">The filter held up on unseen history only marginally, so it only TAGS setups. Live results decide whether it is ever used; it never removes a setup.</p></div>')
     ac = sp.get("account") or {}
     if ac.get("closed"):
         rr = "".join(f'<tr><td><b>{E(c["symbol"].split(".")[0].upper())}</b></td><td>{E(INFO.get(c["rule"], (c["rule"],))[0])}</td><td>{E(c["entry_date"])}</td><td>{E(c["exit_date"])}</td><td class="r num">£{c["cost"]:,.0f}</td>'

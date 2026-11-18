@@ -79,8 +79,8 @@ def attach_features(tr: pd.DataFrame, panel: dict, ctx: pd.DataFrame, events: pd
             es = e[e["symbol"] == s]["announce_date"].to_numpy()
             if len(es):
                 k = np.searchsorted(es, g["sig_date"].to_numpy(), side="left") - 1
-                prev = np.where(k >= 0, es[np.clip(k, 0, None)], np.datetime64("NaT"))
-                out.loc[g.index, "dse"] = (g["sig_date"].to_numpy() - prev).astype("timedelta64[D]").astype(float)
+                days = (g["sig_date"].to_numpy() - es[np.clip(k, 0, None)]).astype("timedelta64[D]").astype(float)
+                out.loc[g.index, "dse"] = np.where(k >= 0, days, np.nan)
     return out
 
 
@@ -173,3 +173,27 @@ def main(path=Path("data/stocks/prices.parquet"), res_path=Path("docs/results/st
 
 if __name__ == "__main__":
     main()
+
+
+def parse_expr(expr: str) -> list[str]:
+    return [x.strip() for x in expr.split("&") if x.strip()]
+
+
+def passes(expr: str, feats: dict) -> bool | None:
+    """Does ONE setup (a dict of its recorded context + stock features) satisfy a named filter such as 'M_usd_calm & S_trend_strong'? None if a needed number is missing."""
+    f = pd.DataFrame([feats])
+    for name in parse_expr(expr):
+        cols, _, fn = FILTERS[name]
+        need = [c for c in cols if c != "dse"]
+        if any(c not in f.columns or pd.isna(f.iloc[0][c]) for c in need):
+            return None
+        if "dse" in cols and "dse" not in f.columns:
+            f["dse"] = np.nan
+        if not bool(fn(f).iloc[0]):
+            return False
+    return True
+
+
+def load_candidates(path: Path = Path("ops/stocks_filter_candidates.json")) -> dict[str, str]:
+    """Filters that held up in the study but are only CANDIDATES: they tag setups and are measured live; they never remove one."""
+    return json.loads(path.read_text()) if path.exists() else {}

@@ -851,3 +851,29 @@ def test_filter_study_results_are_shown_on_the_research_tab():
         dict(rule="MOM_12_1", n=500, verdict="too few trades for a filter study")])
     h = DB.render(None, None, None, None, fl)
     assert "Entry-filter study" in h and "S&amp;P 500 in an uptrend + stretched 1+ ATR" in h and "HELPFUL" in h and "too few trades for a filter study" in h
+
+
+def test_a_setup_is_tagged_with_the_candidate_filter_and_never_removed_by_it():
+    from fxengine.stocks import filters as F, scan, crossctx as C
+    assert F.passes("M_usd_calm & S_trend_strong", {"usd_20d_z": 0.5, "trend_with": 0.1}) is True
+    assert F.passes("M_usd_calm & S_trend_strong", {"usd_20d_z": 2.0, "trend_with": 0.1}) is False
+    assert F.passes("M_usd_calm & S_trend_strong", {"trend_with": 0.1}) is None                                    # a missing number is "unknown", never a silent pass
+    d = _one_signal_series()
+    p = {"aaa.us": d, "spy.us": _series(500, 3, vol=0.008, drift=0.0005)}
+    p["spy.us"].index = d.index
+    ctx = C.build(p, {})
+    rows = scan.run(p, set(), [], ctx, None, cands={"RSI2_PULLBACK": "M_up & S_trend_strong"})
+    s = next(r for r in rows if r["rule"] == "RSI2_PULLBACK")
+    assert s["cand_filter"] == "M_up & S_trend_strong" and s["cand_ok"] in (True, False) and "trend_with" in s["ctx"] and "atr_ratio" in s["ctx"]
+    off = scan.run(p, set(), [], ctx, None, cands={"RSI2_PULLBACK": "M_up & S_trend_strong"})
+    assert len([r for r in off if r["rule"] == "RSI2_PULLBACK"]) == 1                                              # tagging, not removal: the setup is there either way
+
+
+def test_forward_results_are_split_by_the_candidate_filter_and_shown():
+    from fxengine.stocks import scan, dashboard as DB
+    mk = lambda ok, g, i: dict(rule="STOCH_PULLBACK", status="CLOSED", cand_ok=ok, closed=dict(gross=g, entry_date="2026-12-01", exit_date="2026-12-05", bars=4), symbol=f"s{i}.us", market="US", signal_date="2026-11-30")
+    rows = [mk(True, 0.02, 1), mk(True, 0.01, 2), mk(False, -0.01, 3), mk(None, 0.03, 4)]
+    fw = scan.forward_summary(rows, {"STOCH_PULLBACK": 0.0066})["STOCH_PULLBACK"]
+    assert fw["by_filter"]["with"] == dict(n=2, mean=0.015) and fw["by_filter"]["without"] == dict(n=1, mean=-0.01)
+    h = DB.render(None, dict(asof="2026-12-06", setups=[], forward={"STOCH_PULLBACK": fw}, closed=[]))
+    assert "Candidate filter" in h and "never removes a setup" in h

@@ -10,7 +10,7 @@ import pandas as pd
 from . import indicators as I, strategies as S
 from .run import load_panel
 from .universe import market as market_of
-from . import crossctx as CX, events as EV
+from . import crossctx as CX, events as EV, filters as FL
 
 MAX_PER_RULE = 5
 WEAK_AT = -0.02                    # unrealised -2% (price only) while the rule has not invalidated it: flagged WEAKENING
@@ -56,8 +56,10 @@ def _already_in_position(d: pd.DataFrame, sig) -> bool:
     return open_i is not None and open_i < len(d) - 1
 
 
-def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE, ctx=None, events=None) -> list[dict]:
+def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE, ctx=None, events=None, cands: dict | None = None) -> list[dict]:
     me = _month_end(max(d.index.max() for d in panel.values()))
+    cands = FL.load_candidates() if cands is None else cands
+    sfeat: dict = {}
     out = []
     for rule in S.SWING_RULES:
         if rule in S.MONTHLY_RULES and not me:
@@ -70,10 +72,15 @@ def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE, ctx=None, ev
             fired = bool(sg is not None and sg.entry[i] and not _already_in_position(d, sg))
             if fired and d.index[i] >= max(x.index.max() for x in panel.values()) - pd.Timedelta(days=4):
                 lv = _levels(rule, d, i)
+                if s not in sfeat:
+                    sfeat[s] = FL.stock_features({s: d, **({"spy.us": panel["spy.us"]} if "spy.us" in panel and s != "spy.us" else {})})[s].iloc[-1].to_dict()
+                cx = dict(CX.at(ctx, d.index[i]) if ctx is not None else {}, days_since_earnings=EV.days_since_earnings(events, s, d.index[i]))
+                fx_ = dict(cx, dse=cx.get("days_since_earnings"), **{k: (None if v != v else round(float(v), 4)) for k, v in sfeat[s].items()})
+                cand = cands.get(rule)
                 rows.append(dict(id=f"{rule}|{s}|{d.index[i]:%Y-%m-%d}", rule=rule, symbol=s, market=market_of(s), signal_date=f"{d.index[i]:%Y-%m-%d}", close=round(float(d['close'].iloc[i]), 4),
                                  invalidation=None if np.isnan(lv["invalidation"]) else round(lv["invalidation"], 4), strength=round(lv["strength"], 4), exit_text=lv["exit_text"],
                                  exit_level=None if lv["exit_level"] is None else round(lv["exit_level"], 4), why=lv["why"],
-                                 proven=rule in passed, status="PENDING", ctx=dict(CX.at(ctx, d.index[i]) if ctx is not None else {}, days_since_earnings=EV.days_since_earnings(events, s, d.index[i]))))
+                                 proven=rule in passed, status="PENDING", ctx=fx_, cand_filter=cand, cand_ok=(FL.passes(cand, fx_) if cand else None)))
         rows.sort(key=lambda r: -r["strength"])
         for k, r in enumerate(rows):              # EVERY signal is tracked (the research traded every signal); only the strongest few are shown to the owner
             r["shown"] = k < top
@@ -144,10 +151,10 @@ def recheck(setup: dict, panel, sigs=None) -> dict:
     return s
 
 
-def run(panel, passed: set[str], ledger: list[dict], ctx=None, events=None) -> list[dict]:
+def run(panel, passed: set[str], ledger: list[dict], ctx=None, events=None, cands: dict | None = None) -> list[dict]:
     """Update the ledger: re-check all known setups, then add today's new ones (never duplicated)."""
     have = {x["id"] for x in ledger}
-    new = [s for s in todays_setups(panel, passed, ctx=ctx, events=events) if s["id"] not in have]
+    new = [s for s in todays_setups(panel, passed, ctx=ctx, events=events, cands=cands) if s["id"] not in have]
     need = {x["rule"] for x in ledger if x.get("status") != "CLOSED"}
     sigs = {r: S.rule_sigs(r, panel, events) for r in need}
     rows = [recheck(x, panel, sigs) for x in ledger] + new
@@ -166,7 +173,12 @@ def forward_summary(rows: list[dict], expected: dict[str, float]) -> dict:
         if n >= 30:
             sd = float(np.std(g, ddof=1))
             lo, hi = m - 1.96 * sd / n ** 0.5, m + 1.96 * sd / n ** 0.5
-        out[rule] = dict(n=n, mean=round(m, 5), hit_rate=round(float(np.mean(np.array(g) > 0)), 4), lo=None if lo is None else round(lo, 5), hi=None if hi is None else round(hi, 5), expected=expected.get(rule))
+        wf = {}
+        for tag, sel in (("with", True), ("without", False)):
+            gg = [x["closed"]["gross"] for x in rows if x["rule"] == rule and x.get("status") == "CLOSED" and x.get("cand_ok") is sel]
+            if gg:
+                wf[tag] = dict(n=len(gg), mean=round(float(np.mean(gg)), 5))
+        out[rule] = dict(by_filter=wf or None, n=n, mean=round(m, 5), hit_rate=round(float(np.mean(np.array(g) > 0)), 4), lo=None if lo is None else round(lo, 5), hi=None if hi is None else round(hi, 5), expected=expected.get(rule))
     return out
 
 
