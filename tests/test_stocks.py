@@ -159,11 +159,12 @@ def test_stocks_server_renders_and_refreshes_itself(tmp_path, monkeypatch):
     from fxengine.stocks import serve
     monkeypatch.chdir(tmp_path)
     serve.AUTO[0] = 60
+    serve.FX["port"] = 1                                                 # nothing listening: must fall back to the stand-alone Stocks page, with a notice
     srv = serve.ThreadingHTTPServer(("127.0.0.1", 0), serve.H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     h = urllib.request.urlopen(f"http://127.0.0.1:{srv.server_address[1]}/").read().decode()
     srv.shutdown()
-    assert "STOCKS ENGINE" in h and "http-equiv='refresh' content='60'" in h and "No results yet" in h
+    assert "STOCKS ENGINE" in h and "http-equiv='refresh' content='60'" in h and "No results yet" in h and "FX dashboard not reachable" in h
 
 
 def _yahoo_json(n=300, start="2020-01-02"):
@@ -358,3 +359,34 @@ def test_forward_card_appears_on_the_setups_tab():
     sp = dict(asof="2026-11-18", setups=[], forward={"RSI2_PULLBACK": dict(n=12, mean=0.004, hit_rate=0.66, lo=None, hi=None, expected=0.0039)})
     h = DB.render(None, sp)
     assert "Forward test" in h and "needs 30+" in h and "Short-term pullback" in h
+
+
+FX_LIKE = ("<!doctype html><html><head><style>.x{}</style></head><body><div class='wrap'><div class='tabs'><button data-t='overview'>Trades</button><button data-t='system'>System</button></div>"
+           "<div class='tab' id='overview'>fx trades</div><div class='tab' id='system'>fx system</div></div><script>const tabs=document.querySelectorAll('.tabs button'),secs=document.querySelectorAll('.tab');</script></body></html>")
+
+
+def test_stocks_tab_is_injected_into_the_real_fx_page_and_never_twice():
+    from fxengine.stocks import serve, tab
+    h = serve.inject(FX_LIKE, tab.CSS, tab.fragment(None, None))
+    assert "<button data-t='stocks'>Stocks</button>" in h and h.count("id='stocks'") == 1 and "#stocks .stnav" in h and "fx trades" in h and "fx system" in h
+    assert h.index("data-t='system'") < h.index("data-t='stocks'") and h.count("class='tab'") == 3              # 2 FX tabs + exactly one Stocks tab
+    assert serve.inject(h, tab.CSS, tab.fragment(None, None)) == h                                                # already there (e.g. FX shipped it itself): unchanged
+    assert serve.inject("<html>unexpected</html>", tab.CSS, "x") is None                                          # unknown page: no blind injection
+
+
+def test_combined_page_is_served_from_the_fx_dashboard_when_it_is_reachable(tmp_path, monkeypatch):
+    import http.server, threading, urllib.request
+    from fxengine.stocks import serve
+
+    class Up(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200); self.end_headers(); self.wfile.write(FX_LIKE.encode())
+        def log_message(self, *a): pass
+    up = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Up); threading.Thread(target=up.serve_forever, daemon=True).start()
+    monkeypatch.chdir(tmp_path)
+    serve.AUTO[0] = 60
+    serve.FX["host"], serve.FX["port"] = "127.0.0.1", up.server_address[1]
+    srv = serve.ThreadingHTTPServer(("127.0.0.1", 0), serve.H); threading.Thread(target=srv.serve_forever, daemon=True).start()
+    h = urllib.request.urlopen(f"http://127.0.0.1:{srv.server_address[1]}/").read().decode()
+    srv.shutdown(); up.shutdown()
+    assert "fx trades" in h and "<button data-t='stocks'>Stocks</button>" in h and "FX dashboard not reachable" not in h and "http-equiv='refresh' content='60'" in h
