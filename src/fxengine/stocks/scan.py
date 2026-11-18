@@ -10,7 +10,7 @@ import pandas as pd
 from . import indicators as I, strategies as S
 from .run import load_panel
 from .universe import market as market_of
-from . import crossctx as CX, events as EV, filters as FL
+from . import crossctx as CX, events as EV, filters as FL, universe as U
 
 MAX_PER_RULE = 5
 WEAK_AT = -0.02                    # unrealised -2% (price only) while the rule has not invalidated it: flagged WEAKENING
@@ -59,6 +59,7 @@ def _already_in_position(d: pd.DataFrame, sig) -> bool:
 def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE, ctx=None, events=None, cands: dict | None = None) -> list[dict]:
     me = _month_end(max(d.index.max() for d in panel.values()))
     cands = FL.load_candidates() if cands is None else cands
+    allowed = U.allowed_countries()
     sfeat: dict = {}
     out = []
     for rule in S.SWING_RULES:
@@ -67,6 +68,8 @@ def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE, ctx=None, ev
         rows = []
         sigs = S.rule_sigs(rule, panel, events)
         for s, d in panel.items():
+            if allowed is not None and U.country_code(s) not in allowed:
+                continue                                   # a market the owner cannot trade: researched, but never shown or traded
             i = len(d) - 1
             sg = sigs.get(s)
             fired = bool(sg is not None and sg.entry[i] and not _already_in_position(d, sg))
@@ -216,7 +219,15 @@ def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.j
     closed = [dict(rule=r["rule"], symbol=r["symbol"], market=r["market"], signal_date=r["signal_date"], **r["closed"]) for r in rows if r["status"] == "CLOSED"][-300:]
     from . import account
     acct = account_payload(rows, panel, passed, account.load_rates(), expected)
-    out.write_text(json.dumps(dict(asof=f"{asof:%Y-%m-%d}", setups=[r for r in rows if r.get("shown", True) and r["status"] != "CLOSED"], forward=forward_summary(rows, expected), closed=closed, account=acct), indent=1))
+    cov = {}
+    for sym in panel:
+        c = cov.setdefault(U.country_code(sym), dict(symbols=0, setups=0))
+        c["symbols"] += 1
+    for r in rows:
+        if r["status"] == "PENDING":
+            cov.setdefault(U.country_code(r["symbol"]), dict(symbols=0, setups=0))["setups"] += 1
+    allowed_now = sorted(U.allowed_countries() or [])
+    out.write_text(json.dumps(dict(asof=f"{asof:%Y-%m-%d}", coverage=cov, allowed=allowed_now, setups=[r for r in rows if r.get("shown", True) and r["status"] != "CLOSED"], forward=forward_summary(rows, expected), closed=closed, account=acct), indent=1))
     try:
         from . import dashboard, tab, market
         market.write(panel, [r for r in rows if r["status"] != "CLOSED"], out.with_name("stocks_market.json"))

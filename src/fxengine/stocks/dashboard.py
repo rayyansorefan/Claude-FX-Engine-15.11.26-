@@ -468,10 +468,19 @@ def _system_tab(res: dict | None, sp: dict | None, mk: dict | None) -> str:
     lim = ('<div class="card" style="margin-top:12px"><h3>What this can and cannot tell you</h3><ul class="lim"><li>Research only: it never places an order and has no Revolut access. You decide and trade yourself, at your own risk.</li>'
            '<li>Daily bars only: the free data has no reliable intraday history, so day-trade rules are tested open-to-close and are optimistic.</li>'
            '<li>The universe is today\'s large US and UK stocks (survivors), so long-only results look better than they would have in real time.</li>'
-           '<li>Not built yet: earnings and filings, macro events, intraday monitoring, Telegram alerts. See docs/STOCKS_PLAN.md.</li>'
+           '<li>Not built yet: filing text, analyst estimates, intraday monitoring, Telegram alerts. See docs/STOCKS_PLAN.md.</li>'
            '<li>Costs are assumptions until you give your real Revolut plan fees; they are shown, not part of pass/fail. Check each stock is available on Revolut.</li></ul></div>')
+    cv = (sp or {}).get("coverage") or {}
+    cov = ""
+    if cv:
+        from .universe import COUNTRY
+        al = set((sp or {}).get("allowed") or [])
+        rows_ = "".join(f'<tr><td><b>{E(COUNTRY.get(k, k.upper()))}</b></td><td class="r num">{v["symbols"]}</td><td class="r num">{v["setups"]}</td><td>{("<span class=badge&#32;v>YOU CAN TRADE</span>" if k in al else "<span class=badge&#32;n>research only</span>") if al else "<span class=muted>all shown</span>"}</td></tr>'
+                        for k, v in sorted(cv.items(), key=lambda kv: -kv[1]["setups"]))
+        cov = ('<div class="card" style="margin-top:12px"><h3>Coverage by country · stocks tracked and new setups today</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:520px"><tr><th>Country</th><th class="r">Stocks</th><th class="r">New setups</th><th>Your Revolut list</th></tr>' + rows_ + '</table></div>'
+               '<p class="muted" style="font-size:12px;margin:8px 0 0">The research uses every market. Which ones show setups and trade in your paper account is set in ops/stocks_countries.txt (one country per line).</p></div>')
     return (f'{kp}<div class="grid"><div class="card c6"><h3>Health checks</h3><table class="tbl">{ch}</table></div><div class="card c6"><h3>Nightly job · last lines</h3>{nl}'
-            f'<div class="muted" style="font-size:12px;margin-top:8px">Code: {E(sy["code"])}</div></div></div>{lim}')
+            f'<div class="muted" style="font-size:12px;margin-top:8px">Code: {E(sy["code"])}</div></div></div>{cov}{lim}')
 
 
 def parts(res: dict | None, sp: dict | None = None, mk: dict | None = None, jr: dict | None = None, fl: dict | None = None) -> dict:

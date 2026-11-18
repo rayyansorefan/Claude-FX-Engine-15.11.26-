@@ -83,3 +83,29 @@ def kind(sym: str) -> str:
 
 def market(sym: str) -> str:
     return country_code(sym).upper()
+
+
+ALLOWED_FILE = "ops/stocks_countries.txt"
+
+
+def allowed_countries(path: str = ALLOWED_FILE) -> set[str] | None:
+    """Country codes the owner can actually trade on Revolut (one per line, e.g. us, uk, de; '#' comments allowed). None = no file = every market is shown.
+    The research always uses every market (more evidence); only the setups shown, tracked for the paper account and tagged are limited to these."""
+    from pathlib import Path
+    f = Path(path)
+    if not f.exists():
+        return None
+    codes = {ln.split("#")[0].strip().lower() for ln in f.read_text().splitlines()}
+    codes = {c for c in codes if c}
+    return codes or None
+
+
+def resolve_country(name: str) -> str | None:
+    """'Germany' / 'germany' / 'de' -> 'de' (None if unknown)."""
+    n = name.strip().lower()
+    if n in COUNTRY:
+        return n
+    for code, full in COUNTRY.items():
+        if full.lower() == n:
+            return code
+    return {"usa": "us", "united states of america": "us", "america": "us", "britain": "uk", "england": "uk", "great britain": "uk", "korea": "kr", "holland": "nl", "uae": None}.get(n)

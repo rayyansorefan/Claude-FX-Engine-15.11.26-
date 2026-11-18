@@ -877,3 +877,25 @@ def test_forward_results_are_split_by_the_candidate_filter_and_shown():
     assert fw["by_filter"]["with"] == dict(n=2, mean=0.015) and fw["by_filter"]["without"] == dict(n=1, mean=-0.01)
     h = DB.render(None, dict(asof="2026-12-06", setups=[], forward={"STOCH_PULLBACK": fw}, closed=[]))
     assert "Candidate filter" in h and "never removes a setup" in h
+
+
+def test_only_countries_the_owner_can_trade_show_up_but_the_research_uses_all(tmp_path, monkeypatch):
+    from fxengine.stocks import scan, crossctx as C, universe as UN, dashboard as DB
+    assert UN.resolve_country("Germany") == "de" and UN.resolve_country("usa") == "us" and UN.resolve_country("de") == "de" and UN.resolve_country("Atlantis") is None
+    monkeypatch.chdir(tmp_path)
+    assert UN.allowed_countries() is None                                              # no file: every market is shown
+    (tmp_path / "ops").mkdir()
+    (tmp_path / "ops/stocks_countries.txt").write_text("# my Revolut list\nUS\nuk  # London\n\n")
+    assert UN.allowed_countries() == {"us", "uk"}
+    d = _one_signal_series()
+    p = {"aaa.us": d, "bbb.de": d.copy(), "spy.us": _series(500, 3, vol=0.008, drift=0.0005)}
+    p["spy.us"].index = d.index
+    rows = scan.run(p, set(), [], C.build(p, {}), None, cands={})
+    assert {r["symbol"] for r in rows if r["rule"] == "RSI2_PULLBACK"} == {"aaa.us"}      # the German setup is researched but not shown or tracked
+    (tmp_path / "ops/stocks_countries.txt").unlink()
+    rows = scan.run(p, set(), [], C.build(p, {}), None, cands={})
+    assert {r["symbol"] for r in rows if r["rule"] == "RSI2_PULLBACK"} == {"aaa.us", "bbb.de"}
+    mk = dict(asof="2026-11-18", indices=[], breadth=dict(n=1, above50=0.5, above200=0.5, new_highs=0, new_lows=0), regime=dict(label="UPTREND", detail="x"), sectors=[], movers=dict(up=[], down=[]), charts={},
+              system=dict(asof="2026-11-18", symbols=2, stale=[], gaps=[], suspicious=[], nightly=[], code="c", trials=16, holdout=[], rows=10))
+    h = DB.render(None, dict(asof="2026-11-18", setups=[], forward={}, closed=[], coverage={"us": dict(symbols=100, setups=7), "de": dict(symbols=14, setups=3)}, allowed=["us"]), mk)
+    assert "Coverage by country" in h and "YOU CAN TRADE" in h and "research only" in h and "Germany" in h
