@@ -167,3 +167,32 @@ def test_stocks_server_renders_and_refreshes_itself(tmp_path, monkeypatch):
     h = urllib.request.urlopen(f"http://127.0.0.1:{srv.server_address[1]}/").read().decode()
     srv.shutdown()
     assert "STOCKS ENGINE" in h and "http-equiv='refresh' content='60'" in h and "No results yet" in h
+
+
+def _yahoo_json(n=300, start="2020-01-02"):
+    idx = pd.bdate_range(start, periods=n)
+    ts = [int(x.timestamp()) for x in idx]
+    px = [100 + i * 0.1 for i in range(n)]
+    px[5] = None                                                           # Yahoo leaves holes: they must be dropped
+    return json.dumps({"chart": {"result": [{"timestamp": ts, "indicators": {"quote": [{"open": px, "high": px, "low": px, "close": px, "volume": [1000] * n}]}}], "error": None}})
+
+
+def test_yahoo_json_becomes_the_same_table_as_stooq_csv():
+    csv = D.parse_yahoo(_yahoo_json())
+    d = D.parse(csv)
+    assert len(d) == 299 and d["close"].iloc[0] == 100.0 and csv.startswith("Date,Open,High,Low,Close,Volume")
+    assert D.parse_yahoo("{}") == "" and D.parse_yahoo("not json") == "" and D.yahoo_ticker("vod.uk") == "VOD.L" and D.yahoo_ticker("aapl.us") == "AAPL"
+
+
+def test_downloader_falls_back_to_yahoo_when_stooq_returns_nothing(tmp_path):
+    class R:
+        def __init__(s, c, t=""): s.status_code, s.content = c, t.encode()
+    calls = []
+    def get(u):
+        calls.append(u)
+        return R(200, "") if "stooq" in u else R(200, _yahoo_json())
+    df = D.download(tmp_path, symbols=["aapl.us", "vod.uk"], get=get, pause=0)
+    assert set(df["symbol"]) == {"aapl.us", "vod.uk"} and any("query1.finance.yahoo.com" in u and "VOD.L" in u for u in calls)
+    n = len(calls)
+    D.download(tmp_path, symbols=["aapl.us", "vod.uk"], get=get, pause=0)             # second run: cached files are reused, only the probe goes out
+    assert len(calls) <= n + 1

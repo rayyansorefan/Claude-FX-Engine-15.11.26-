@@ -8,6 +8,7 @@ import pandas as pd
 from .universe import SYMBOLS
 
 URL = "https://stooq.com/q/d/l/?s={s}&i=d"
+YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart/{t}?range=max&interval=1d&includeAdjustedClose=false"
 BAD_MOVE = 0.45                    # |daily close-to-close move| above this is treated as a probable data error (unadjusted split etc.)
 
 
@@ -30,6 +31,25 @@ def parse(text: str) -> pd.DataFrame:
     return d.set_index("date")[["open", "high", "low", "close", "volume"]]
 
 
+def yahoo_ticker(sym: str) -> str:
+    """'aapl.us' -> 'AAPL'; 'vod.uk' -> 'VOD.L' (London)."""
+    t, mk = sym.rsplit(".", 1)
+    return t.upper().replace(".", "-") if mk == "us" else t.upper() + ".L"
+
+
+def parse_yahoo(text: str) -> str:
+    """Yahoo chart JSON -> the same CSV text Stooq serves (Date,Open,High,Low,Close,Volume), or '' if unusable. Rows with missing prices are dropped."""
+    try:
+        r = json.loads(text)["chart"]["result"][0]
+        q = r["indicators"]["quote"][0]
+        ts = r["timestamp"]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return ""
+    d = pd.DataFrame(dict(Date=pd.to_datetime(ts, unit="s").normalize(), Open=q.get("open"), High=q.get("high"), Low=q.get("low"), Close=q.get("close"), Volume=q.get("volume")))
+    d = d.dropna(subset=["Open", "High", "Low", "Close"]).drop_duplicates("Date", keep="last")
+    return d.to_csv(index=False) if len(d) else ""
+
+
 def quality(sym: str, d: pd.DataFrame) -> dict:
     ret = d["close"].pct_change().abs()
     gaps = d.index.to_series().diff().dt.days
@@ -37,29 +57,43 @@ def quality(sym: str, d: pd.DataFrame) -> dict:
                 zero_volume=round(float((d["volume"].fillna(0) == 0).mean()), 3), max_gap_days=int(gaps.max()) if len(gaps) > 1 else 0)
 
 
-def download(out=Path("data/stocks"), symbols=SYMBOLS, get=None, pause=0.6, refresh_hours=20, min_rows=250) -> pd.DataFrame:
+def download(out=Path("data/stocks"), symbols=SYMBOLS, get=None, pause=0.6, refresh_hours=20, min_rows=250, source="auto") -> pd.DataFrame:
     import requests
-    get = get or (lambda u: requests.get(u, timeout=30, headers={"User-Agent": "research-script"}))
+    get = get or (lambda u: requests.get(u, timeout=30, headers={"User-Agent": "Mozilla/5.0 (research-script)"}))
     raw = out / "raw"
     raw.mkdir(parents=True, exist_ok=True)
     frames, report, gaps, quota = [], [], [], False
+    if source == "auto":                                          # probe Stooq once; if it gives no usable data, use Yahoo for the whole run
+        try:
+            source = "stooq" if parse(get(URL.format(s="spy.us")).content.decode("latin-1")).shape[0] >= min_rows else "yahoo"
+        except Exception:
+            source = "yahoo"
+        print(f"price source: {source}", flush=True)
+
+    def fetch(sym):
+        """(status, csv text) from the chosen source."""
+        if source == "stooq":
+            r = get(URL.format(s=sym))
+            return r.status_code, (r.content.decode("latin-1") if r.status_code == 200 else "")
+        r = get(YAHOO.format(t=yahoo_ticker(sym)))
+        return r.status_code, (parse_yahoo(r.content.decode("utf-8", "replace")) if r.status_code == 200 else "")
+
     for k, sym in enumerate(symbols, 1):
-        f, miss = raw / f"{sym}.csv", raw / f"{sym}.missing"
+        f, miss = raw / f"{sym}.csv", raw / f"{sym}.{source}.missing"
         try:
             fresh = f.exists() and (time.time() - f.stat().st_mtime) < refresh_hours * 3600
             if not fresh and not quota and not (miss.exists() and (time.time() - miss.stat().st_mtime) < 7 * 86400):
-                r = get(URL.format(s=sym))
+                status, body = fetch(sym)
                 time.sleep(pause)
-                body = r.content.decode("latin-1") if r.status_code == 200 else ""
                 if "exceeded the daily hits limit" in body.lower():
                     quota = True
                     print("Stooq daily hit limit reached: rerun tomorrow; everything fetched so far is cached.", flush=True)
-                elif r.status_code == 200 and parse(body).shape[0] >= min_rows:
+                elif status == 200 and parse(body).shape[0] >= min_rows:
                     f.write_text(body)
                     if miss.exists():
                         miss.unlink()
                 else:
-                    miss.write_text(f"HTTP {r.status_code}, no usable data")
+                    miss.write_text(f"HTTP {status}, no usable data")
             if not f.exists():
                 gaps.append(f"{sym}: no data"); print(f"[{k}/{len(symbols)}] {sym} no data", flush=True); continue
             d = parse(f.read_text())
