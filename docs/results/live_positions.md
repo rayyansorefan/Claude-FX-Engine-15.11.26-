@@ -1,20 +1,18 @@
-# Live positions (written 2026-11-18 16:20 UTC)
+# Live positions (written 2026-11-18 16:30 UTC)
 
-Unfinished setups: 5
+Unfinished setups: 3
 
 - AUDUSD SHORT E1_strength [TRIGGERED] created 2026-11-17 08:00
-  FILLED at 0.67310. entry 0.67316 stop 0.67676 target 0.66596. Unrealised +0.55R, best so far +0.61R, worst -0.47R. Target is 1.43R away. Held 387 of 576 five-minute bars (16h until the time limit).
+  FILLED at 0.67310. entry 0.67316 stop 0.67676 target 0.66596. Unrealised +0.58R, best so far +0.61R, worst -0.47R. Target is 1.40R away. Held 389 of 576 five-minute bars (16h until the time limit).
 - EURUSD SHORT E1_strength [TRIGGERED] created 2026-11-18 04:00
-  FILLED at 1.09900. entry 1.09907 stop 1.10335 target 1.09052. Unrealised +0.60R, best so far +0.86R, worst -0.04R. Target is 1.38R away. Held 147 of 576 five-minute bars (36h until the time limit).
+  FILLED at 1.09900. entry 1.09907 stop 1.10335 target 1.09052. Unrealised +0.63R, best so far +0.86R, worst -0.04R. Target is 1.35R away. Held 149 of 576 five-minute bars (36h until the time limit).
 - NZDUSD SHORT E1_strength [TRIGGERED] created 2026-11-18 04:00
-  FILLED at 0.54941. entry 0.54948 stop 0.55231 target 0.54382. Unrealised +0.28R, best so far +0.32R, worst -0.32R. Target is 1.70R away. Held 147 of 576 five-minute bars (36h until the time limit).
-- GBPJPY SHORT asia_breakout [TRIGGERED] created 2026-11-18 08:00
-  FILLED at 209.90500. entry 209.91100 stop 210.24540 target 209.24220. Unrealised +1.93R, best so far +1.88R, worst -0.20R. Target is 0.05R away. Held 99 of 384 five-minute bars (24h until the time limit).
-- GBPUSD SHORT asia_breakout [TRIGGERED] created 2026-11-18 08:00
-  FILLED at 1.31716. entry 1.31722 stop 1.31891 target 1.31385. Unrealised +1.72R, best so far +1.69R, worst -0.30R. Target is 0.24R away. Held 99 of 384 five-minute bars (24h until the time limit).
+  FILLED at 0.54941. entry 0.54948 stop 0.55231 target 0.54382. Unrealised +0.34R, best so far +0.32R, worst -0.32R. Target is 1.64R away. Held 149 of 576 five-minute bars (36h until the time limit).
 
-Last 10 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
+Last 12 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
+- GBPJPY asia_breakout: TARGET +1.96R at 2026-11-18 16:25 · best +2.25R, worst -0.20R
+- GBPUSD asia_breakout: TARGET +1.92R at 2026-11-18 16:25 · best +2.11R, worst -0.30R
 - USDCAD asia_breakout: STOP -1.23R at 2026-11-18 11:00 · best +0.39R, worst -1.21R · WRONG_WAY
 - EURGBP asia_breakout: TARGET +1.77R at 2026-11-17 22:05 · best +1.92R, worst -0.86R
 - GBPUSD asia_breakout: STOP -1.11R at 2026-11-17 15:50 · best +0.89R, worst -1.11R · STALLED
