@@ -91,10 +91,10 @@ BAR_RULES = {"RSI2_PULLBACK": rsi2_pullback, "BREAKOUT_20": breakout_20, "TREND_
              "DONCHIAN_55": donchian_55, "VOL_BREAKOUT": vol_breakout, "ADX_TREND": adx_trend, "BOLLINGER_REVERT": bollinger_revert, "IBS_REVERT": ibs_revert,
              "STOCH_PULLBACK": stoch_pullback, "MACD_CROSS": macd_cross}
 RULES = ["RSI2_PULLBACK", "BREAKOUT_20", "TREND_50_200", "MOM_12_1", "GAP_CONT_DAY", "GAP_FADE_DAY",
-         "HIGH52_MOM", "DONCHIAN_55", "VOL_BREAKOUT", "ADX_TREND", "BOLLINGER_REVERT", "IBS_REVERT", "STOCH_PULLBACK", "MACD_CROSS", "RS_PULLBACK"]
-PANEL_RULES = ("MOM_12_1", "HIGH52_MOM", "RS_PULLBACK")                  # rules that need the whole panel (cross-section, or the market as a reference)
+         "HIGH52_MOM", "DONCHIAN_55", "VOL_BREAKOUT", "ADX_TREND", "BOLLINGER_REVERT", "IBS_REVERT", "STOCH_PULLBACK", "MACD_CROSS", "RS_PULLBACK", "PEAD_SUE"]
+PANEL_RULES = ("MOM_12_1", "HIGH52_MOM", "RS_PULLBACK", "PEAD_SUE")                  # rules that need the whole panel (cross-section, or the market as a reference)
 MAX_HOLD = {"RSI2_PULLBACK": 10, "BREAKOUT_20": 60, "TREND_50_200": 250, "MOM_12_1": 21, "HIGH52_MOM": 21, "DONCHIAN_55": 120, "VOL_BREAKOUT": 60, "ADX_TREND": 120,
-            "BOLLINGER_REVERT": 10, "IBS_REVERT": 5, "STOCH_PULLBACK": 15, "MACD_CROSS": 60, "RS_PULLBACK": 10}
+            "BOLLINGER_REVERT": 10, "IBS_REVERT": 5, "STOCH_PULLBACK": 15, "MACD_CROSS": 60, "RS_PULLBACK": 10, "PEAD_SUE": 40}
 INFO = {"RSI2_PULLBACK": ("Short-term pullback", "RSI(2) under 10 in an uptrend (above its 200-day average), exit when it recovers"),
         "BREAKOUT_20": ("Breakout", "New 20-day high above the 50-day average, exit on a 10-day low"),
         "TREND_50_200": ("Long-term trend", "50-day average crosses above the 200-day, exit below the 50-day"),
@@ -109,6 +109,7 @@ INFO = {"RSI2_PULLBACK": ("Short-term pullback", "RSI(2) under 10 in an uptrend 
         "IBS_REVERT": ("Weak close snap-back", "Closes in the bottom 20% of its day's range in an uptrend, exit above the prior day's high"),
         "STOCH_PULLBACK": ("Stochastic pullback", "Stochastic under 20 in an uptrend, exit when it passes 70"),
         "MACD_CROSS": ("MACD cross-up", "MACD crosses above its signal below zero, in an uptrend (a popular indicator, tested honestly)"),
+        "PEAD_SUE": ("Earnings surprise drift", "A big positive earnings surprise (SEC filing): buy the day after the reaction day, hold about 8 weeks"),
         "RS_PULLBACK": ("Leader pullback", "A market-beating stock (6-month) with RSI(5) under 30 in an uptrend, exit above its 5-day average")}
 
 
@@ -145,8 +146,31 @@ def panel_sigs(rule: str, panel: dict[str, pd.DataFrame]) -> dict[str, Sig]:
     return {s: Sig(ent[s], np.zeros(len(d), bool), 21) for s, d in panel.items()}
 
 
-def rule_sigs(rule: str, panel: dict[str, pd.DataFrame]) -> dict[str, Sig]:
+SUE_MIN, PEAD_HOLD = 2.0, 40
+
+
+def pead_sigs(panel: dict[str, pd.DataFrame], events: pd.DataFrame | None) -> dict[str, Sig]:
+    """PEAD_SUE (Bernard & Thomas): after a large positive standardised earnings surprise (SUE >= 2, EPS up, revenue up) buy. POINT-IN-TIME and conservative: the company's release
+    (SEC 8-K filing date D) is treated as public at D; the signal is the close of the FIRST trading day after D (the reaction day), so the buy is at the open after that."""
+    out = {s: Sig(np.zeros(len(d), bool), np.zeros(len(d), bool), PEAD_HOLD) for s, d in panel.items()}
+    if events is None or len(events) == 0:
+        return out
+    good = events[(events["sue"] >= SUE_MIN) & (events["eps_change"] > 0) & ((events["rev_yoy"] > 0) | events["rev_yoy"].isna())]
+    for s, g in good.groupby("symbol"):
+        if s not in panel:
+            continue
+        d = panel[s]
+        for D in g["announce_date"]:
+            i = d.index.searchsorted(pd.Timestamp(D), side="right")           # first bar strictly after the filing date
+            if i < len(d):
+                out[s].entry[i] = True
+    return out
+
+
+def rule_sigs(rule: str, panel: dict[str, pd.DataFrame], events: pd.DataFrame | None = None) -> dict[str, Sig]:
     """Signals of ANY pre-registered swing rule for every symbol (the one entry point the research and the scanner both use)."""
+    if rule == "PEAD_SUE":
+        return pead_sigs(panel, events)
     if rule in PANEL_RULES:
         return panel_sigs(rule, panel)
     return {s: BAR_RULES[rule](d) for s, d in panel.items()}

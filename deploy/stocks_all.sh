@@ -25,12 +25,14 @@ log "downloading prices (cached files are reused; a rerun only fetches what is m
 PY=.venv/bin/python; [ -x "$PY" ] || PY=python3
 $PY -m fxengine.stocks.data > data/stocks_data.log 2>&1; rc1=$?
 log "download exit code $rc1"
+if [ -s data/stocks/sec_contact.txt ]; then $PY -m fxengine.stocks.events > data/stocks_events.log 2>&1; log "earnings/filings fetch exit code $?"; else log "no SEC contact file: earnings layer skipped (see data/stocks/sec_contact.txt)"; fi
 $PY -m fxengine.stocks.run > data/stocks_run.log 2>&1; rc2=$?
 log "research exit code $rc2"
 $PY -m fxengine.stocks.scan > data/stocks_scan.log 2>&1; rc3=$?
 log "scan exit code $rc3"
 { echo "download:$rc1 research:$rc2 scan:$rc3   finished: $(date -u '+%F %T') UTC   code: $(git log --oneline | head -1)"
   echo; echo "== DATA =="; tail -3 data/stocks_data.log
+  echo; echo "== EARNINGS / FILINGS =="; tail -2 data/stocks_events.log 2>&1
   echo; echo "== RESEARCH =="; cat docs/results/stocks.md 2>&1
   echo; echo "== SCAN =="; tail -2 data/stocks_scan.log
   echo; echo "== VM =="; free -m | sed -n 2p; echo "fx services: $(systemctl is-active fxengine fxdash | tr '\n' ' ')"; } > "$R"

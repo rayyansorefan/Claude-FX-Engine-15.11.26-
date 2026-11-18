@@ -109,3 +109,11 @@ ADX_TREND (ADX crosses 25, +DI > -DI, above the 50-day; exit ADX < 20 or below t
 IBS_REVERT (internal bar strength < 0.2 in an uptrend; exit above the prior high), STOCH_PULLBACK (%K(14) < 20 in an uptrend; exit %K > 70), MACD_CROSS (12/26/9 cross-up below zero in an uptrend; popular, tested honestly),
 RS_PULLBACK (beat the S&P over 126 days, RSI(5) < 30, in an uptrend; exit above the 5-day average). Gate unchanged. Measured gate false-pass rate on random markets: 1 false pass in 9 markets (~90 rule-runs), i.e. about the 5% family-wise design:
 no pass is trusted alone (sealed year + live forward test still required). The sealed year stays sealed for these rules until one passes the stress checks.
+
+## Events layer (pre-registered 2026-11-18, before any result)
+Sources (free, official, point-in-time): SEC EDGAR submissions + XBRL company facts (US companies), FRED (VIX, 10y-2y curve, high-yield spread). The SEC contact string lives only on the VM (data/stocks/sec_contact.txt), never in git.
+Every earnings number is dated by its release (8-K Item 2.02 filing date) and uses each quarter as FIRST reported (restatements ignored). Fiscal-year-end releases (annual 10-K) are skipped on purpose (no quarterly fact). Macro values are lagged one trading day.
+- Rule PEAD_SUE (trial 16, fixed): after a standardised surprise SUE >= 2.0 (seasonal random walk, >= 6 past year-on-year changes), EPS up and revenue not down: signal at the close of the first trading day AFTER the filing date, buy the next open, hold 40 bars. (Bernard & Thomas post-earnings-announcement drift.)
+- Context candidates recorded on every setup for the entry-filter study (phase D): days since the last earnings release, VIX level and its z-score, yield-curve slope, credit-spread z-score, plus the equity/USD/risk-mood context. Chosen on the earlier 60% of history, validated once on the later 40%.
+- Not yet built: text of filings (risk-factor changes, tone), guidance, analyst estimates (no free source), UK/EU filings, macro release calendar and surprise.
+Generalisation: each rule's result is reported separately for the markets it was found in (US+UK) and for the other countries, which it was never looked at in.

@@ -17,6 +17,7 @@ done
 [ "${busy:-1}" -eq 0 ] && [ "${avail:-0}" -ge 250 ] || { log "VM busy for 30 minutes: skipped tonight"; exit 0; }
 $PY -m fxengine.stocks.data > data/stocks_data.log 2>&1 || log "price download exit code $?"
 log "prices: $(tail -1 data/stocks_data.log | cut -c1-120)"
+[ -s data/stocks/sec_contact.txt ] && { $PY -m fxengine.stocks.events > data/stocks_events.log 2>&1 || log "events exit code $?"; }
 $PY -m fxengine.stocks.scan > data/stocks_scan.log 2>&1 || log "scan exit code $?"
 log "scan: $(tail -1 data/stocks_scan.log | cut -c1-140)"
 $PY -m fxengine.stocks.tab > /dev/null 2>&1 || log "tab fragment not refreshed"

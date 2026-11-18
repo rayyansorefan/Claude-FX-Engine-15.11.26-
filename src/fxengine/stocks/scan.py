@@ -10,7 +10,7 @@ import pandas as pd
 from . import indicators as I, strategies as S
 from .run import load_panel
 from .universe import market as market_of
-from . import crossctx as CX
+from . import crossctx as CX, events as EV
 
 MAX_PER_RULE = 5
 WEAK_AT = -0.02                    # unrealised -2% (price only) while the rule has not invalidated it: flagged WEAKENING
@@ -56,14 +56,14 @@ def _already_in_position(d: pd.DataFrame, sig) -> bool:
     return open_i is not None and open_i < len(d) - 1
 
 
-def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE, ctx=None) -> list[dict]:
+def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE, ctx=None, events=None) -> list[dict]:
     me = _month_end(max(d.index.max() for d in panel.values()))
     out = []
     for rule in S.SWING_RULES:
         if rule in S.MONTHLY_RULES and not me:
             continue
         rows = []
-        sigs = S.rule_sigs(rule, panel)
+        sigs = S.rule_sigs(rule, panel, events)
         for s, d in panel.items():
             i = len(d) - 1
             sg = sigs.get(s)
@@ -73,7 +73,7 @@ def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE, ctx=None) ->
                 rows.append(dict(id=f"{rule}|{s}|{d.index[i]:%Y-%m-%d}", rule=rule, symbol=s, market=market_of(s), signal_date=f"{d.index[i]:%Y-%m-%d}", close=round(float(d['close'].iloc[i]), 4),
                                  invalidation=None if np.isnan(lv["invalidation"]) else round(lv["invalidation"], 4), strength=round(lv["strength"], 4), exit_text=lv["exit_text"],
                                  exit_level=None if lv["exit_level"] is None else round(lv["exit_level"], 4), why=lv["why"],
-                                 proven=rule in passed, status="PENDING", ctx=(CX.at(ctx, d.index[i]) if ctx is not None else {})))
+                                 proven=rule in passed, status="PENDING", ctx=dict(CX.at(ctx, d.index[i]) if ctx is not None else {}, days_since_earnings=EV.days_since_earnings(events, s, d.index[i]))))
         rows.sort(key=lambda r: -r["strength"])
         for k, r in enumerate(rows):              # EVERY signal is tracked (the research traded every signal); only the strongest few are shown to the owner
             r["shown"] = k < top
@@ -144,12 +144,12 @@ def recheck(setup: dict, panel, sigs=None) -> dict:
     return s
 
 
-def run(panel, passed: set[str], ledger: list[dict], ctx=None) -> list[dict]:
+def run(panel, passed: set[str], ledger: list[dict], ctx=None, events=None) -> list[dict]:
     """Update the ledger: re-check all known setups, then add today's new ones (never duplicated)."""
     have = {x["id"] for x in ledger}
-    new = [s for s in todays_setups(panel, passed, ctx=ctx) if s["id"] not in have]
+    new = [s for s in todays_setups(panel, passed, ctx=ctx, events=events) if s["id"] not in have]
     need = {x["rule"] for x in ledger if x.get("status") != "CLOSED"}
-    sigs = {r: S.rule_sigs(r, panel) for r in need}
+    sigs = {r: S.rule_sigs(r, panel, events) for r in need}
     rows = [recheck(x, panel, sigs) for x in ledger] + new
     return rows
 
@@ -186,12 +186,13 @@ def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.j
     panel = load_panel(path)
     passed = {r["rule"] for r in json.loads(res.read_text())["rules"] if r.get("passes")} if res.exists() else set()
     ledger = json.loads(led.read_text()) if led.exists() else []
-    ctx = CX.build(panel, CX.load_fx())
+    events = EV.load(Path(path).parent.parent.parent) if Path(path).name == "prices.parquet" else EV.load()
+    ctx = CX.build(panel, CX.load_fx(), EV.load_fred())
     try:
         CX.publish(ctx, out.with_name("stocks_context_history.csv"), out.with_name("stocks_context.json"))          # what the FX engine can read
     except Exception as e:
         print("context not published:", type(e).__name__)
-    rows = run(panel, passed, ledger, ctx)
+    rows = run(panel, passed, ledger, ctx, events)
     cut = (pd.Timestamp.today() - pd.Timedelta(days=45)).strftime("%Y-%m-%d")
     rows = [r for r in rows if r["status"] in ("PENDING", "VALID", "WEAKENING", "EXIT SIGNAL", "CLOSED") or r["signal_date"] >= cut]       # closed trades are kept: they are the forward test
     led.parent.mkdir(parents=True, exist_ok=True)

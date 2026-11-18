@@ -48,7 +48,7 @@ def usd_strength(fx: dict[str, pd.Series]) -> pd.Series:
     return pd.concat(rets, axis=1).mean(axis=1, skipna=True).cumsum()
 
 
-def build(panel: dict[str, pd.DataFrame], fx: dict[str, pd.Series] | None = None) -> pd.DataFrame:
+def build(panel: dict[str, pd.DataFrame], fx: dict[str, pd.Series] | None = None, fred: dict[str, pd.Series] | None = None) -> pd.DataFrame:
     """Daily context indexed by SPY's trading dates. Every column at date t uses data up to the close of t only."""
     spy = panel.get("spy.us")
     if spy is None or len(spy) < 260:
@@ -70,6 +70,11 @@ def build(panel: dict[str, pd.DataFrame], fx: dict[str, pd.Series] | None = None
         if "AUDJPY" in fx:
             aj = np.log(fx["AUDJPY"]).reindex(c.index, method="ffill")
             df["risk_20d_z"] = _z(aj.diff(20))
+    if fred:
+        from . import events as EV
+        mc = EV.macro_context(fred, c.index)
+        for col in mc.columns:
+            df[col] = mc[col]
     df["dow"] = c.index.dayofweek
     return df
 
@@ -79,7 +84,7 @@ def publish(ctx: pd.DataFrame, hist: Path = HIST, latest: Path = LATEST) -> dict
     if ctx.empty:
         return None
     hist.parent.mkdir(parents=True, exist_ok=True)
-    cols = [c for c in ("spy_trend", "spy_vs200", "spy_5d", "vol20", "breadth200") if c in ctx]
+    cols = [c for c in ("spy_trend", "spy_vs200", "spy_5d", "vol20", "breadth200", "vix", "vix_z", "curve_10y2y", "hy_spread_z") if c in ctx]
     ctx[cols].round(5).to_csv(hist, index_label="date")
     row = ctx.iloc[-1]
     snap = dict(asof=f"{ctx.index[-1]:%Y-%m-%d}", **{k: (None if pd.isna(v) else round(float(v), 5)) for k, v in row.items()},

@@ -12,6 +12,7 @@ from .universe import kind as kind_of, market as market_of
 from ..research import stats, trials
 
 REG = Path("docs/stocks_trials.jsonl")
+EVENTS_DF = None                                  # set by main()/open_holdout() from data/stocks/events.parquet when it exists (earnings events)
 HOLDOUT_START = pd.Timestamp("2025-11-18")      # FIXED on 2026-11-18 (the first real run's boundary): everything from here on is sealed / forward data and never feeds a research result
 HOLDOUT_LOG = Path("docs/stocks_holdout_log.txt")
 MIN_WEEKS = 100
@@ -82,12 +83,16 @@ def score(rule: str, tr: pd.DataFrame, panel, start, end, n_trials: int, rng, mi
     halves = {"first": round(float(first["gross"].mean()), 4) if len(first) else None, "second": round(float(second["gross"].mean()), 4) if len(second) else None}
     c1, c2, c3, c4 = g["n_eff"] >= MIN_WEEKS, bool(g["expectancy_r"] > 0 and g["ci_lo"] > 0), bool(r.mean() > ch["p95"]), bool(all(v is not None and v > 0 for v in halves.values()))
     by_mkt = {m: round(float(x["gross"].mean()), 4) for m, x in tr.groupby(tr["symbol"].map(market_of)) if len(x) >= 20}
+    core = tr["symbol"].map(market_of).isin(["US", "UK"])                                  # where the rules were found vs. markets they were never looked at in
+    gen = dict(core_n=int(core.sum()), intl_n=int((~core).sum()), core_mean=(round(float(tr.loc[core, "gross"].mean()), 5) if core.sum() >= 30 else None),
+               intl_mean=(round(float(tr.loc[~core, "gross"].mean()), 5) if (~core).sum() >= 30 else None))
+    days = int(tr["entry_date"].dt.normalize().nunique())
     by_year = {str(y): round(float(x["gross"].mean()), 4) for y, x in tr.groupby(tr["entry_date"].dt.year) if len(x) >= 20}
     return dict(rule=rule, n=int(len(tr)), weeks=int(g["n_eff"]), hit_rate=round(float((r > 0).mean()), 4), avg_hold=round(float(tr["bars"].mean()), 1),
                 gross=round(float(tr["gross"].mean()), 5), net_normal=round(float(tr["net_normal"].mean()), 5), net_stressed=round(float(tr["net_stressed"].mean()), 5), roi=round(float(r.mean()), 5),
                 ci95_lo=round(float(g["ci_lo"]), 5), ci95_hi=round(float(g["ci_hi"]), 5), mde=round(float(g["mde_r"]), 5),
                 challenger_p95=round(float(ch["p95"]), 5), real_pct=round(float(ch["pct"]), 1), halves=halves, by_market=by_mkt, by_year=by_year,
-                gates=dict(weeks=bool(c1), lower_bound=c2, beats_random=c3, both_halves=c4), passes=bool(c1 and c2 and c3 and c4), day_trade=day,
+                gates=dict(weeks=bool(c1), lower_bound=c2, beats_random=c3, both_halves=c4), passes=bool(c1 and c2 and c3 and c4), day_trade=day, generalisation=gen, signal_days=days,
                 robust=robustness(tr) if (c1 and c2 and c3 and c4) else None)
 
 
@@ -106,6 +111,9 @@ def benchmarks(panel, start, end) -> dict:
 
 
 def main(path=Path("data/stocks/prices.parquet"), out=Path("docs/results"), reg=REG, hold_start=None):
+    global EVENTS_DF
+    from . import events as EV
+    EVENTS_DF = EV.load(Path(path).parent.parent.parent if Path(path).name == "prices.parquet" else Path("."))
     panel = load_panel(path)
     if not panel:
         raise SystemExit("no price data: run  python -m fxengine.stocks.data  first")
@@ -120,7 +128,7 @@ def main(path=Path("data/stocks/prices.parquet"), out=Path("docs/results"), reg=
     rules, nsym = [], len(panel)
     for rule in S.RULES:
         parts = []
-        sigs = S.rule_sigs(rule, panel)
+        sigs = S.rule_sigs(rule, panel, EVENTS_DF)
         for s, d in panel.items():
             t = B.trades_for(s, d, sigs[s])
             if len(t):
@@ -153,6 +161,9 @@ def main(path=Path("data/stocks/prices.parquet"), out=Path("docs/results"), reg=
 
 def open_holdout(rule: str, why: str, path=Path("data/stocks/prices.parquet"), res_path=Path("docs/results/stocks.json"), log=HOLDOUT_LOG, hold_start=None) -> dict:
     """ONE-TIME look at the sealed period for ONE frozen rule that already passed the research gate. Refuses anything else, and refuses a second opening."""
+    global EVENTS_DF
+    from . import events as EV
+    EVENTS_DF = EV.load(Path(path).parent.parent.parent if Path(path).name == "prices.parquet" else Path("."))
     hs = pd.Timestamp(hold_start) if hold_start is not None else HOLDOUT_START
     res = json.loads(Path(res_path).read_text())
     r0 = next((r for r in res["rules"] if r["rule"] == rule), None)
@@ -161,7 +172,7 @@ def open_holdout(rule: str, why: str, path=Path("data/stocks/prices.parquet"), r
     if Path(log).exists() and any(l.split("|")[1].strip() == rule for l in Path(log).read_text().splitlines() if "|" in l):
         raise SystemExit(f"{rule}: the sealed period was already opened once (see {log}). It cannot be opened again.")
     panel = load_panel(Path(path))
-    sigs = S.rule_sigs(rule, panel)
+    sigs = S.rule_sigs(rule, panel, EVENTS_DF)
     parts = []
     for sym, d in panel.items():
         t = B.trades_for(sym, d, sigs[sym])

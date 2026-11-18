@@ -119,7 +119,7 @@ def test_a_planted_mean_reversion_edge_is_found(tmp_path):
 def test_results_files_and_trial_registry_are_written(tmp_path):
     _run(_panel(20, 1800, 4), tmp_path)
     assert (tmp_path / "res" / "stocks.md").exists() and (tmp_path / "res" / "stocks.json").exists()
-    assert len((tmp_path / "trials.jsonl").read_text().splitlines()) == len(S.RULES) == 15
+    assert len((tmp_path / "trials.jsonl").read_text().splitlines()) == len(S.RULES) == 16
 
 
 def test_scanner_lists_todays_setup_then_tracks_it_through_to_invalidation():
@@ -659,3 +659,111 @@ def test_downloader_also_fetches_the_gbp_rates_for_the_countries_in_the_universe
         return R(200, "") if "stooq" in u else R(200, _yahoo_json())
     D.download(tmp_path, symbols=["sap.de"], get=get, pause=0)
     assert any("SAP.DE" in u for u in urls) and (tmp_path / "raw" / "gbp_EUR.csv").exists() and (tmp_path / "raw" / "gbp_JPY.csv").exists() and (tmp_path / "raw" / "gbpusd.csv").exists()
+
+
+def _edgar_company(extra_quarters=0, restate=None, jump_last=False):
+    """Synthetic SEC data in the documented shapes: submissions (8-K item 2.02) + XBRL company facts (10-Q quarterly EPS and revenue)."""
+    ends, eps, rev = [], [], []
+    k = 0
+    for y in range(2019, 2024 + extra_quarters):
+        for md in ("03-31", "06-30", "09-30"):
+            ends.append(pd.Timestamp(f"{y}-{md}"))
+            k += 1
+            eps.append(round(1.0 + 0.05 * k + (0.3 if k % 4 == 0 else 0.0), 3))
+            rev.append(1000.0 + 20 * k)
+    if jump_last:
+        eps[-1] += 1.5
+    def fact(end, val, filed, form="10-Q", dur=90):
+        return dict(start=f"{(end - pd.Timedelta(days=dur)):%Y-%m-%d}", end=f"{end:%Y-%m-%d}", val=val, filed=f"{filed:%Y-%m-%d}", form=form)
+    eps_f = [fact(e, v, e + pd.Timedelta(days=35)) for e, v in zip(ends, eps)]
+    rev_f = [fact(e, v, e + pd.Timedelta(days=35)) for e, v in zip(ends, rev)]
+    eps_f.append(dict(start="2020-01-01", end="2020-12-31", val=9.9, filed="2021-02-20", form="10-K"))                 # an ANNUAL fact: must be ignored as a quarter
+    if restate:
+        eps_f.append(fact(ends[restate], eps[restate] + 5.0, ends[restate] + pd.Timedelta(days=400)))                  # a LATER restatement of an old quarter: must be ignored
+    facts = {"facts": {"us-gaap": {"EarningsPerShareDiluted": {"units": {"USD/shares": eps_f}}, "Revenues": {"units": {"USD": rev_f}}}}}
+    f8 = dict(form=[], filingDate=[], items=[], acceptanceDateTime=[])
+    for e in ends:
+        d = e + pd.Timedelta(days=28)
+        f8["form"] += ["8-K", "8-K"]; f8["filingDate"] += [f"{d:%Y-%m-%d}", f"{d + pd.Timedelta(days=3):%Y-%m-%d}"]
+        f8["items"] += ["2.02,9.01", "5.02"]; f8["acceptanceDateTime"] += [f"{d:%Y-%m-%d}T21:05:00.000Z"] * 2
+    return {"filings": {"recent": f8}}, facts, ends
+
+
+def test_earnings_events_are_point_in_time_and_use_first_reported_numbers():
+    from fxengine.stocks import events as EV
+    sub, facts, ends = _edgar_company(restate=8)
+    assert [x["date"] for x in EV.earnings_8ks(sub)][:2] == [f"{ends[0] + pd.Timedelta(days=28):%Y-%m-%d}", f"{ends[1] + pd.Timedelta(days=28):%Y-%m-%d}"] and len(EV.earnings_8ks(sub)) == len(ends)      # only Item 2.02 counts
+    ev = pd.DataFrame(EV.earnings_events("zzz.us", sub, facts))
+    assert len(ev) > 5 and ev["sue"].notna().sum() > 3 and (ev["n_hist"] >= EV.SUE_MIN_HISTORY).all() is np.bool_(True) or ev["n_hist"].max() >= EV.SUE_MIN_HISTORY
+    assert not ((ev["period_end"] == ends[8]) & (ev["eps"] > 5)).any()                                           # the restated value (+5) never appears
+    assert (ev["announce_date"] > ev["period_end"]).all()                                                          # dated by the release, after the quarter it describes
+    # point-in-time: adding LATER quarters, a surprise jump and a restatement must not change any earlier event
+    sub2, facts2, _ = _edgar_company(extra_quarters=2, restate=8, jump_last=True)
+    ev2 = pd.DataFrame(EV.earnings_events("zzz.us", sub2, facts2))
+    a = ev[ev["announce_date"] <= ev["announce_date"].max()].set_index("announce_date")[["eps", "eps_prev", "sue", "rev_yoy"]]
+    b = ev2.set_index("announce_date").loc[a.index, ["eps", "eps_prev", "sue", "rev_yoy"]]
+    assert np.allclose(a.to_numpy(float), b.to_numpy(float), equal_nan=True)
+    assert ev2.iloc[-1]["sue"] > 2.0 and ev2.iloc[-1]["eps_change"] > 1.5                                          # the planted jump is a large positive surprise
+
+
+def test_fred_parsing_macro_lag_and_sec_contact_are_safe(tmp_path, monkeypatch):
+    from fxengine.stocks import events as EV
+    s = EV.parse_fred("observation_date,VIXCLS\n2024-01-02,13.2\n2024-01-03,.\n2024-01-04,14.0\n", "VIXCLS")
+    assert list(s.index.strftime("%Y-%m-%d")) == ["2024-01-02", "2024-01-04"] and s.iloc[1] == 14.0                    # '.' = missing, dropped
+    idx = pd.bdate_range("2024-01-02", periods=5)
+    m = EV.macro_context({"VIXCLS": pd.Series([10.0, 11, 12, 13, 14], index=idx)}, idx)
+    assert np.isnan(m["vix"].iloc[0]) and m["vix"].iloc[1] == 10.0 and m["vix"].iloc[4] == 13.0                       # lagged one day: nothing from the future
+    assert EV.ticker_to_cik({"0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple"}}) == {"AAPL": "0000320193"}
+    monkeypatch.delenv("SEC_CONTACT", raising=False)
+    with pytest.raises(SystemExit, match="never stored in git"):
+        EV.sec_contact(tmp_path)
+    (tmp_path / "data/stocks").mkdir(parents=True)
+    (tmp_path / "data/stocks/sec_contact.txt").write_text("someone@example.org\n")
+    assert EV.sec_contact(tmp_path) == "someone@example.org"
+
+
+def test_events_download_builds_the_table_caches_files_and_survives_a_bad_company(tmp_path):
+    from fxengine.stocks import events as EV
+    sub, facts, _ = _edgar_company()
+    calls = []
+
+    def get(u):
+        calls.append(u)
+        if "company_tickers" in u:
+            return 200, json.dumps({"0": {"cik_str": 1, "ticker": "ZZZ", "title": "Z"}}).encode()
+        if "submissions" in u:
+            return 200, json.dumps(sub).encode()
+        if "companyfacts" in u:
+            return 200, json.dumps(facts).encode()
+        return 404, b""
+    df = EV.fetch_all(["zzz.us", "nope.us"], tmp_path, get=get, pause=0)
+    assert len(df) > 5 and (tmp_path / EV.EVENTS).exists() and "nope.us: no SEC CIK" in (tmp_path / "data/stocks/events_gaps.txt").read_text()
+    n = len(calls)
+    EV.fetch_all(["zzz.us"], tmp_path, get=get, pause=0)
+    assert len(calls) == n + 1                                                                                          # only the small ticker list again; company files come from the cache
+    assert EV.days_since_earnings(df, "zzz.us", df["announce_date"].max() + pd.Timedelta(days=10)) == 10 and EV.days_since_earnings(df, "zzz.us", "1990-01-01") is None
+
+
+def test_earnings_drift_rule_acts_only_after_the_release_and_only_on_big_positive_surprises():
+    d = _series(400, 5, vol=0.01)
+    D = d.index[200]                                                            # the 8-K filing date
+    ev = pd.DataFrame([dict(symbol="aaa.us", announce_date=D, sue=3.0, eps_change=0.4, rev_yoy=0.1),                  # qualifies
+                       dict(symbol="aaa.us", announce_date=d.index[300], sue=1.0, eps_change=0.4, rev_yoy=0.1),         # surprise too small
+                       dict(symbol="aaa.us", announce_date=d.index[100], sue=3.0, eps_change=-0.1, rev_yoy=0.1)])       # EPS fell
+    sg = S.rule_sigs("PEAD_SUE", {"aaa.us": d}, ev)["aaa.us"]
+    assert np.flatnonzero(sg.entry).tolist() == [201]                           # the first bar AFTER the filing date: never on or before it (no look-ahead)
+    tr = B.trades_for("aaa.us", d, sg)
+    assert len(tr) == 1 and tr.iloc[0]["entry_date"] == d.index[202] and tr.iloc[0]["bars"] == S.PEAD_HOLD            # bought at the open AFTER the reaction day, held the fixed 40 bars
+    assert not S.rule_sigs("PEAD_SUE", {"aaa.us": d}, None)["aaa.us"].entry.any() and not S.rule_sigs("PEAD_SUE", {"aaa.us": d}, ev.iloc[0:0])["aaa.us"].entry.any()      # no events -> no trades, no error
+
+
+def test_context_carries_macro_and_earnings_timing_and_the_rule_is_registered():
+    from fxengine.stocks import crossctx as C, events as EV
+    p = _market_panel()
+    p["spy.us"] = _series(900, 33, vol=0.01, drift=0.0004)
+    idx = p["spy.us"].index
+    fred = {"VIXCLS": pd.Series(np.linspace(12, 30, len(idx)), index=idx), "T10Y2Y": pd.Series(np.linspace(1, -0.5, len(idx)), index=idx)}
+    ctx = C.build(p, {}, fred)
+    assert {"vix", "vix_z", "curve_10y2y"} <= set(ctx.columns) and np.isnan(ctx["vix"].iloc[0]) and ctx["vix"].iloc[300] < ctx["vix"].iloc[600]
+    ev = pd.DataFrame([dict(symbol="s1.us", announce_date=idx[500], sue=1, eps_change=1, rev_yoy=1)])
+    assert EV.days_since_earnings(ev, "s1.us", idx[510]) == (idx[510] - idx[500]).days and "PEAD_SUE" in S.RULES and "PEAD_SUE" in S.INFO and S.MAX_HOLD["PEAD_SUE"] == 40
