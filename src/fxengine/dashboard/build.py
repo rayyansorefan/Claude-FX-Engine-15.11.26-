@@ -409,6 +409,13 @@ def live_panel(lp):
     return (f"<div class='card c12'><h3>Live profit &amp; loss · hypothetical, scored by the engine</h3><div class='kpis' style='margin:0 0 8px'>{html}</div>"
             f"<div>{opens}</div><p class='muted' style='margin:6px 0 0'>{foot}</p>{curve}</div>")
 
+def _epoch(v):
+    try:
+        return None if v is None else int(pd.Timestamp(v).timestamp())
+    except Exception:
+        return None
+
+
 def trades_data(c, root, now, closed_n=6):
     """Every active setup plus the last few closed ones, each with everything needed for ONE complete card."""
     from ..live import loop as L
@@ -449,7 +456,7 @@ def trades_data(c, root, now, closed_n=6):
                         lots=rec.get("lots_for_20gbp_risk"), stop_pips=rec.get("stop_pips"), rr=reward / risk, reward_gbp=RISK * reward / risk,
                         float_r=float_r, peak_r=peak, worst_r=worst, pnl_gbp=(None if not closed else float(r["net_r"] or 0) * RISK), reason=str(rec.get("reason", "")),
                         pips_to_entry=(None if price is None else (rec["entry"] - price) / p_), score=rec.get("score"), events=ev,
-                        resolved_at=r["resolved_at"]))
+                        resolved_at=r["resolved_at"], closed_ts=_epoch(r["resolved_at"])))
     return out
 
 
@@ -484,7 +491,7 @@ def trade_card(i, t, now):
                f"<div class='barl'><span>STOP {px(t['pair'], t['stop'])}</span><span>price {px(t['pair'], t['price'])}</span><span>TARGET {px(t['pair'], t['target'])}</span></div>")
     nums = [("Entry", px(t["pair"], t["entry"]), f"{t['entry_kind']} order"), ("Stop", px(t["pair"], t["stop"]), f"{t['stop_pips']} pips · −£{RISK:.0f}"),
             ("Target", px(t["pair"], t["target"]), f"+£{t['reward_gbp']:.0f} · 1:{t['rr']:.1f}"), ("Size", f"{t['lots']} lots", f"risk £{RISK:.0f}"),
-            ("Price now", "—" if t["price"] is None else px(t["pair"], t["price"]), "bid"), ("Filled at", "—" if t["fill"] is None else px(t["pair"], t["fill"]), "hypothetical")]
+            (("Closed", f"{uk(t['resolved_at']):%d %b %H:%M}" if t["resolved_at"] else "—", st.lower()) if t["closed"] else ("Price now", "—" if t["price"] is None else px(t["pair"], t["price"]), "bid")), ("Filled at", "—" if t["fill"] is None else px(t["pair"], t["fill"]), "hypothetical")]
     nh = "".join(f"<div><small>{a}</small><b>{b}</b><span>{c2}</span></div>" for a, b, c2 in nums)
     why = "".join(f"<div>{e(x)}</div>" for x in t["reason"].split("\n")[:2] if x.strip())
     tl = "".join(f"<span class='chip'>{x['ts'][11:16]} {e(x['d'][:44])}</span>" for x in t["events"][:8])
@@ -676,7 +683,7 @@ svg .grid{stroke:var(--line);stroke-width:1}.zero{stroke:var(--mute);stroke-widt
 .lc,.cc{position:relative}.cross{stroke:var(--mute);stroke-width:1;display:none}.tip{position:absolute;display:none;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:11px;pointer-events:none;white-space:nowrap;top:22px;z-index:3}
 .heat{border-collapse:separate;border-spacing:2px;width:100%}.heat th{width:42px;text-align:left;color:var(--ink2);font-size:11px}.heat td{height:18px;border-radius:2px}.heat td.num{width:62px;background:none;text-align:right;font-size:11px}
 .scale{display:flex;align-items:center;gap:8px;color:var(--mute);font-size:10px;margin-top:6px}.scale i{flex:1;height:5px;border-radius:3px;background:linear-gradient(90deg,#d03b3b,#383835,#3987e5)}
-.up{color:#3fb950}.dn{color:#ec6a5e}.muted{color:var(--mute)}.rv td{font-size:12px;color:var(--mute);padding:2px 6px 12px;border-bottom:1px solid var(--line)}
+.up{color:#3fb950}.dn{color:#ec6a5e}.muted{color:var(--mute)}.clk{cursor:pointer}.clk:hover td{background:#222220}.clk td:first-child:after{content:' ▸';color:var(--mute)}#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:50;overflow:auto;padding:14px}#modal.on{display:block}.mc{max-width:760px;margin:0 auto;position:relative}#mx{position:sticky;top:0;float:right;z-index:2;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;width:40px;height:40px;font-size:22px}.rv td{font-size:12px;color:var(--mute);padding:2px 6px 12px;border-bottom:1px solid var(--line)}
 .frow{display:grid;grid-template-columns:130px 1fr 64px;gap:10px;align-items:center;margin:7px 0}.fbar{height:12px;background:var(--line);border-radius:3px}.fbar b{display:block;height:100%;background:var(--s1);border-radius:3px}.frow em{font:600 12px ui-monospace,Menlo,monospace;text-align:right;font-style:normal}
 .split{display:flex;gap:14px;margin:8px 0;color:var(--ink2);font-size:11px;flex-wrap:wrap}
 .tbl{width:100%;border-collapse:collapse}.tbl th{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:5px 6px;border-bottom:1px solid var(--line)}.tbl td{padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top}.tbl td.num,.tbl th.r{text-align:right}.ci{width:160px;height:14px;display:block}
@@ -703,7 +710,7 @@ svg .grid{stroke:var(--line);stroke-width:1}.zero{stroke:var(--mute);stroke-widt
 .why{color:var(--ink);font-size:15px;margin:8px 0}.tl{display:flex;gap:6px;flex-wrap:wrap}.tl .chip{font-size:12px}
 .empty{background:var(--card);border:1px dashed var(--line);border-radius:14px;padding:34px;text-align:center;font-size:17px}
 .sel button{font-size:14px;padding:7px 14px}.legend{font-size:13px}
-@media(max-width:600px){.tbl td,.tbl th{font-size:12px;padding:6px 4px;white-space:normal}.tbl td.mono{white-space:nowrap}.hm{display:none}.top{gap:6px}.chip{padding:2px 8px;font-size:12px}.kpis{grid-template-columns:repeat(2,1fr);gap:8px}.kpi{padding:10px 12px}.kpi b{font-size:22px}.kpi small{font-size:11px}.kpi span{font-size:12px}.wrap{padding:10px 10px 30px}}
+@media(max-width:600px){.hist{table-layout:fixed;width:100%}.tbl td,.tbl th{font-size:12px;padding:6px 4px;white-space:normal;overflow-wrap:anywhere}.hr{display:none}.c1{width:38%}.c2{width:24%}.c3{width:18%}.c4{width:20%}.rv td{font-size:12px}.hm{display:none}.top{gap:6px}.chip{padding:2px 8px;font-size:12px}.kpis{grid-template-columns:repeat(2,1fr);gap:8px}.kpi{padding:10px 12px}.kpi b{font-size:22px}.kpi small{font-size:11px}.kpi span{font-size:12px}.wrap{padding:10px 10px 30px}}
 .sample{background:var(--warn);color:#000;text-align:center;font-weight:700;padding:6px;border-radius:6px;margin-bottom:10px}
 p{margin:6px 0}
 """
@@ -728,7 +735,8 @@ const tx=(x,y,t,c,a,sz,b)=>`<text x="${x}" y="${y}" fill="${c||'#c3c2b7'}" font-
 function tag(x,y,t,bg,fg){const w=t.length*7.4+12;return `<rect x="${x}" y="${y-11}" width="${w}" height="22" rx="4" fill="${bg}"/>`+tx(x+6,y+4,t,fg||'#fff','start',12,true)}
 function chart(d,pair,lv,o){
  const W=Math.max(300,Math.floor(o.w)),H=o.h,sm=W<560,L=sm?54:66,R=sm?70:110,T=14,AX=30,RH=o.rsi?80:0,PH=H-T-AX-(RH?RH+14:0);
- const N=d.c.length,n0=Math.max(0,N-o.n),n=N-n0,dp=dpOf(pair),z=o.z;
+ let N=d.c.length;if(o.end){let e=0;for(let i=0;i<N;i++)if(d.ts[i]<=o.end)e=i+1;N=Math.min(N,e+4)}
+ const n0=Math.max(0,N-o.n),n=N-n0,dp=dpOf(pair),z=o.z;
  let hi=-1e9,lo=1e9;for(let i=n0;i<N;i++){hi=Math.max(hi,d.h[i]);lo=Math.min(lo,d.l[i])}
  const rg=hi-lo;if(z){[z.entry,z.stop,z.target].concat(z.fill?[z.fill]:[]).forEach(v=>{hi=Math.max(hi,v);lo=Math.min(lo,v)})}
  const show=o.lvl?lv.filter(q=>!['entry','stop','target'].includes(q.k)&&q.v>lo-rg*.35&&q.v<hi+rg*.35):[];
@@ -736,8 +744,8 @@ function chart(d,pair,lv,o){
  const y=v=>T+(hi-v)/(hi-lo)*PH,cw=(W-L-R)/n,x=i=>L+(i-n0)*cw+cw/2,F=v=>v.toFixed(dp);let s='';
  if(o.sess)for(let i=n0;i<N;i++){const h=d.hr[i],xx=L+(i-n0)*cw;if(h<7)s+=rc(xx,T,cw+.5,PH,'#d95926',.08);if(h>=7&&h<16)s+=rc(xx,T,cw+.5,PH,'#3987e5',.10);if(h>=12&&h<21)s+=rc(xx,T,cw+.5,PH,'#0ca30c',.08)}
  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4;s+=ln(L,W-R,y(v),y(v),'#2c2c2a',1)+tx(L-8,y(v)+4,F(v),'#c3c2b7','end',sm?11:12)}
- const nl=sm?3:5;for(let k=0;k<nl;k++){const j=n0+Math.round(k*(n-1)/(nl-1));s+=tx(Math.min(Math.max(x(j),L+26),W-R-26),H-8,sm?d.t[j].slice(0,6):d.t[j],'#c3c2b7','middle',sm?11:12)}
- let x0=L;if(z){let si=n0;for(let i=n0;i<N;i++){if(d.ts[i]>=z.created){si=i;break}}x0=L+(si-n0)*cw;
+ const span=(d.ts[N-1]-d.ts[n0])/86400,nl=sm?3:5;for(let k=0;k<nl;k++){const j=n0+Math.round(k*(n-1)/(nl-1));s+=tx(Math.min(Math.max(x(j),L+26),W-R-26),H-8,sm?(span<3?d.t[j].slice(7):d.t[j].slice(0,6)):d.t[j],'#c3c2b7','middle',sm?11:12)}
+ const tg=[];let x0=L;if(z){let si=n0;for(let i=n0;i<N;i++){if(d.ts[i]>=z.created){si=i;break}}x0=L+(si-n0)*cw;
   const yE=y(z.entry),yS=y(z.stop),yT=y(z.target);
   s+=rc(x0,Math.min(yE,yS),W-R-x0,Math.abs(yS-yE),'#d03b3b',.17)+rc(x0,Math.min(yE,yT),W-R-x0,Math.abs(yT-yE),'#0ca30c',.17)}
  for(let i=n0;i<N;i++){const up=d.c[i]>=d.o[i],c=up?'#3fb950':'#ef6a5e';s+=ln(x(i),x(i),y(d.h[i]),y(d.l[i]),c,1.4)+rc(x(i)-cw*.36,y(Math.max(d.o[i],d.c[i])),cw*.72,Math.max(2,Math.abs(y(d.o[i])-y(d.c[i]))),c,1)}
@@ -746,17 +754,20 @@ function chart(d,pair,lv,o){
  show.forEach(q=>{const c=LC[q.k]||['#b9b8ae',q.k];s+=ln(L,W-R,y(q.v),y(q.v),c[0],1.2,'3 5')+(sm?'':tx(W-R+6,y(q.v)+4,c[1],c[0],'start',12))});
  if(z){const yE=y(z.entry),yS=y(z.stop),yT=y(z.target);
   s+=ln(L,W-R,yE,yE,'#5aa0f0',2,'7 5')+ln(L,W-R,yS,yS,'#ef4444',2.4)+ln(L,W-R,yT,yT,'#22c55e',2.4);
-  s+=tag(W-R+4,yE,'ENTRY '+(sm?'':F(z.entry)),'#2563eb')+tag(W-R+4,yS,'STOP '+(sm?'':F(z.stop)),'#b91c1c')+tag(W-R+4,yT,'TARGET '+(sm?'':F(z.target)),'#15803d');
+  tg.push([yE,'ENTRY '+(sm?'':F(z.entry)),'#2563eb'],[yS,'STOP '+(sm?'':F(z.stop)),'#b91c1c'],[yT,'TARGET '+(sm?'':F(z.target)),'#15803d']);
   if(z.fill){const yF=y(z.fill);s+=ln(L,W-R,yF,yF,'#f0efec',1.4,'2 3')+tx(L+6,yF-5,'filled '+F(z.fill),'#f0efec','start',12,true)}
   s+=ln(x0,x0,T,T+PH,'#f0efec',1,'3 4')+tx(Math.min(x0+4,W-R-90),T+14,'published','#f0efec','start',12);
-  if(z.fill_ts){let fi=n0;for(let i=n0;i<N;i++){if(d.ts[i]>=z.fill_ts){fi=i;break}}s+=ln(x(fi),x(fi),T,T+PH,'#fab219',1.2,'3 4')+tx(Math.min(x(fi)+4,W-R-70),T+30,'filled','#fab219','start',12)}}
- const last=d.c[N-1],yl=y(last);s+=ln(L,W-R,yl,yl,'#fff',1,'1 3')+tag(W-R+4,Math.min(Math.max(yl,T+12),T+PH-12),(sm?'NOW':'NOW '+F(last)),'#f0efec','#111');
+  if(z.fill_ts){let fi=n0;for(let i=n0;i<N;i++){if(d.ts[i]>=z.fill_ts){fi=i;break}}s+=ln(x(fi),x(fi),T,T+PH,'#fab219',1.2,'3 4')+tx(Math.min(x(fi)+4,W-R-70),T+30,'filled','#fab219','start',12)}
+  if(o.end&&z.closed_ts){let ci=n0;for(let i=n0;i<N;i++){if(d.ts[i]>=z.closed_ts){ci=i;break}}s+=ln(x(ci),x(ci),T,T+PH,'#ef6a5e',1.4,'3 4')+tx(Math.max(x(ci)-4,L+60),T+46,'closed','#ef6a5e','end',12)}}
+ const last=d.c[N-1],yl=y(last);s+=ln(L,W-R,yl,yl,'#fff',1,'1 3');tg.push([Math.min(Math.max(yl,T+12),T+PH-12),(o.end?'END ':'NOW ')+(sm?'':F(last)),'#f0efec','#111']);
+ tg.sort((a,b)=>a[0]-b[0]);for(let i=1;i<tg.length;i++)if(tg[i][0]-tg[i-1][0]<20)tg[i][0]=tg[i-1][0]+20;tg.forEach(q=>{s+=tag(W-R+4,q[0],q[1],q[2],q[3])});
  if(RH){const r0=T+PH+14,yr=v=>r0+(100-v)/100*RH;s+=`<rect x="${L}" y="${r0}" width="${W-R-L}" height="${RH}" fill="none" stroke="#2c2c2a"/>`+ln(L,W-R,yr(70),yr(70),'#2c2c2a',1)+ln(L,W-R,yr(30),yr(30),'#2c2c2a',1)+tx(L-8,yr(70)+4,'70','#c3c2b7','end',12)+tx(L-8,yr(30)+4,'30','#c3c2b7','end',12)+tx(W-R+6,r0+14,'RSI 14','#c3c2b7','start',12);
   const p=[];for(let i=n0;i<N;i++)if(d.rsi[i]!=null)p.push(x(i)+','+yr(d.rsi[i]));s+=`<polyline points="${p.join(' ')}" fill="none" stroke="#a89cf5" stroke-width="1.8"/>`}
  for(let i=n0;i<N;i++)s+=`<rect x="${x(i)-cw/2}" y="${T}" width="${cw}" height="${PH}" fill="transparent"><title>${d.t[i]}  O ${F(d.o[i])}  H ${F(d.h[i])}  L ${F(d.l[i])}  C ${F(d.c[i])}${d.rsi[i]!=null?'  RSI '+d.rsi[i]:''}</title></rect>`;
  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" class="chart">${s}</svg>`}
 function renderTrades(){document.querySelectorAll('.tc').forEach(el=>{const t=TR[+el.dataset.i],P=CD[t.pair]||{},tf=t.tf==='H4'?'H1':'M15',d=P[tf];if(!d){el.innerHTML='<p class="muted">No price data for this pair yet.</p>';return}
- el.innerHTML=chart(d,t.pair,LV[t.pair]||[],{w:el.clientWidth,h:el.clientWidth<560?320:380,n:el.clientWidth<560?40:(tf==='M15'?96:100),ema:true,sess:true,lvl:true,z:t})})}
+ let n=el.clientWidth<560?40:(tf==='M15'?96:100),end=null;if(t.closed_ts){end=t.closed_ts;let a=0;for(let i=0;i<d.ts.length;i++)if(d.ts[i]>=t.created){a=i;break}let e=0;for(let i=0;i<d.ts.length;i++)if(d.ts[i]<=end)e=i+1;n=Math.min(200,Math.max(30,e+4-a+12))}
+ el.innerHTML=chart(d,t.pair,LV[t.pair]||[],{w:el.clientWidth,h:el.clientWidth<560?320:380,n:n,end:end,ema:true,sess:true,lvl:true,z:t})})}
 function mk(id,items,cur,fn){const el=$('#'+id);if(!el)return;el.innerHTML='';items.forEach(x=>{const b=document.createElement('button');b.textContent=x[1];if(x[0]===cur)b.className='on';b.onclick=()=>fn(x[0]);el.appendChild(b)})}
 function pickPair(p){S.pair=p;S.mode='single';showTab('charts');window.scrollTo(0,0)}
 function renderCharts(){const cv=$('#cv');if(!cv||!cv.clientWidth)return;
@@ -771,6 +782,9 @@ function renderCharts(){const cv=$('#cv');if(!cv||!cv.clientWidth)return;
  const d=P[S.tf];if(!d){cv.innerHTML='<p class="muted">No data for this pair/timeframe.</p>';return}
  cv.innerHTML=leg+chart(d,S.pair,lv,{w:w,h:w<560?430:560,n:w<560?Math.min(S.n,60):S.n,rsi:true,ema:S.ema,sess:S.sess&&S.tf!=='H4',lvl:S.lvl,z:tradeZ||null})}
 function renderAll(){const on=document.querySelector('.tab.on');if(!on)return;if(on.id==='overview')renderTrades();if(on.id==='charts')renderCharts()}
+function openTrade(id){const tp=document.getElementById('tpl-'+id);if(!tp)return;$('#mbody').innerHTML=tp.innerHTML;$('#modal').classList.add('on');renderTrades()}
+document.addEventListener('click',e=>{const r=e.target.closest('tr[data-run]');if(r){openTrade(r.dataset.run);return}if(e.target.id==='modal'||e.target.id==='mx')$('#modal').classList.remove('on')});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')$('#modal').classList.remove('on')});
 let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(renderAll,150)});
 showTab((location.hash||'#overview').slice(1)||'overview');
 </script>"""
@@ -799,7 +813,8 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     live = live_record(dbc) if dbc else []
     live_net = sum(r["net_r"] or 0 for r in live if r["reason"] in ("TARGET", "STOP", "TIMEOUT"))
     lp = live_pnl(dbc, root, now) if dbc else None
-    trades = trades_data(dbc, root, now) if dbc else []
+    trades = trades_data(dbc, root, now, closed_n=12) if dbc else []
+    closed_ids = {t['run_id'] for t in trades if t['closed']}
     fl = {t['run_id']: t for t in trades}                       # live R of open trades, reused by the setup log below
     uptime, next_cycle = ops_chips(dbc, now)
     livehtml = live_panel(lp)
@@ -870,8 +885,8 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
         fill = f"filled {f(r['filled_at'])}" if r.get("filled_at") else "not filled"
         end = f"closed {f(r['resolved_at'])}" if r.get("resolved_at") else "still open"
         return f"{f(r['created_at'])}<br><small>{fill}</small><br><small><b>{end}</b></small>"
-    lr = "".join(f"<tr><td class='mono'>{_when(r)}</td><td>{r['pair']} {r['rec']['direction'].upper()}</td>"
-                 f"<td>{e(STRATS.get(r['type'], (r['type'],))[0])}</td><td>{st_}</td><td class='num {cl_}'>{pl_}</td></tr>"
+    lr = "".join(f"<tr{(' class=\"clk\" data-run=\"' + r['run_id'] + '\"') if r['run_id'] in closed_ids else ''}><td class='mono'>{_when(r)}</td><td>{r['pair']} {r['rec']['direction'].upper()}</td>"
+                 f"<td class='hr'>{e(STRATS.get(r['type'], (r['type'],))[0])}</td><td>{st_}</td><td class='num {cl_}'>{pl_}</td></tr>"
                  f"<tr class='rv'><td colspan='5'><b>Review</b> · {e(_review(r))}</td></tr>"
                  for r in live[:15] for st_, cl_, pl_ in [_state_pl(r)])
     lessons = D.tally([dict(type=r["type"], reason=r["reason"], net_r=r["net_r"], fill=r["fill"], gross_r=r["gross_r"], mfe_r=r["mfe_r"], mae_r=r["mae_r"])
@@ -898,7 +913,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     except Exception:
         learn_html = ""
     livetbl = (f"<p class='muted'>Published {len(live)} · resolved {len(done)} · target {wins} · stop {losses} · "
-               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><table class='tbl'><tr><th>Published / filled / closed (UK)</th><th>Setup</th><th>Rule</th><th>Outcome</th><th class='r'>P&amp;L</th></tr>{lr}</table>{lesson_html}{learn_html}"
+               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><p class='muted'>Tap a finished trade (▸) to see its chart.</p><table class='tbl hist'><tr><th class='c1'>Published / filled / closed (UK)</th><th class='c2'>Setup</th><th class='hr'>Rule</th><th class='c3'>Result</th><th class='r c4'>P&amp;L</th></tr>{lr}</table>{lesson_html}{learn_html}"
               if live else "<p class='muted'>No live setups recorded yet. This fills in once the live loop publishes its first setup.</p>")
     # --- research
     m5tab = "".join(f"<tr><td><b>{e(v)}</b></td><td>{k}</td><td class='num'>{n:,}</td><td class='num'>{pdays:,}</td><td class='num'>{w:.0f}%</td>"
@@ -946,19 +961,21 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
         levels.setdefault(sym, [])
         levels[sym] = key_levels(m5k) + levels[sym]
     ptable = pair_table(root, cands, levels)
-    tcards = "".join(trade_card(i, t, now) for i, t in enumerate(trades)) or (
-        "<div class='empty'><b>No trades right now.</b><br><span class='muted'>The engine scans every hour while the market is open and publishes a setup only when a "
+    active_sorted = sorted([(i, t) for i, t in enumerate(trades) if not t["closed"]], key=lambda it: -it[1]["created"])      # latest first
+    tpls = "".join(f"<template id='tpl-{t['run_id']}'>{trade_card(i, t, now)}</template>" for i, t in enumerate(trades) if t["closed"])
+    tcards = "".join(trade_card(i, t, now) for i, t in active_sorted) or (
+        "<div class='empty'><b>No active trades right now.</b><br><span class='muted'>The engine scans every hour while the market is open and publishes a setup only when a "
         "frozen rule fires. Nothing is a valid outcome.</span></div>")
     n_open = sum(t["state"] == "OPEN" for t in trades); n_pend = sum(t["state"] == "PENDING" for t in trades)
-    tcount = f"{n_open} open · {n_pend} waiting for entry · {sum(t['closed'] for t in trades)} recently closed"
-    tr_json = json.dumps([{k: t[k] for k in ("pair", "tf", "state", "entry", "stop", "target", "fill", "fill_ts", "created", "price", "dir")} for t in trades])
+    tcount = f"{n_open} open · {n_pend} waiting for entry · newest first · closed trades: tap a row in History below"
+    tr_json = json.dumps([{k: t[k] for k in ("run_id", "pair", "tf", "state", "entry", "stop", "target", "fill", "fill_ts", "created", "price", "dir", "closed_ts", "closed")} for t in trades])
     cd = json.dumps(candle_data(root)).replace("</", "<\\/")
     page = f"""<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <title>FX Engine</title><style>{CSS}</style></head><body><div class='wrap'>{banner}
 <div class='top'><span class='brand'>FX ENGINE</span><span class='pill {state}'>{icon} {label}</span><span class='chip'>data age {'n/a' if age is None else f'{age:.0f} min'}</span><span class='chip'>uptime {uptime}</span><span class='chip'>next cycle {next_cycle}</span><span class='chip'>RESEARCH ONLY · NO ORDERS</span>
 <span class='sp'></span><span class='mono muted'>{uk(now):%a %d %b %Y %H:%M} {uk(now):%Z}</span></div>
 <div class='tabs'><button data-t='overview'>Trades</button><button data-t='charts'>Charts</button><button data-t='market'>Market</button><button data-t='research'>Research</button><button data-t='performance'>Performance</button><button data-t='journal'>Journal</button><button data-t='system'>System</button></div>
-<div class='tab' id='overview'><div class='grid' style='margin-bottom:6px'>{livehtml}</div><h2 class='sec'>Your trades<small>{tcount}</small></h2><div class='trades'>{tcards}</div><div class='card' style='margin-top:16px'><h3>History · every published setup, scored as a hypothetical</h3>{livetbl}</div></div>
+<div class='tab' id='overview'><div class='grid' style='margin-bottom:6px'>{livehtml}</div><h2 class='sec'>Active trades<small>{tcount}</small></h2><div class='trades'>{tcards}</div><div class='card' style='margin-top:16px'><h3>History · every published setup, scored as a hypothetical</h3>{livetbl}</div></div>
 <div class='tab' id='market'><div class='kpis'>{kpis}</div>
 <div class='verdict'><b>Research verdict: no edge found.</b> {n_strats} strategy/timeframe combinations, {trials} logged tests, {n_pass} passed. {'The M5-resolution rerun (R0) is below.' if m5rows else 'The M5-resolution rerun (R0) has not been run yet, so the four H4 verdicts rest on 4h-bar scoring only.'} Candidates are UNPROVEN and research only.</div>
 <div class='grid'><div class='card c7'><h3>Account balance if every backtest setup was taken · start £{START:,.0f}, £{RISK:.0f} risk each</h3>{acct}</div>
@@ -980,7 +997,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
 <div class='tab' id='performance'>{perf}</div>
 <div class='tab' id='journal'><div class='card'><h3>Your paper trades · behaviour &amp; discipline</h3>{J.panel(jr)}</div></div>
 <div class='tab' id='system'><div class='card'><h3>Reliability · live cycles, freshness, alert latency, audit</h3>{sysc}</div></div>
-</div><script type='application/json' id='cd'>{cd}</script><script type='application/json' id='lv'>{json.dumps(levels)}</script><script type='application/json' id='tr'>{tr_json}</script>{JS}</body></html>"""
+</div>{tpls}<div id='modal'><div class='mc'><button id='mx' aria-label='Close'>×</button><div id='mbody'></div></div></div><script type='application/json' id='cd'>{cd}</script><script type='application/json' id='lv'>{json.dumps(levels)}</script><script type='application/json' id='tr'>{tr_json}</script>{JS}</body></html>"""
     if out is None:
         return page
     Path(out).parent.mkdir(parents=True, exist_ok=True)

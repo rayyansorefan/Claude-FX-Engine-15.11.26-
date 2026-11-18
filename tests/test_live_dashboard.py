@@ -187,3 +187,31 @@ def test_server_never_makes_a_visitor_wait_for_a_rebuild(monkeypatch):
     finally:
         gate.set()
         srv.shutdown()
+
+
+def test_trades_tab_lists_only_active_trades_newest_first_and_closed_open_as_popups(tmp_path, monkeypatch):
+    import re
+    from fxengine.live import db as DB
+    monkeypatch.chdir(tmp_path)
+    end = _store(tmp_path / "data" / "candles")
+    now = end + pd.Timedelta(minutes=3)
+    c = DB.connect("data/engine.db")
+
+    def add(rid, pair, hours_ago, closed):
+        created = now - pd.Timedelta(hours=hours_ago)
+        rec = dict(pair=pair, direction="long", type="E1_strength", tf="H1", entry_kind="stop", entry=1.1010, stop=1.0990, target=1.1030, created=str(created),
+                   expires=str(created + pd.Timedelta(hours=12)), stop_pips=20.0, lots_for_20gbp_risk=0.1, score=1.0, reason="r")
+        DB.add_setup(c, rid, rec)
+        c.execute("INSERT INTO events VALUES(?,0,?,NULL,'PUBLISHED','p')", (rid, str(created)))
+        c.execute("INSERT INTO events VALUES(?,1,?,'PUBLISHED','TRIGGERED','f')", (rid, str(created)))
+        if closed:
+            c.execute("INSERT INTO outcomes(run_id,reason,net_r,fill,exit,resolved_at,gross_r,mfe_r,mae_r) VALUES(?,?,?,?,?,?,?,?,?)",
+                      (rid, "STOP", -1.1, 1.101, 1.099, str(now - pd.Timedelta(hours=1)), -1.0, 0.4, 1.0))
+    add("old-open", "EURUSD", 6, False); add("new-open", "GBPUSD", 1, False); add("done-1", "USDJPY", 8, True)
+    c.commit()
+    html = db.build(root=tmp_path / "data" / "candles", out=None, now=now)
+    visible = re.sub(r"<template.*?</template>", "", html, flags=re.S)       # pop-up templates are not on the page until a row is tapped
+    cards = re.findall(r"<div class='trade [a-z]+'><div class='th'><div><span class='pair'>([A-Z]+)</span>", visible)
+    assert cards == ["GBPUSD", "EURUSD"]                                     # active only, newest first; the closed USDJPY trade is not a card
+    assert "<template id='tpl-done-1'>" in html and "data-run=\"done-1\"" in html and "id='modal'" in html
+    assert "data-run=\"new-open\"" not in html                               # only finished trades open a pop-up
