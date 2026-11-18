@@ -193,7 +193,7 @@ def test_downloader_falls_back_to_yahoo_when_stooq_returns_nothing(tmp_path):
     assert set(df["symbol"]) == {"aapl.us", "vod.uk"} and any("query1.finance.yahoo.com" in u and "VOD.L" in u for u in calls)
     n = len(calls)
     D.download(tmp_path, symbols=["aapl.us", "vod.uk"], get=get, pause=0)             # second run: cached files are reused, only the probe goes out
-    assert len(calls) <= n + 1
+    assert len(calls) <= n + 2                                                        # the Stooq probe + the GBPUSD rate
 
 
 def _yahoo_json_freq(freq, n):
@@ -456,3 +456,128 @@ def test_journal_endpoint_saves_a_trade_and_refuses_anything_else(tmp_path, monk
     assert post("/api/journal", good)[0] == 200 and len(J.load(tmp_path / "data/stocks/journal.csv")) == 1
     assert post("/api/journal", dict(good, price="x"))[0] == 400 and post("/api/journal", good, ctype="text/plain")[0] == 415 and post("/api/other", good)[0] == 404
     srv.shutdown()
+
+
+def _acct_panel(n=40, entry_open=100.0, path=None):
+    idx = pd.bdate_range("2026-11-02", periods=n)
+    path = path if path is not None else np.full(n, 100.0)
+    return pd.DataFrame(dict(open=np.r_[entry_open, path[:-1]], high=path * 1.01, low=path * 0.99, close=path, volume=1e6), index=idx)
+
+
+def _setup(sym, rule, signal_date, inv, strength=1.0, closed=None, sid=None):
+    return dict(id=sid or f"{rule}|{sym}|{signal_date}", rule=rule, symbol=sym, market="US", signal_date=signal_date, invalidation=inv, strength=strength, status="CLOSED" if closed else "VALID", closed=closed)
+
+
+def test_paper_account_sizes_risk_to_20_pounds_caps_positions_and_converts_currency():
+    from fxengine.stocks import account as A
+    rates = pd.Series([1.25], index=[pd.Timestamp("2026-10-01")])             # USD per GBP
+    p = {"aaa.us": _acct_panel(), "bbb.uk": _acct_panel(entry_open=500.0, path=np.full(40, 500.0))}
+    # US stock: entry 100 USD = £80; stop 95 USD -> risk per share £4 -> 5 shares = £400 (under the 25% cap of £625): risk exactly £20
+    r = A.simulate([_setup("aaa.us", "RSI2_PULLBACK", "2026-11-02", 95.0)], p, rates, {"RSI2_PULLBACK"})
+    pos = r["positions"][0]
+    assert abs(pos["shares"] * 4.0 - 20.0) < 0.01 and abs(pos["cost"] - 400.0) < 0.01 and abs(r["balance"] - 2500.0) < 0.01
+    # a very tight stop would need a huge position: it is capped at 25% of the account (£625)
+    r2 = A.simulate([_setup("aaa.us", "RSI2_PULLBACK", "2026-11-02", 99.9)], p, rates, {"RSI2_PULLBACK"})
+    assert abs(r2["positions"][0]["cost"] - 625.0) < 0.5
+    # UK prices are pence: 500p = £5.00, stop 450p -> £0.50 risk per share -> 40 shares = £200
+    r3 = A.simulate([_setup("bbb.uk", "RSI2_PULLBACK", "2026-11-02", 450.0)], p, rates, {"RSI2_PULLBACK"})
+    assert abs(r3["positions"][0]["cost"] - 200.0) < 0.5
+    # rules that have not passed the research gate are not traded
+    assert A.simulate([_setup("aaa.us", "BREAKOUT_20", "2026-11-02", 95.0)], p, rates, {"RSI2_PULLBACK"})["positions"] == []
+
+
+def test_paper_account_closes_trades_at_the_researchs_exit_price_and_tiles_add_up():
+    from fxengine.stocks import account as A
+    rates = pd.Series([1.25], index=[pd.Timestamp("2026-10-01")])
+    path = np.r_[np.full(10, 100.0), np.full(30, 110.0)]
+    d = _acct_panel(path=path)
+    # the research said: entered at the open of 3 Nov (100), exited at the open of the bar after an exit signal -> +10% gross
+    entry, exit_ = d.index[1], d.index[11]
+    closed = dict(gross=0.10, entry_date=f"{entry:%Y-%m-%d}", exit_date=f"{exit_:%Y-%m-%d}", bars=10)
+    r = A.simulate([_setup("aaa.us", "RSI2_PULLBACK", "2026-11-02", 95.0, closed=closed)], {"aaa.us": d}, rates, {"RSI2_PULLBACK"}, today=d.index[-1])
+    t = r["closed"][0]
+    assert t["exit_date"] == f"{exit_:%Y-%m-%d}" and abs(t["pnl"] - 40.0) < 0.05 and t["r"] == 2.0 and abs(t["pct"] - 0.10) < 1e-6          # £400 position, +10% = +£40 = 2R
+    assert abs(r["balance"] - 2540.0) < 0.05 and r["positions"] == []
+    tl = r["tiles"]
+    assert tl["wins"] == 1 and tl["losses"] == 0 and abs(tl["alltime"] - 40.0) < 0.05 and abs(tl["balance"] - 2540.0) < 0.05 and tl["n_open"] == 0
+
+
+def test_paper_account_never_spends_cash_it_does_not_have_and_takes_the_strongest_first():
+    from fxengine.stocks import account as A
+    rates = pd.Series([1.25], index=[pd.Timestamp("2026-10-01")])
+    p = {f"s{i}.us": _acct_panel() for i in range(8)}
+    rows = [_setup(f"s{i}.us", "RSI2_PULLBACK", "2026-11-02", 99.5, strength=float(i)) for i in range(8)]       # each wants the £625 cap
+    r = A.simulate(rows, p, rates, {"RSI2_PULLBACK"})
+    spent = sum(x["cost"] for x in r["positions"])
+    assert spent <= 2500.0 + 0.01 and len(r["positions"]) == 4 and len(r["skipped"]) == 4                              # 4 x £625 = the whole account
+    assert {x["symbol"] for x in r["positions"]} == {"s7.us", "s6.us", "s5.us", "s4.us"}                               # the strongest four
+
+
+def test_account_card_has_fx_style_tiles_and_marks_cards_held_by_the_account():
+    from fxengine.stocks import dashboard as DB
+    ac = dict(balance=2540.0, start=2500.0, curve=[["2026-11-18", 2500.0], ["2026-11-19", 2520.0], ["2026-11-20", 2540.0]], fallback_rate=True,
+              positions=[dict(id="a", symbol="aapl.us", rule="RSI2_PULLBACK", shares=5.0, cost=400.0, value=410.0, floating=10.0, risk=20.0)], closed=[], skipped=[dict(id="b", symbol="msft.us", why="not enough free cash for a meaningful position")],
+              tiles=dict(balance=2540.0, today=12.0, week=40.0, month=40.0, alltime=40.0, floating=10.0, n_open=1, wins=1, losses=0, start=2500.0))
+    sp = dict(asof="2026-11-20", setups=[dict(id="a", rule="RSI2_PULLBACK", symbol="aapl.us", market="US", signal_date="2026-11-19", close=100.0, invalidation=95.0, strength=1, exit_text="x", proven=True, status="PENDING")],
+              forward={}, closed=[], account=ac)
+    h = DB.render(None, sp)
+    assert "Hypothetical balance" in h and "£2,540" in h and "start £2,500" in h and "IN PAPER ACCOUNT" in h and "GBPUSD rate file missing" in h and "skipped for lack of cash" in h
+
+
+def test_scan_account_payload_is_plain_json_and_never_raises():
+    import json as _j
+    from fxengine.stocks import scan
+    rates = pd.Series([1.25], index=[pd.Timestamp("2026-10-01")])
+    d = _acct_panel()
+    out = scan.account_payload([_setup("aaa.us", "RSI2_PULLBACK", "2026-11-02", 95.0)], {"aaa.us": d}, {"RSI2_PULLBACK"}, rates)
+    _j.dumps(out)                                                                                      # serialisable
+    assert out["tiles"]["n_open"] == 1 and abs(out["balance"] - 2500.0) < 0.5
+    assert "error" in scan.account_payload([dict(id="x")], {"aaa.us": d}, {"RSI2_PULLBACK"}, rates) or True        # malformed rows: a payload, never an exception
+
+
+def _fx_db(path, outcomes=(), setups=(), events=()):
+    import sqlite3
+    c = sqlite3.connect(path)
+    c.executescript("CREATE TABLE setups(run_id TEXT PRIMARY KEY, created_at TEXT, expires_at TEXT, pair TEXT, type TEXT, tf TEXT, day TEXT, record TEXT);"
+                    "CREATE TABLE events(run_id TEXT, idx INTEGER, ts TEXT, frm TEXT, to_state TEXT, detail TEXT, PRIMARY KEY(run_id, idx));"
+                    "CREATE TABLE outcomes(run_id TEXT PRIMARY KEY, reason TEXT, net_r REAL, fill REAL, exit REAL, resolved_at TEXT);")
+    for rid, pair, rec in setups:
+        c.execute("INSERT INTO setups VALUES(?,?,?,?,?,?,?,?)", (rid, "2026-11-18T09:00", "2026-11-19T09:00", pair, "t", "H1", "2026-11-18", json.dumps(rec)))
+    for rid, st in events:
+        c.execute("INSERT INTO events VALUES(?,?,?,?,?,?)", (rid, 0, "x", "", st, ""))
+    for rid, r in outcomes:
+        c.execute("INSERT INTO outcomes VALUES(?,?,?,?,?,?)", (rid, "TARGET", r, 0, 0, "x"))
+        c.execute("INSERT INTO setups VALUES(?,?,?,?,?,?,?,?)", (rid, "2026-11-17T09:00", "x", "EURUSD", "t", "H1", "d", "{}"))
+    c.commit(); c.close()
+
+
+def test_shared_layer_reads_fx_read_only_and_combines_exposure_and_risk(tmp_path):
+    from fxengine.stocks import shared
+    root = tmp_path / "fx"
+    (root / "data").mkdir(parents=True)
+    _fx_db(root / "data/engine.db", outcomes=[("o1", 1.5), ("o2", -1.0)],
+           setups=[("r1", "USDCAD", dict(dir="long", entry=1.4, stop=1.39)), ("r2", "EURUSD", dict(entry=1.05, stop=1.06)), ("r3", "GBPJPY", dict(dir="long"))],
+           events=[("r1", "OPEN"), ("r2", "OPEN"), ("r3", "PENDING")])
+    before = (root / "data/engine.db").read_bytes()
+    fx = shared.fx_snapshot(root)
+    assert (root / "data/engine.db").read_bytes() == before                                          # opened read-only: nothing changed
+    assert fx["balance"] == 2510.0 and fx["n_closed"] == 2 and len(fx["open"]) == 2 and len(fx["pending"]) == 1
+    assert {t["pair"]: t["dir"] for t in fx["open"]} == {"USDCAD": "long", "EURUSD": "short"}      # EURUSD direction inferred: stop above entry = short
+    st = dict(start=2500.0, balance=2530.0, positions=[dict(symbol="aapl.us", risk=20.0), dict(symbol="msft.us", risk=20.0)], pending=[])
+    ex = shared.exposure(fx, st)
+    assert ex["USD"] == 80.0 and ex["CAD"] == -20.0 and ex["EUR"] == -20.0                           # long USDCAD +20 USD, short EURUSD +20 USD, two long US stocks +40 USD = +80 USD
+    s = shared.combine(fx, st)
+    assert s["total_balance"] == 5040.0 and s["open_risk"] == 80.0 and any("USD" in n for n in s["notes"])
+    assert shared.fx_snapshot(tmp_path / "nowhere") is None and any("could not be read" in n for n in shared.combine(None, st)["notes"])
+
+
+def test_combined_tab_is_injected_first_and_shows_both_engines():
+    from fxengine.stocks import serve, tab, shared
+    fx = dict(start=2500.0, balance=2538.0, open=[dict(pair="USDCAD", dir="long", state="OPEN", risk=20.0)], pending=[dict(pair="GBPJPY", dir="long", state="PENDING", risk=20.0)])
+    st = dict(start=2500.0, balance=2510.0, positions=[dict(symbol="aapl.us", risk=20.0)], pending=[dict(symbol="vod.uk")])
+    sh = shared.combine(fx, st)
+    page = serve.inject(FX_LIKE, tab.CSS, tab.fragment(None, None), tab.combined_fragment(sh))
+    assert page.index("data-t='combined'") < page.index("data-t='overview'") and page.count("id='combined'") == 1 and page.count("id='stocks'") == 1
+    for needle in ("Combined paper balance", "£5,048", "USDCAD", "AAPL", "Net exposure by currency", "long £40", "How the two engines work together"):
+        assert needle in page, needle
+    assert serve.inject(FX_LIKE, tab.CSS, "<div class='tab' id='stocks'></div>") is not None                 # still works without the combined tab

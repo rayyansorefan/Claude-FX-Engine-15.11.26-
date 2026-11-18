@@ -159,6 +159,18 @@ def forward_summary(rows: list[dict], expected: dict[str, float]) -> dict:
     return out
 
 
+def account_payload(rows: list[dict], panel, passed: set[str], rates) -> dict:
+    """The £2,500 paper account as plain JSON for the dashboard (never raises: a problem here must not stop the scan)."""
+    from . import account
+    try:
+        a = account.simulate(rows, panel, rates, passed)
+    except Exception as e:
+        return dict(error=type(e).__name__)
+    a["curve"] = [list(x) for x in a["curve"]]
+    a["closed"], a["skipped"] = a["closed"][-100:], a["skipped"][-60:]
+    return a
+
+
 def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.json"), res=Path("docs/results/stocks.json"), out=Path("docs/results/stocks_setups.json")):
     panel = load_panel(path)
     passed = {r["rule"] for r in json.loads(res.read_text())["rules"] if r.get("passes")} if res.exists() else set()
@@ -173,7 +185,9 @@ def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.j
     expected = {r["rule"]: r["roi"] for r in json.loads(res.read_text())["rules"] if "roi" in r} if res.exists() else {}
     shown = [r for r in rows if r.get("shown", True) or r["status"] == "CLOSED"]
     closed = [dict(rule=r["rule"], symbol=r["symbol"], market=r["market"], signal_date=r["signal_date"], **r["closed"]) for r in rows if r["status"] == "CLOSED"][-300:]
-    out.write_text(json.dumps(dict(asof=f"{asof:%Y-%m-%d}", setups=[r for r in rows if r.get("shown", True) and r["status"] != "CLOSED"], forward=forward_summary(rows, expected), closed=closed), indent=1))
+    from . import account
+    acct = account_payload(rows, panel, passed, account.load_rates())
+    out.write_text(json.dumps(dict(asof=f"{asof:%Y-%m-%d}", setups=[r for r in rows if r.get("shown", True) and r["status"] != "CLOSED"], forward=forward_summary(rows, expected), closed=closed, account=acct), indent=1))
     try:
         from . import dashboard, tab, market
         market.write(panel, [r for r in rows if r["status"] != "CLOSED"], out.with_name("stocks_market.json"))

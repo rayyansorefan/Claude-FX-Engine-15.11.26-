@@ -70,7 +70,7 @@ def _bar(r) -> str:
     return (f"<div class='bar'><b style='left:{pos:.1f}%'></b></div><div class='barl'><span>INVALID BELOW {a:,.2f}</span><span>price {px:,.2f}</span><span>EXIT SIGNAL ABOVE {b:,.2f}</span></div>")
 
 
-def _trade_card(r: dict) -> str:
+def _trade_card(r: dict, held: dict | None = None) -> str:
     st = r["status"]
     un = r.get("unrealised")
     cls = {"PENDING": "pending", "VALID": "open", "WEAKENING": "open", "INVALIDATED": "loss", "TIME STOP": "dead"}.get(st, "dead")
@@ -89,7 +89,9 @@ def _trade_card(r: dict) -> str:
     nh = "".join(f"<div><small>{E(a)}</small><b>{E(str(b))}</b><span>{E(str(c2))}</span></div>" for a, b, c2 in nums)
     why = "".join(f"<div>{E(x)}</div>" for x in (r.get("why") or [r["exit_text"]])[:2])
     chips = [f"signal {r['signal_date']}"] + ([f"entered {r['entry_price']:,.2f}"] if r.get("entry_price") else ["enters next open"]) + ([r["detail"]] if r.get("detail") else [])
-    tl = "".join(f"<span class='chip'>{E(x[:60])}</span>" for x in chips)
+    if held:
+        chips = [f"IN PAPER ACCOUNT · {held['shares']:g} shares · £{held['cost']:,.0f} · risk £{held['risk']:.0f}"] + chips
+    tl = "".join(f"<span class='chip'>{E(x[:70])}</span>" for x in chips)
     return (f"<div class='trade {cls}'><div class='th'><div><span class='pair'>{E(r['symbol'].split('.')[0].upper())}</span><span class='dir long'>LONG</span><span class='state'>{E(st)}</span></div>"
             f"<div class='pl'><b class='{c}'>{big}</b><small>{sub}</small></div></div><div class='rule'>{E(name)} · {E(r['market'])} · {proven}</div>{_bar(r)}"
             f"<div class='nums'>{nh}</div><div class='why'>{why}<div class='muted' style='margin-top:4px'>{E(r['exit_text'])}</div></div><div class='tl'>{tl}</div></div>")
@@ -150,6 +152,52 @@ def _forward_chart(closed: list[dict]) -> str:
     return _line_chart([("Cumulative price gain of closed forward trades", "var(--s1)", cum)], [(1.0, "1"), (float(len(cs)), str(len(cs)))], "Cumulative gain of closed forward-test trades")
 
 
+def _gbp(v, signed=True) -> str:
+    return f"{'+' if signed and v > 0 else '-' if v < 0 else ''}£{abs(v):,.0f}"
+
+
+def _equity_chart(curve: list, start: float) -> str:
+    if len(curve) < 2:
+        return ""
+    ys = [v for _, v in curve]
+    lo, hi = min(ys + [start]), max(ys + [start])
+    pad = (hi - lo) * 0.15 or 5
+    lo, hi = lo - pad, hi + pad
+    W, H, L, R = 760, 170, 56, 14
+    X = lambda i: L + i / (len(curve) - 1) * (W - L - R)
+    Y = lambda v: H - 22 - (v - lo) / (hi - lo) * (H - 38)
+    o = [f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="Paper account balance over time">']
+    for k in range(4):
+        v = lo + (hi - lo) * k / 3
+        o.append(f'<line x1="{L}" y1="{Y(v):.1f}" x2="{W - R}" y2="{Y(v):.1f}" class="gridl"/><text x="{L - 6}" y="{Y(v) + 4:.1f}" class="tick" text-anchor="end">£{v:,.0f}</text>')
+    o.append(f'<line x1="{L}" y1="{Y(start):.1f}" x2="{W - R}" y2="{Y(start):.1f}" class="zero"/>')
+    col = "var(--good)" if ys[-1] >= start else "var(--s2)"
+    o.append(f'<polyline points="{" ".join(f"{X(i):.1f},{Y(v):.1f}" for i, (_, v) in enumerate(curve))}" fill="none" stroke="{col}" stroke-width="2.4" stroke-linejoin="round"/>')
+    o.append(f'<circle cx="{X(len(curve) - 1):.1f}" cy="{Y(ys[-1]):.1f}" r="4.5" fill="{col}"/><text x="{L}" y="{H - 4}" class="tick">{E(curve[0][0])}</text><text x="{W - R}" y="{H - 4}" class="tick" text-anchor="end">{E(curve[-1][0])}</text></svg>')
+    return "".join(o)
+
+
+def _account_card(ac: dict, n_fwd: int, chips: str) -> str:
+    """FX-style 'hypothetical balance' tiles for the £2,500 paper account."""
+    if not ac or ac.get("error"):
+        return ('<div class="card"><h3>Paper account · £2,500, hypothetical</h3><p class="muted" style="margin:0">The account starts trading at the next nightly scan after a rule that passed the research test fires a setup. '
+                f'£20 risk per trade, nothing is ever ordered.{" (" + E(ac["error"]) + ")" if ac and ac.get("error") else ""}</p></div>')
+    t = ac["tiles"]
+    c = lambda v: "up" if v > 0.5 else "dn" if v < -0.5 else "muted"
+    tiles = [("Hypothetical balance", f"£{t['balance']:,.0f}", f"start £{t['start']:,.0f} · incl. open trades, before costs", c(t["balance"] - t["start"])),
+             ("Today", _gbp(t["today"]), "realised, closed trades", c(t["today"])), ("This week", _gbp(t["week"]), "since Monday", c(t["week"])), ("This month", _gbp(t["month"]), "", c(t["month"])),
+             ("All time", _gbp(t["alltime"]), "realised, before costs", c(t["alltime"])), ("Open now (floating)", _gbp(t["floating"]), f"{t['n_open']} open · before costs", c(t["floating"])),
+             ("Wins · losses", f"{t['wins']} · {t['losses']}", (f"{t['wins'] / (t['wins'] + t['losses']) * 100:.0f}% win rate" if t["wins"] + t["losses"] else "no closed trades yet"), "")]
+    kp = '<div class="kpis">' + "".join(f'<div class="kpi"><small>{E(a)}</small><b class="{k}">{E(b)}</b><span>{E(s_)}</span></div>' for a, b, s_, k in tiles) + "</div>"
+    chips_ = "".join(f"<span class='chip'>{E(p_['symbol'].split('.')[0].upper())} <b class='{c(p_['floating'])}'>{_gbp(p_['floating'])}</b></span> " for p_ in ac.get("positions", []))
+    warn = '<p class="warnt" style="margin:6px 0 0">GBPUSD rate file missing: US prices are converted at an estimate of 1.30.</p>' if ac.get("fallback_rate") else ""
+    ch = _equity_chart(ac.get("curve", []), t["start"])
+    nsk = len(ac.get("skipped", []))
+    return (f'<div class="card"><h3>Paper account · £{t["start"]:,.0f}, hypothetical, scored by the engine</h3>{kp}<div style="margin:2px 0 8px">{chips_}</div>{ch}{warn}'
+            f'<div class="muted" style="margin-top:6px">Rule: take every new setup of a rule that passed the research test, strongest first; £20 risk per trade sized from the setup\'s own invalid-below level; no position over 25% of the account; no leverage. '
+            f'{nsk} setup(s) skipped for lack of cash or a valid level. Forward test of ALL signals ({n_fwd} closed): Performance tab.</div></div>')
+
+
 def _setups_tab(sp: dict | None, res: dict | None = None) -> str:
     if not sp or (not sp.get("setups") and not sp.get("forward") and not sp.get("closed")):
         return ('<div class="card"><h3>Setups</h3><p class="muted">No setups yet. Run <code>bash deploy/stocks_all.sh</code> on the VM; after each market close the scanner lists the setups that fired, '
@@ -177,10 +225,11 @@ def _setups_tab(sp: dict | None, res: dict | None = None) -> str:
                        f'<td class="r num">{"needs 30+" if v["lo"] is None else pct(v["lo"], d=1) + " to " + pct(v["hi"], d=1)}</td><td class="r num">{pct(v.get("expected"))}</td></tr>' for k, v in fw.items())
         fwt = ('<div class="scroll" style="overflow-x:auto;margin-top:10px"><table class="tbl" style="min-width:560px"><tr><th>Setup</th><th class="r">Closed</th><th class="r">Win rate</th><th class="r">Avg gain</th><th class="r">95% range</th><th class="r">Research said</th></tr>'
                + body + '</table></div><p class="muted" style="font-size:12px;margin:6px 0 0">Fewer than 30 closed trades is mostly luck either way; trust it only once the range is narrow.</p>')
-    top = (f'<div class="card"><h3>Forward test · live prices, hypothetical, scored by the engine</h3>{kp}<div style="margin:2px 0 8px">{chips}</div>'
-           f'<div class="muted">Every signal from the rules is tracked (the research traded every signal); the strongest few are shown below. {n} closed so far. Details: Performance tab.</div></div>')
+    ac = sp.get("account") or {}
+    top = _account_card(ac, n, chips)
     charts = ""
-    cards = "".join(_trade_card(r) for r in att + pend + live) or "<div class='empty'><b>No setups right now.</b><br><span class='muted'>The rules flag a setup only when their conditions are met. Nothing is a valid outcome.</span></div>"
+    held = {p_['id']: p_ for p_ in ((sp.get('account') or {}).get('positions') or [])}
+    cards = "".join(_trade_card(r, held.get(r['id'])) for r in att + pend + live) or "<div class='empty'><b>No setups right now.</b><br><span class='muted'>The rules flag a setup only when their conditions are met. Nothing is a valid outcome.</span></div>"
     hist = ""
     if closed:
         hr = "".join(f'<tr><td><b>{E(c["symbol"].split(".")[0].upper())}</b> <span class="muted">{E(c["market"])}</span></td><td>{E(INFO.get(c["rule"], (c["rule"],))[0])}</td><td>{E(c["entry_date"])}</td><td>{E(c["exit_date"])}</td>'
@@ -328,6 +377,14 @@ def _performance_tab(sp: dict | None, res: dict | None) -> str:
                 by.setdefault(c[key], []).append(c["gross"])
             body = "".join(f'<tr><td>{E(k)}</td><td class="r num">{len(v)}</td><td class="r num">{pct(sum(v) / len(v))}</td><td class="r num">{pct(sum(x > 0 for x in v) / len(v), False, 0)}</td></tr>' for k, v in sorted(by.items()))
             out.append(f'<div class="card" style="margin-top:12px"><h3>Forward test by {lab}</h3><table class="tbl"><tr><th>{lab.title()}</th><th class="r">Closed</th><th class="r">Avg gain</th><th class="r">Wins</th></tr>{body}</table></div>')
+    ac = sp.get("account") or {}
+    if ac.get("closed"):
+        rr = "".join(f'<tr><td><b>{E(c["symbol"].split(".")[0].upper())}</b></td><td>{E(INFO.get(c["rule"], (c["rule"],))[0])}</td><td>{E(c["entry_date"])}</td><td>{E(c["exit_date"])}</td><td class="r num">£{c["cost"]:,.0f}</td>'
+                     f'<td class="r num"><b class="{"up" if c["pnl"] > 0 else "dn"}">{_gbp(c["pnl"])}</b></td><td class="r num">{c["r"]:+.1f}R</td></tr>' for c in reversed(ac["closed"][-25:]))
+        out.append('<div class="card" style="margin-top:12px"><h3>Paper account · closed trades (£20 risk each = 1R, before costs)</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:620px"><tr><th>Stock</th><th>Setup</th><th>Entered</th><th>Exited</th>'
+                   '<th class="r">Position</th><th class="r">P/L</th><th class="r">R</th></tr>' + rr + '</table></div></div>')
+    if ac.get("skipped"):
+        out.append('<div class="card" style="margin-top:12px"><h3>Setups the paper account skipped</h3>' + "".join(f'<div class="muted" style="font-size:12px;margin:2px 0">{E(x["symbol"].split(".")[0].upper())}: {E(x["why"])}</div>' for x in ac["skipped"][-12:]) + "</div>")
     if yc:
         out.append(f'<div class="card" style="margin-top:12px"><h3>Research · average gain per trade in each year, for the setups that passed (how steady was it?)</h3><div class="scroll">{yc}</div></div>')
     return "".join(out)

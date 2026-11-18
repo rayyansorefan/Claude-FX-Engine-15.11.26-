@@ -110,6 +110,13 @@ def download(out=Path("data/stocks"), symbols=SYMBOLS, get=None, pause=0.6, refr
             print(f"[{k}/{len(symbols)}] {sym} {len(d)} rows to {report[-1]['last']}", flush=True)
         except Exception as e:                                   # one bad symbol never stops the run
             gaps.append(f"{sym}: {type(e).__name__}"); print(f"[{k}/{len(symbols)}] {sym} FAILED {type(e).__name__}", flush=True)
+    try:                                                           # GBPUSD daily rate, for converting US prices into pounds in the paper account
+        r = get(YAHOO.format(t="GBPUSD=X", now=int(time.time())))
+        fxcsv = parse_yahoo(r.content.decode("utf-8", "replace")) if r.status_code == 200 else ""
+        if fxcsv:
+            (raw / "gbpusd.csv").write_text(fxcsv)
+    except Exception as e:
+        print("GBPUSD rate not refreshed:", type(e).__name__, flush=True)
     if not frames:
         sys.exit("no stock data downloaded: " + "; ".join(gaps[:5]))
     df = pd.concat(frames, ignore_index=True)
