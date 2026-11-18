@@ -12,7 +12,8 @@ from .universe import kind as kind_of, market as market_of
 from ..research import stats, trials
 
 REG = Path("docs/stocks_trials.jsonl")
-HOLDOUT_DAYS = 365
+HOLDOUT_START = pd.Timestamp("2025-11-18")      # FIXED on 2026-11-18 (the first real run's boundary): everything from here on is sealed / forward data and never feeds a research result
+HOLDOUT_LOG = Path("docs/stocks_holdout_log.txt")
 MIN_WEEKS = 100
 
 
@@ -104,12 +105,12 @@ def benchmarks(panel, start, end) -> dict:
     return out
 
 
-def main(path=Path("data/stocks/prices.parquet"), out=Path("docs/results"), reg=REG):
+def main(path=Path("data/stocks/prices.parquet"), out=Path("docs/results"), reg=REG, hold_start=None):
     panel = load_panel(path)
     if not panel:
         raise SystemExit("no price data: run  python -m fxengine.stocks.data  first")
     last = max(d.index.max() for d in panel.values())
-    hold_start = last - pd.Timedelta(days=HOLDOUT_DAYS)
+    hold_start = pd.Timestamp(hold_start) if hold_start is not None else HOLDOUT_START
     first = min(d.index.min() for d in panel.values())
     mid = first + (hold_start - first) / 2
     kinds = {s: kind_of(s) for s in panel}
@@ -151,6 +152,40 @@ def main(path=Path("data/stocks/prices.parquet"), out=Path("docs/results"), reg=
     return res
 
 
+def open_holdout(rule: str, why: str, path=Path("data/stocks/prices.parquet"), res_path=Path("docs/results/stocks.json"), log=HOLDOUT_LOG, hold_start=None) -> dict:
+    """ONE-TIME look at the sealed period for ONE frozen rule that already passed the research gate. Refuses anything else, and refuses a second opening."""
+    hs = pd.Timestamp(hold_start) if hold_start is not None else HOLDOUT_START
+    res = json.loads(Path(res_path).read_text())
+    r0 = next((r for r in res["rules"] if r["rule"] == rule), None)
+    if r0 is None or not r0.get("passes"):
+        raise SystemExit(f"{rule} has not passed the research gate: the sealed period stays sealed.")
+    if Path(log).exists() and any(l.split("|")[1].strip() == rule for l in Path(log).read_text().splitlines() if "|" in l):
+        raise SystemExit(f"{rule}: the sealed period was already opened once (see {log}). It cannot be opened again.")
+    panel = load_panel(Path(path))
+    mom = S.momentum_entries(panel) if rule == "MOM_12_1" else None
+    parts = []
+    for sym, d in panel.items():
+        sig = S.Sig(mom[sym], np.zeros(len(d), bool), 21) if rule == "MOM_12_1" else S.BAR_RULES[rule](d)
+        t = B.trades_for(sym, d, sig)
+        if len(t):
+            parts.append(t)
+    tr = B.add_net(pd.concat(parts, ignore_index=True), {s: kind_of(s) for s in panel}) if parts else pd.DataFrame()
+    tr = tr[tr["entry_date"] >= hs] if len(tr) else tr
+    n = int(len(tr))
+    out = dict(rule=rule, why=why, opened=pd.Timestamp.today().strftime("%Y-%m-%d"), sealed_from=f"{hs:%Y-%m-%d}", n=n)
+    if n:
+        r = tr["gross"].to_numpy(float)
+        lo, hi = stats.cluster_bootstrap_ci(r, tr["entry_date"].dt.strftime("%G-%V").to_numpy(), 0.05, n=5000) if n >= 10 else (float("nan"), float("nan"))
+        out.update(mean=round(float(r.mean()), 5), hit_rate=round(float((r > 0).mean()), 4), ci95_lo=round(float(lo), 5), ci95_hi=round(float(hi), 5),
+                   net_normal=round(float(tr["net_normal"].mean()), 5), net_stressed=round(float(tr["net_stressed"].mean()), 5), research_mean=r0["roi"])
+    out["verdict"] = ("INCONCLUSIVE: fewer than 30 trades" if n < 30 else "PASS: positive on data the rule had never seen (still needs forward confirmation)" if out["mean"] > 0 else "FAIL: not positive on data the rule had never seen")
+    Path(log).parent.mkdir(parents=True, exist_ok=True)
+    with Path(log).open("a") as f:
+        f.write(f"{out['opened']} | {rule} | {why} | n={n} mean={out.get('mean')} | {out['verdict']}\n")
+    print(json.dumps(out, indent=1))
+    return out
+
+
 def render(res) -> str:
     bm = res.get("benchmarks", {})
     L = ["# Stock research (pre-registered rules, net of costs)", "",
@@ -176,4 +211,14 @@ def render(res) -> str:
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--holdout", help="open the sealed period ONCE for this rule (must have passed the research gate)")
+    ap.add_argument("--why", default="", help="required with --holdout: the reason, written to the log")
+    a = ap.parse_args()
+    if a.holdout:
+        if not a.why.strip():
+            raise SystemExit("--why is required: the reason is written to docs/stocks_holdout_log.txt")
+        open_holdout(a.holdout, a.why)
+    else:
+        main()

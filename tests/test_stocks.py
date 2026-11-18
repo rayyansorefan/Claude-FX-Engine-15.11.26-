@@ -80,13 +80,13 @@ def test_momentum_ranking_uses_only_the_past():
     assert all((a[s][:cut] == b[s][:cut]).all() for s in p)
 
 
-def _run(panel, tmp_path, hold_days=365):
+def _run(panel, tmp_path, hold_start="2020-07-30"):
     rows = []
     for s, d in panel.items():
         rows.append(d.reset_index().rename(columns={"index": "date"}).assign(symbol=s))
     pq = tmp_path / "prices.parquet"
     pd.concat(rows).to_parquet(pq)
-    return R.main(pq, tmp_path / "res", tmp_path / "trials.jsonl")
+    return R.main(pq, tmp_path / "res", tmp_path / "trials.jsonl", hold_start=hold_start)
 
 
 def test_a_random_walk_market_produces_no_edge_after_costs(tmp_path):
@@ -278,3 +278,33 @@ def test_fx_tab_fragment_is_scoped_and_does_not_collide_with_the_fx_tab_script(t
     assert 'class="tab"' not in h and "<style" not in h and "<link" not in h and "http" not in h
     assert all(line.startswith("#stocks") for line in css.strip().splitlines() if line.strip())             # every style rule is scoped to the Stocks tab
     assert tab.write(tmp_path / "missing.json").exists()                                                      # no results yet -> still a valid, honest "No results yet" tab
+
+
+def _planted_panel(seed0=500, k=40):
+    p = {}
+    for i in range(k):
+        d = _series(2500, seed0 + i, vol=0.012)
+        c = d["close"].to_numpy().copy()
+        r = np.r_[0, np.diff(np.log(c))]
+        for t in range(210, len(r) - 5):
+            if r[t] + r[t - 1] < -0.025:
+                r[t + 1: t + 4] += 0.02
+        c2 = 100 * np.exp(np.cumsum(r))
+        p[f"s{i}.us"] = d.assign(close=c2, open=np.r_[c2[0], c2[:-1]], high=c2 * 1.004, low=c2 * 0.996)
+    return p
+
+
+def test_the_sealed_boundary_is_a_fixed_date_not_a_moving_window():
+    assert R.HOLDOUT_START == pd.Timestamp("2025-11-18")
+
+
+def test_holdout_opens_once_only_for_a_rule_that_passed_and_reports_honestly(tmp_path):
+    p = _planted_panel()
+    res = _run(p, tmp_path)
+    log = tmp_path / "log.txt"
+    with pytest.raises(SystemExit, match="has not passed"):
+        R.open_holdout("GAP_CONT_DAY", "test", tmp_path / "prices.parquet", tmp_path / "res" / "stocks.json", log, "2020-07-30")
+    out = R.open_holdout("RSI2_PULLBACK", "frozen candidate", tmp_path / "prices.parquet", tmp_path / "res" / "stocks.json", log, "2020-07-30")
+    assert out["n"] > 100 and out["mean"] > 0 and out["verdict"].startswith("PASS") and "RSI2_PULLBACK" in log.read_text()
+    with pytest.raises(SystemExit, match="already opened"):
+        R.open_holdout("RSI2_PULLBACK", "again", tmp_path / "prices.parquet", tmp_path / "res" / "stocks.json", log, "2020-07-30")

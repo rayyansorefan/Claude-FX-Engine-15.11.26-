@@ -65,4 +65,5 @@ Benchmark shown beside every result: buy-and-hold SPY and an equal-weight buy-an
 
 ## Change log
 - 2026-11-18: created (before any real-data result).
+- 2026-11-18 (design fix, before any holdout look): the sealed boundary was computed as 'latest date minus 365 days', which would have moved every day. It is now FIXED at 2025-11-18 (the boundary of the first real run, so no sealed data has influenced any result); everything from that date on is sealed/forward data. Holdout command: `python -m fxengine.stocks.run --holdout RULE --why "..."`, once per rule, only for a rule that passed the gate, logged in docs/stocks_holdout_log.txt.
 - 2026-11-18: owner instruction: gate and headline are now price-only (gross); costs are information only. Logged before any real-data result.
