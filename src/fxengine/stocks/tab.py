@@ -26,6 +26,8 @@ CSS = """
 #stocks .nums{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}#stocks .nums div{background:color-mix(in srgb,var(--bg) 55%,var(--card));border-radius:8px;padding:8px 10px}
 #stocks .nums small{display:block;color:var(--mute);font-size:11px;text-transform:uppercase;letter-spacing:.07em}#stocks .nums b{font:600 16px ui-monospace,Menlo,monospace}
 #stocks .chk{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;margin:6px 0}#stocks .chk span{color:var(--mute)}#stocks .chk b.ok{color:#3fd13f}#stocks .chk b.no{color:#e0605a}
+#stocks .paperbanner{margin-bottom:12px}#stocks .sel{display:flex;gap:6px;flex-wrap:wrap}#stocks .sel button{background:var(--card);border:1px solid var(--line);color:var(--ink2);border-radius:6px;padding:4px 10px;font:600 11px inherit;font-family:inherit;cursor:pointer}#stocks .sel button.on{border-color:var(--s1);color:var(--ink)}
+#stocks .tag.f{background:#9c2b2b;color:#fff}#stocks .tag.p{background:#0a6e0a;color:#fff}#stocks .tag{display:inline-block;border-radius:4px;padding:1px 8px;font-size:10px;font-weight:700;letter-spacing:.06em}#stocks .empty{border:1px dashed var(--line);border-radius:10px;padding:18px;color:var(--ink2)}
 #stocks ul.lim{margin:6px 0 0;padding-left:18px;color:var(--ink2);font-size:13.5px}#stocks ul.lim li{margin:4px 0}
 """
 JS = ("<script>(function(){var r=document.getElementById('stocks');if(!r)return;var bs=r.querySelectorAll('.stnav button'),ss=r.querySelectorAll('.stsec');"
@@ -33,13 +35,19 @@ JS = ("<script>(function(){var r=document.getElementById('stocks');if(!r)return;
       "bs.forEach(function(b){b.onclick=function(){go(b.dataset.s)}});go('setups')})();</script>")
 
 
-def fragment(res: dict | None, sp: dict | None = None) -> str:
-    x = DB.parts(res, sp)
-    names = [("setups", "Setups"), ("research", "Research"), ("rules", "Rules"), ("about", "About")]
+def fragment(res: dict | None, sp: dict | None = None, mk: dict | None = None, jr: dict | None = None) -> str:
+    x = DB.parts(res, sp, mk, jr)
+    names = DB.SECTIONS
     nav = "".join(f"<button data-s='{k}'>{v}</button>" for k, v in names)
     secs = "".join(f"<div class='stsec' data-s='{k}'>{x[k]}</div>" for k, _ in names)
     return (f"<div class='tab' id='stocks'><div class='top' style='padding:0 0 4px'><span class='pill {x['state']}'>{x['label']}</span><span class='chip'>stocks · as of {DB.E(x['asof'])}</span>"
             f"<span class='chip'>research only · never places an order</span></div><div class='stnav'>{nav}</div>{secs}{JS}</div>")
+
+
+def load_journal() -> dict:
+    from . import journal as J
+    rows = J.load()
+    return dict(J.pair(rows), raw=len(rows))
 
 
 def write(res_path=Path("docs/results/stocks.json"), setups_path=None, out_dir=None) -> Path:
@@ -48,9 +56,11 @@ def write(res_path=Path("docs/results/stocks.json"), setups_path=None, out_dir=N
     sp_path = Path(setups_path) if setups_path else rp.with_name("stocks_setups.json")
     res = json.loads(rp.read_text()) if rp.exists() else None
     sp = json.loads(sp_path.read_text()) if sp_path.exists() else None
+    mp = rp.with_name("stocks_market.json")
+    mk = json.loads(mp.read_text()) if mp.exists() else None
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "stocks_tab.css").write_text(CSS)
-    (out_dir / "stocks_tab.html").write_text(fragment(res, sp))
+    (out_dir / "stocks_tab.html").write_text(fragment(res, sp, mk, load_journal()))
     return out_dir / "stocks_tab.html"
 
 

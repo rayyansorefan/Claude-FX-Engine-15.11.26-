@@ -57,39 +57,139 @@ def _badge(status: str) -> str:
     return f'<span class="badge {cls}">{E(status)}</span>'
 
 
-def _setups_tab(sp: dict | None) -> str:
-    if not sp or (not sp.get("setups") and not sp.get("forward")):
+def _num(x):
+    return isinstance(x, (int, float)) and x == x
+
+
+def _bar(r) -> str:
+    """FX-style stop / price / exit bar (only where the rule has both an invalidation level and an exit level)."""
+    a, b, px = r.get("invalidation"), r.get("exit_level"), r.get("last_close") or r.get("close")
+    if not (_num(a) and _num(b) and _num(px)) or a == b:
+        return ""
+    pos = min(100.0, max(0.0, (px - a) / (b - a) * 100))
+    return (f"<div class='bar'><b style='left:{pos:.1f}%'></b></div><div class='barl'><span>INVALID BELOW {a:,.2f}</span><span>price {px:,.2f}</span><span>EXIT SIGNAL ABOVE {b:,.2f}</span></div>")
+
+
+def _trade_card(r: dict) -> str:
+    st = r["status"]
+    un = r.get("unrealised")
+    cls = {"PENDING": "pending", "VALID": "open", "WEAKENING": "open", "INVALIDATED": "loss", "TIME STOP": "dead"}.get(st, "dead")
+    if st == "EXIT SIGNAL":
+        cls = "win" if (un or 0) > 0 else "loss"
+    if st == "PENDING" or un is None:
+        big, sub, c = "waiting", "buys at the next open", "muted"
+    else:
+        big, sub, c = pct(un, d=1), f"since entry · day {r.get('held', 1)} (price only)", ("up" if un > 0.002 else "dn" if un < -0.002 else "muted")
+    proven = "<span style='color:var(--ink2)'>PASSED RESEARCH TEST</span>" if r["proven"] else "<span class='warnt'>UNPROVEN</span>"
+    name = INFO.get(r["rule"], (r["rule"],))[0]
+    entry = f"{r['entry_price']:,.2f}" if r.get("entry_price") else "next open"
+    nums = [("Last close", f"{(r.get('last_close') or r['close']):,.2f}", "latest bar"), ("Entry", entry, "at the open" if not r.get("entry_price") else "filled (open)"),
+            ("Invalid below", "—" if r.get("invalidation") is None else f"{r['invalidation']:,.2f}", "rule's own level"), ("Held", f"{r.get('held', 0)} days", "so far"),
+            ("Rule", name, r["market"]), ("Signal", r["signal_date"], "close of")]
+    nh = "".join(f"<div><small>{E(a)}</small><b>{E(str(b))}</b><span>{E(str(c2))}</span></div>" for a, b, c2 in nums)
+    why = "".join(f"<div>{E(x)}</div>" for x in (r.get("why") or [r["exit_text"]])[:2])
+    chips = [f"signal {r['signal_date']}"] + ([f"entered {r['entry_price']:,.2f}"] if r.get("entry_price") else ["enters next open"]) + ([r["detail"]] if r.get("detail") else [])
+    tl = "".join(f"<span class='chip'>{E(x[:60])}</span>" for x in chips)
+    return (f"<div class='trade {cls}'><div class='th'><div><span class='pair'>{E(r['symbol'].split('.')[0].upper())}</span><span class='dir long'>LONG</span><span class='state'>{E(st)}</span></div>"
+            f"<div class='pl'><b class='{c}'>{big}</b><small>{sub}</small></div></div><div class='rule'>{E(name)} · {E(r['market'])} · {proven}</div>{_bar(r)}"
+            f"<div class='nums'>{nh}</div><div class='why'>{why}<div class='muted' style='margin-top:4px'>{E(r['exit_text'])}</div></div><div class='tl'>{tl}</div></div>")
+
+
+def _line_chart(series: list[tuple[str, str, list[tuple[float, float]]]], xl: list[tuple[float, str]], aria: str) -> str:
+    pts = [v for _, _, p in series for _, v in p]
+    if not pts:
+        return ""
+    lo, hi = min(pts + [0.0]), max(pts + [0.0])
+    pad = (hi - lo) * 0.12 or 0.002
+    lo, hi = lo - pad, hi + pad
+    xs = [x for _, _, p in series for x, _ in p]
+    x0, x1 = min(xs), max(xs) or 1
+    W, H, L, R = 760, 190, 46, 14
+    X = lambda x: L + (x - x0) / ((x1 - x0) or 1) * (W - L - R)
+    Y = lambda v: H - 24 - (v - lo) / (hi - lo) * (H - 40)
+    o = [f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="{E(aria)}">']
+    step = 0.01 if hi - lo > 0.025 else 0.005 if hi - lo > 0.012 else 0.002
+    t = math.ceil(lo / step) * step
+    while t <= hi:
+        o.append(f'<line x1="{L}" y1="{Y(t):.1f}" x2="{W - R}" y2="{Y(t):.1f}" class="gridl"/><text x="{L - 6}" y="{Y(t) + 4:.1f}" class="tick" text-anchor="end">{t * 100:+.1f}%</text>')
+        t += step
+    o.append(f'<line x1="{L}" y1="{Y(0):.1f}" x2="{W - R}" y2="{Y(0):.1f}" class="zero"/>')
+    for x, lab in xl:
+        o.append(f'<text x="{X(x):.1f}" y="{H - 6}" class="tick" text-anchor="middle">{E(lab)}</text>')
+    for name, col, p in series:
+        if len(p) >= 2:
+            o.append(f'<polyline points="{" ".join(f"{X(x):.1f},{Y(v):.1f}" for x, v in p)}" fill="none" stroke="{col}" stroke-width="2.4" stroke-linejoin="round"/>')
+        o.append("".join(f'<circle cx="{X(x):.1f}" cy="{Y(v):.1f}" r="3" fill="{col}"><title>{E(name)}: {v * 100:+.2f}%</title></circle>' for x, v in p))
+    leg = "".join(f'<span><i style="background:{col}"></i>{E(n)}</span>' for n, col, _ in series)
+    return "".join(o) + f'</svg><div class="legend">{leg}</div>'
+
+
+def _year_chart(res: dict | None) -> str:
+    """Research only: average gain per trade in each calendar year, for the rules that passed (how steady was it?)."""
+    cols = ["var(--good)", "var(--s1)", "var(--warn)"]
+    ser, years = [], set()
+    for k, r in enumerate([r for r in (res or {}).get("rules", []) if r.get("passes") and r.get("by_year")]):
+        p = sorted((int(y), v) for y, v in r["by_year"].items())
+        years |= {y for y, _ in p}
+        ser.append((INFO.get(r["rule"], (r["rule"],))[0], cols[k % 3], [(float(y), v) for y, v in p]))
+    if not ser:
+        return ""
+    ys = sorted(years)
+    xl = [(float(y), str(y)) for y in ys if (y - ys[0]) % 3 == 0]
+    return _line_chart(ser, xl, "Average gain per trade in each calendar year for the rules that passed")
+
+
+def _forward_chart(closed: list[dict]) -> str:
+    if len(closed) < 2:
+        return ""
+    cs = sorted(closed, key=lambda r: r["exit_date"])
+    cum, run = [], 0.0
+    for i, r in enumerate(cs, 1):
+        run += r["gross"]
+        cum.append((float(i), run))
+    return _line_chart([("Cumulative price gain of closed forward trades", "var(--s1)", cum)], [(1.0, "1"), (float(len(cs)), str(len(cs)))], "Cumulative gain of closed forward-test trades")
+
+
+def _setups_tab(sp: dict | None, res: dict | None = None) -> str:
+    if not sp or (not sp.get("setups") and not sp.get("forward") and not sp.get("closed")):
         return ('<div class="card"><h3>Setups</h3><p class="muted">No setups yet. Run <code>bash deploy/stocks_all.sh</code> on the VM; after each market close the scanner lists the setups that fired, '
                 'and re-checks every earlier one against the newest prices.</p></div>')
-    rows = sp["setups"]
-    fw = sp.get("forward") or {}
-
-    def forward_card():
-        if not fw:
-            return ('<div class="card" style="margin-bottom:12px"><h3>Forward test · live, out-of-sample</h3><p class="muted" style="margin:0">Every new setup the rules fire is tracked from now on, exactly as in the research. '
-                    'As trades close their results appear here. This is the real confirmation: nothing in it was seen when the rules were chosen.</p></div>')
+    rows, fw, closed = sp["setups"], sp.get("forward") or {}, sp.get("closed") or []
+    live = [r for r in rows if r["status"] in ("VALID", "WEAKENING")]
+    pend = [r for r in rows if r["status"] == "PENDING"]
+    att = [r for r in rows if r["status"] in ("EXIT SIGNAL", "INVALIDATED", "TIME STOP")]
+    n = len(closed)
+    avg = sum(c["gross"] for c in closed) / n if n else None
+    wins = sum(c["gross"] > 0 for c in closed)
+    flo = [r["unrealised"] for r in live if r.get("unrealised") is not None]
+    exp = next((v.get("expected") for v in fw.values() if v.get("expected") is not None), None)
+    colr = lambda x: "up" if (x or 0) > 0 else "dn" if (x or 0) < 0 else "muted"
+    kp = ('<div class="kpis">'
+          f'<div class="kpi"><small>Closed forward trades</small><b>{n}</b><span>scored on live prices</span></div>'
+          f'<div class="kpi"><small>Average gain / trade</small><b class="{colr(avg)}">{pct(avg, d=2) if n else "—"}</b><span>price only · research said {pct(exp, d=2) if exp is not None else "n/a"}</span></div>'
+          f'<div class="kpi"><small>Win rate</small><b>{(str(round(wins / n * 100)) + "%") if n else "—"}</b><span>{wins} won · {n - wins} lost</span></div>'
+          f'<div class="kpi"><small>Open now</small><b class="{colr(sum(flo) / len(flo) if flo else None)}">{len(live)}</b><span>{("floating " + pct(sum(flo) / len(flo), d=1)) if flo else "tracking"} · before costs</span></div>'
+          f'<div class="kpi"><small>New for the next open</small><b>{len(pend)}</b><span>{len(att)} need attention</span></div></div>')
+    chips = "".join(f"<span class='chip'>{E(r['symbol'].split('.')[0].upper())} <b class='{colr(r.get('unrealised'))}'>{pct(r['unrealised'], d=1) if r.get('unrealised') is not None else 'new'}</b></span> " for r in (live + pend + att))
+    fwt = ""
+    if fw:
         body = "".join(f'<tr><td>{E(INFO.get(k, (k,))[0])}</td><td class="r num">{v["n"]}</td><td class="r num">{pct(v["hit_rate"], False, 0)}</td><td class="r num">{pct(v["mean"])}</td>'
                        f'<td class="r num">{"needs 30+" if v["lo"] is None else pct(v["lo"], d=1) + " to " + pct(v["hi"], d=1)}</td><td class="r num">{pct(v.get("expected"))}</td></tr>' for k, v in fw.items())
-        return ('<div class="card" style="margin-bottom:12px"><h3>Forward test · live, out-of-sample</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:560px"><tr><th>Setup</th><th class="r">Closed</th><th class="r">Win rate</th>'
-                '<th class="r">Avg gain</th><th class="r">95% range</th><th class="r">Research said</th></tr>' + body + '</table></div>'
-                '<p class="muted" style="font-size:12px;margin:8px 0 0">Price-only. Fewer than 30 closed trades is mostly luck either way; trust it only once the range is narrow.</p></div>')
-
-    def table(items):
-        if not items:
-            return '<p class="muted">None.</p>'
-        body = "".join(
-            f'<tr><td><b>{E(r["symbol"].split(".")[0].upper())}</b> <span class="muted">{E(r["market"])}</span></td><td>{E(INFO.get(r["rule"], (r["rule"],))[0])}</td><td>{E(r["signal_date"])}</td>'
-            f'<td class="r num">{r["close"]:,.2f}</td><td class="r num">{"" if r.get("invalidation") is None else format(r["invalidation"], ",.2f")}</td><td>{_badge(r["status"])}</td>'
-            f'<td class="muted">{E(r.get("detail") or r["exit_text"])}</td><td>{"<span class=badge&#32;n>PASSED RESEARCH TEST</span>" if r["proven"] else "<span class=badge&#32;u>UNPROVEN</span>"}</td></tr>' for r in items)
-        return ('<div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:820px"><tr><th>Stock</th><th>Setup</th><th>Signal (close of)</th><th class="r">Last close</th><th class="r">Invalid below</th><th>Status</th><th>What happens next</th><th>Evidence</th></tr>'
-                + body + "</table></div>")
-    new = [r for r in rows if r["status"] == "PENDING"]
-    live = [r for r in rows if r["status"] in ("VALID", "WEAKENING")]
-    att = [r for r in rows if r["status"] in ("EXIT SIGNAL", "INVALIDATED", "TIME STOP")]
-    return (forward_card() + f'<div class="paperbanner"><b>RESEARCH ONLY.</b> These are what the pre-registered rules flag, as of the close of {E(sp["asof"])}. Nothing here is advice or an order. Every setup is <b>UNPROVEN</b>; "passed research test" means only that the rule cleared the historical test, not that it is proven to make money. Check the stock is available to trade on Revolut before anything else.</div>'
-            f'<div class="card"><h3>New for the next open · {len(new)}</h3>{table(new)}</div>'
-            f'<div class="card" style="margin-top:12px"><h3>Being tracked · {len(live)}</h3>{table(live)}</div>'
-            f'<div class="card" style="margin-top:12px"><h3>Needs attention · {len(att)}</h3><p class="muted" style="margin-top:0">The rule says exit, the setup is invalidated, or its time limit is up.</p>{table(att)}</div>')
+        fwt = ('<div class="scroll" style="overflow-x:auto;margin-top:10px"><table class="tbl" style="min-width:560px"><tr><th>Setup</th><th class="r">Closed</th><th class="r">Win rate</th><th class="r">Avg gain</th><th class="r">95% range</th><th class="r">Research said</th></tr>'
+               + body + '</table></div><p class="muted" style="font-size:12px;margin:6px 0 0">Fewer than 30 closed trades is mostly luck either way; trust it only once the range is narrow.</p>')
+    top = (f'<div class="card"><h3>Forward test · live prices, hypothetical, scored by the engine</h3>{kp}<div style="margin:2px 0 8px">{chips}</div>'
+           f'<div class="muted">Every signal from the rules is tracked (the research traded every signal); the strongest few are shown below. {n} closed so far. Details: Performance tab.</div></div>')
+    charts = ""
+    cards = "".join(_trade_card(r) for r in att + pend + live) or "<div class='empty'><b>No setups right now.</b><br><span class='muted'>The rules flag a setup only when their conditions are met. Nothing is a valid outcome.</span></div>"
+    hist = ""
+    if closed:
+        hr = "".join(f'<tr><td><b>{E(c["symbol"].split(".")[0].upper())}</b> <span class="muted">{E(c["market"])}</span></td><td>{E(INFO.get(c["rule"], (c["rule"],))[0])}</td><td>{E(c["entry_date"])}</td><td>{E(c["exit_date"])}</td>'
+                     f'<td class="r num"><b class="{colr(c["gross"])}">{pct(c["gross"], d=2)}</b></td><td class="r num">{c["bars"]}</td></tr>' for c in sorted(closed, key=lambda c: c["exit_date"], reverse=True)[:25])
+        hist = ('<div class="card" style="margin-top:16px"><h3>History · every closed forward trade, price only</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:560px">'
+                '<tr><th>Stock</th><th>Setup</th><th>Entered</th><th>Exited</th><th class="r">Gain</th><th class="r">Days</th></tr>' + hr + "</table></div></div>")
+    return (f'<div class="paperbanner"><b>RESEARCH ONLY.</b> These are what the pre-registered rules flag, as of the close of {E(sp["asof"])}. Nothing here is advice or an order. Every setup is <b>UNPROVEN</b>; '
+            '"passed research test" means only that the rule cleared the historical test, not that it is proven to make money. Check the stock is available on Revolut first.</div>'
+            f'{top}{charts}<h2 class="sec">Active setups<small>{len(pend)} new for the next open · {len(live)} being tracked · {len(att)} need attention</small></h2><div class="trades">{cards}</div>{hist}')
 
 
 def _rules_tab(res: dict | None) -> str:
@@ -116,8 +216,182 @@ def _rules_tab(res: dict | None) -> str:
     return f'<div class="grid">{"".join(cards)}</div><p class="muted" style="font-size:12px">Pass/fail uses price moves only; the two "after costs" numbers are information (see the plan for the cost assumptions).</p>'
 
 
-def parts(res: dict | None, sp: dict | None = None) -> dict:
-    """Everything the dashboard shows, as HTML pieces, shared by the stand-alone page and the tab inside the FX dashboard."""
+CHART_JS = """<script>(function(){var el=document.getElementById('st-cd');if(!el)return;var D=JSON.parse(el.textContent),box=document.getElementById('st-chart'),sel=document.getElementById('st-sel');if(!box||!sel)return;
+var keys=Object.keys(D);if(!keys.length)return;
+function draw(k){var d=D[k],n=d.c.length,W=900,H=380,L=52,R=84,T=14,B=26,i,lo=1e18,hi=-1e18;
+for(i=0;i<n;i++){if(d.l[i]!=null&&d.l[i]<lo)lo=d.l[i];if(d.h[i]!=null&&d.h[i]>hi)hi=d.h[i]}
+d.levels.forEach(function(v){if(v.price<lo)lo=v.price;if(v.price>hi)hi=v.price});var pad=(hi-lo)*.05||1;lo-=pad;hi+=pad;
+function X(i){return L+(i+.5)/n*(W-L-R)}function Y(v){return T+(hi-v)/(hi-lo)*(H-T-B)}
+var s='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto">';
+for(var g=0;g<=4;g++){var v=lo+(hi-lo)*g/4;s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" class="gridl"/><text x="'+(L-6)+'" y="'+(Y(v)+4)+'" class="tick" text-anchor="end">'+v.toFixed(v>100?0:2)+'</text>'}
+var w=Math.max(1,(W-L-R)/n*.7);
+for(i=0;i<n;i++){if(d.c[i]==null)continue;var up=d.c[i]>=d.o[i],c=up?'#3fd13f':'#e0605a';s+='<line x1="'+X(i)+'" x2="'+X(i)+'" y1="'+Y(d.h[i])+'" y2="'+Y(d.l[i])+'" stroke="'+c+'"/><rect x="'+(X(i)-w/2)+'" y="'+Y(Math.max(d.o[i],d.c[i]))+'" width="'+w+'" height="'+Math.max(1,Math.abs(Y(d.o[i])-Y(d.c[i])))+'" fill="'+c+'"/>'}
+[['s50','#3987e5'],['s200','#fab219']].forEach(function(a){var p=[];for(i=0;i<n;i++){if(d[a[0]][i]!=null)p.push(X(i)+','+Y(d[a[0]][i]))}if(p.length>1)s+='<polyline points="'+p.join(' ')+'" fill="none" stroke="'+a[1]+'" stroke-width="1.6"/>'});
+d.levels.forEach(function(v){var c=v.kind=='invalidation'?'#e0605a':v.kind=='exit'?'#3fd13f':'#3987e5';s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(v.price)+'" y2="'+Y(v.price)+'" stroke="'+c+'" stroke-dasharray="5 4"/><text x="'+(W-R+4)+'" y="'+(Y(v.price)+4)+'" class="tick" style="fill:'+c+'">'+(v.kind=='invalidation'?'INVALID ':v.kind=='exit'?'EXIT ':'ENTRY ')+v.price.toFixed(2)+'</text>'});
+s+='<text x="'+L+'" y="'+(H-6)+'" class="tick">'+d.dates[0]+'</text><text x="'+(W-R)+'" y="'+(H-6)+'" class="tick" text-anchor="end">'+d.dates[n-1]+'</text></svg>';
+box.innerHTML=s;[].forEach.call(sel.querySelectorAll('button'),function(b){b.classList.toggle('on',b.dataset.k===k)})}
+keys.forEach(function(k){var b=document.createElement('button');b.dataset.k=k;b.textContent=k.split('.')[0].toUpperCase();b.onclick=function(){draw(k)};sel.appendChild(b)});draw(keys[0])})();</script>"""
+
+JOURNAL_JS = """<script>function stJournal(b){var g=function(i){return document.getElementById(i).value};b.disabled=true;
+fetch('/api/journal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:g('jr-date'),symbol:g('jr-sym'),side:g('jr-side'),price:g('jr-price'),qty:g('jr-qty'),note:g('jr-note')})})
+.then(function(r){return r.json()}).then(function(j){if(j.ok){location.reload()}else{alert(j.error||'Could not save that trade');b.disabled=false}}).catch(function(){alert('Could not reach the server');b.disabled=false})}</script>"""
+
+
+def _heat(v) -> str:
+    if v is None:
+        return '<td class="r num muted">n/a</td>'
+    a = min(0.85, abs(v) / 0.08)
+    rgb = "12,163,12" if v >= 0 else "208,59,59"
+    return f'<td class="r num" style="background:rgba({rgb},{a:.2f})">{pct(v, d=1)}</td>'
+
+
+def _charts_tab(mk: dict | None) -> str:
+    if not mk or not mk.get("charts"):
+        return '<div class="card"><h3>Charts</h3><p class="muted">Charts appear after the first nightly scan has run.</p></div>'
+    data = json.dumps(mk["charts"]).replace("</", "<\\/")
+    return (f'<div class="card"><h3>Daily chart · last 250 days · candles with 50-day (blue) and 200-day (amber) averages</h3><div class="sel" id="st-sel" style="margin-bottom:8px"></div><div id="st-chart"></div>'
+            '<div class="legend"><span>dashed red = the setup\'s invalid-below level</span><span>dashed green = exit-signal level</span><span>dashed blue = entry</span></div></div>'
+            f'<script type="application/json" id="st-cd">{data}</script>{CHART_JS}')
+
+
+def _market_tab(mk: dict | None) -> str:
+    if not mk:
+        return '<div class="card"><h3>Market</h3><p class="muted">Market context appears after the first nightly scan has run.</p></div>'
+    rg, br = mk["regime"], mk["breadth"]
+    spy = next((x for x in mk["indices"] if x["symbol"] == "spy.us"), None)
+    tone = {"UPTREND": "up", "DOWNTREND": "dn"}.get(rg["label"], "muted")
+    kp = ('<div class="kpis">'
+          f'<div class="kpi"><small>US market regime</small><b class="{tone}">{E(rg["label"])}</b><span>descriptive, not a forecast</span></div>'
+          f'<div class="kpi"><small>SPY vs 200-day average</small><b>{pct(spy["vs200"], d=1) if spy else "n/a"}</b><span>{("close " + format(spy["close"], ",.2f")) if spy else ""}</span></div>'
+          f'<div class="kpi"><small>Stocks above 200-day</small><b>{br["above200"] * 100:.0f}%</b><span>{br["above50"] * 100:.0f}% above 50-day · {br["n"]} stocks</span></div>'
+          f'<div class="kpi"><small>New 20-day highs / lows</small><b>{br["new_highs"]} / {br["new_lows"]}</b><span>across the stock universe</span></div></div>')
+    ix = "".join(f'<tr><td><b>{E(x["name"])}</b></td><td class="r num">{x["close"]:,.2f}</td><td class="r num">{pct(x["vs50"], d=1)}</td><td class="r num">{pct(x["vs200"], d=1)}</td><td class="r num">{pct(x["r1m"], d=1)}</td><td class="r num">{pct(x["r3m"], d=1)}</td><td class="r num">{x["vol20"] * 100:.0f}%</td><td>{E(x["trend"])}</td></tr>' for x in mk["indices"])
+    sec = "".join(f'<tr><td>{E(x["name"])}</td>{_heat(x["r5"])}{_heat(x["r21"])}{_heat(x["r63"])}</tr>' for x in mk["sectors"])
+    mv = lambda L: "".join(f'<tr><td><b>{E(m["symbol"].split(".")[0].upper())}</b> <span class="muted">{"US" if m["symbol"].endswith(".us") else "UK"}</span></td><td class="r num">{pct(m["r"], d=1)}</td></tr>' for m in L)
+    return (f'{kp}<div class="card"><h3>{E(rg["detail"])}</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:640px"><tr><th>Index / ETF</th><th class="r">Close</th><th class="r">vs 50-day</th><th class="r">vs 200-day</th><th class="r">1 month</th><th class="r">3 months</th><th class="r">Volatility</th><th>Trend</th></tr>{ix}</table></div></div>'
+            f'<div class="grid" style="margin-top:12px"><div class="card c6"><h3>Sector &amp; asset strength · return over 1 week · 1 month · 3 months</h3><table class="tbl"><tr><th>Group</th><th class="r">1w</th><th class="r">1m</th><th class="r">3m</th></tr>{sec}</table></div>'
+            f'<div class="card c6"><h3>Biggest moves on the last day</h3><div class="grid"><div class="c6"><table class="tbl"><tr><th>Up</th><th class="r"></th></tr>{mv(mk["movers"]["up"])}</table></div><div class="c6"><table class="tbl"><tr><th>Down</th><th class="r"></th></tr>{mv(mk["movers"]["down"])}</table></div></div></div></div>')
+
+
+def _research_tab(res: dict | None, mk: dict | None, base: str) -> str:
+    if not res:
+        return base
+    rows = []
+    for r in res["rules"]:
+        name = INFO.get(r["rule"], (r["rule"],))[0]
+        if "roi" not in r:
+            rows.append(f'<tr><td>{E(name)}</td><td class="r num">{r.get("n", 0)}</td><td colspan="8" class="muted">{E(str(r.get("verdict", "")))}</td></tr>')
+            continue
+        rows.append(f'<tr><td><b>{E(name)}</b><div class="muted" style="font-size:11px">{E(r["rule"])}</div></td><td class="r num">{r["n"]:,}</td><td class="r num">{r["weeks"]}</td><td class="r num">{pct(r["hit_rate"], False, 0)}</td>'
+                    f'<td class="r num"><b>{pct(r["roi"])}</b></td><td class="r num">{pct(r["ci95_lo"], d=2)} to {pct(r["ci95_hi"], d=2)}</td><td class="r num">{pct(r["mde"], False)}</td><td class="r num">{pct(r["challenger_p95"])}</td>'
+                    f'<td class="r num">{pct(r["net_normal"])} / {pct(r["net_stressed"])}</td><td>{"<span class=tag&#32;p>PASSED</span>" if r["passes"] else "<span class=tag&#32;f>NO EDGE</span>"}</td></tr>')
+    table = ('<div class="card" style="margin-top:12px"><h3>Every rule tested · price-only · pre-registered, fixed in advance</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:900px"><tr><th>Rule</th><th class="r">Trades</th><th class="r">Weeks</th><th class="r">Wins</th><th class="r">Avg gain</th>'
+             '<th class="r">Range (penalised)</th><th class="r">MDE</th><th class="r">Random p95</th><th class="r">After costs normal / stressed</th><th>Verdict</th></tr>' + "".join(rows) + '</table></div>'
+             f'<p class="muted" style="font-size:12px;margin:8px 0 0">Window {E(res.get("window", ""))}; sealed from {E(res.get("sealed_from", ""))}. MDE = the smallest real edge this sample could have detected: "no edge" means "no edge above the MDE". Random p95 = what random entries beat only 5% of the time.</p></div>')
+    stress = [r for r in res["rules"] if r.get("passes") and r.get("robust")]
+    st = ""
+    if stress:
+        body = ""
+        for r in stress:
+            b, e = r["robust"], r["robust"].get("etf_only")
+            body += (f'<tr><td>{E(INFO.get(r["rule"], (r["rule"],))[0])}</td><td class="r num">{("n/a" if not e else pct(e["mean"]) + " [" + pct(e["ci_lo"], d=2) + ", " + pct(e["ci_hi"], d=2) + "] n=" + str(e["n"]))}</td><td class="r num">{pct(b["trimmed_mean"])}</td>'
+                     f'<td class="r num">{pct(b["ex_crisis"]) if b.get("ex_crisis") is not None else "n/a"}</td><td class="r num">{b["top1_share"] * 100:.0f}%</td><td class="r num">{pct(b["worst_year"])}</td><td class="r num">{pct(b["best_year"])}</td></tr>')
+        st = ('<div class="card" style="margin-top:12px"><h3>Stress checks on the setups that passed</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:760px"><tr><th>Rule</th><th class="r">ETFs only (no survivor bias)</th><th class="r">Outliers trimmed</th>'
+              '<th class="r">Without 2008-09 &amp; 2020</th><th class="r">Top 1% of trades = share of gains</th><th class="r">Worst year</th><th class="r">Best year</th></tr>' + body + '</table></div></div>')
+    ho = ((mk or {}).get("system") or {}).get("holdout") or []
+    hl = ('<div class="card" style="margin-top:12px"><h3>Sealed final year · opened once per rule</h3>' + "".join(f'<div class="mono" style="font-size:12px;margin:3px 0">{E(x)}</div>' for x in ho) + '</div>') if ho else ""
+    how = ('<div class="card" style="margin-top:12px"><h3>How the testing works</h3><p>• Free daily prices, 2000 to today, 100+ US and UK stocks and ETFs. • A signal at a close is acted on at the NEXT open (tested: the rules cannot see the future). '
+           '• One position per stock at a time, same as the live scanner. • Every rule is fixed in advance; each one tried counts toward a multiple-testing penalty (Bonferroni). • Trades are grouped by week, because many stocks move together. '
+           '• A rule passes only with 100+ independent weeks, a penalised range above zero, beating random entries, and being positive in both halves of history. • The latest year is sealed and opened once, for one rule. '
+           '• Known bias: the universe is today\'s survivors, so long-only results look better than real time; ETF-only checks control for it.</p></div>')
+    return base + table + st + hl + how
+
+
+def _performance_tab(sp: dict | None, res: dict | None) -> str:
+    sp = sp or {}
+    fw, closed = sp.get("forward") or {}, sp.get("closed") or []
+    fc, yc = _forward_chart(closed), _year_chart(res)
+    out = []
+    if fw:
+        body = "".join(f'<tr><td>{E(INFO.get(k, (k,))[0])}</td><td class="r num">{v["n"]}</td><td class="r num">{pct(v["hit_rate"], False, 0)}</td><td class="r num">{pct(v["mean"])}</td>'
+                       f'<td class="r num">{"needs 30+" if v["lo"] is None else pct(v["lo"], d=1) + " to " + pct(v["hi"], d=1)}</td><td class="r num">{pct(v.get("expected"))}</td></tr>' for k, v in fw.items())
+        out.append('<div class="card"><h3>Forward test by setup · live, out-of-sample</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:560px"><tr><th>Setup</th><th class="r">Closed</th><th class="r">Win rate</th><th class="r">Avg gain</th><th class="r">95% range</th><th class="r">Research said</th></tr>'
+                   + body + '</table></div><p class="muted" style="font-size:12px;margin:8px 0 0">Fewer than 30 closed trades is mostly luck either way; trust it only once the range is narrow.</p></div>')
+    else:
+        out.append('<div class="card"><h3>Forward test · live, out-of-sample</h3><p class="muted" style="margin:0">Every new setup is tracked from now on, exactly as in the research. As trades close, their results appear here. This is the real confirmation: nothing in it was seen when the rules were chosen.</p></div>')
+    if fc:
+        out.append(f'<div class="card" style="margin-top:12px"><h3>Forward test · cumulative price gain of closed trades</h3>{fc}</div>')
+    if closed:
+        for key, lab in (("market", "market"),):
+            by = {}
+            for c in closed:
+                by.setdefault(c[key], []).append(c["gross"])
+            body = "".join(f'<tr><td>{E(k)}</td><td class="r num">{len(v)}</td><td class="r num">{pct(sum(v) / len(v))}</td><td class="r num">{pct(sum(x > 0 for x in v) / len(v), False, 0)}</td></tr>' for k, v in sorted(by.items()))
+            out.append(f'<div class="card" style="margin-top:12px"><h3>Forward test by {lab}</h3><table class="tbl"><tr><th>{lab.title()}</th><th class="r">Closed</th><th class="r">Avg gain</th><th class="r">Wins</th></tr>{body}</table></div>')
+    if yc:
+        out.append(f'<div class="card" style="margin-top:12px"><h3>Research · average gain per trade in each year, for the setups that passed (how steady was it?)</h3><div class="scroll">{yc}</div></div>')
+    return "".join(out)
+
+
+def _journal_tab(jr: dict | None, sp: dict | None) -> str:
+    jr = jr or {"closed": [], "open": [], "raw": 0}
+    cl, op = jr["closed"], jr["open"]
+    setups = (sp or {}).get("setups", [])
+    cs = (sp or {}).get("closed", [])
+    from . import journal as J
+    tag = lambda t: J.from_setup(t, setups, cs)
+    wins = [c for c in cl if c["pct"] > 0]
+    follow = [c for c in cl if tag(c)]
+    kp = ('<div class="kpis">'
+          f'<div class="kpi"><small>Closed trades</small><b>{len(cl)}</b><span>{len(op)} lot(s) still open</span></div>'
+          f'<div class="kpi"><small>Total profit / loss</small><b class="{"up" if sum(c["pnl"] for c in cl) > 0 else "dn" if sum(c["pnl"] for c in cl) < 0 else "muted"}">{sum(c["pnl"] for c in cl):+,.2f}</b><span>in the stock\'s own currency, before fees</span></div>'
+          f'<div class="kpi"><small>Win rate</small><b>{(str(round(len(wins) / len(cl) * 100)) + "%") if cl else "—"}</b><span>{len(wins)} won · {len(cl) - len(wins)} lost</span></div>'
+          f'<div class="kpi"><small>Followed an engine setup</small><b>{(str(round(len(follow) / len(cl) * 100)) + "%") if cl else "—"}</b><span>{len(follow)} of {len(cl)} closed buys</span></div></div>')
+    form = ('<div class="card"><h3>Log a trade you made (Revolut or practice)</h3><div class="ctl" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">'
+            '<input id="jr-date" type="date" style="background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px">'
+            '<input id="jr-sym" placeholder="Ticker e.g. AAPL" style="width:130px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px">'
+            '<select id="jr-side" style="background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px"><option value="buy">Buy</option><option value="sell">Sell</option></select>'
+            '<input id="jr-price" type="number" step="0.01" placeholder="Price" style="width:100px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px">'
+            '<input id="jr-qty" type="number" step="0.0001" placeholder="Quantity" style="width:100px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px">'
+            '<input id="jr-note" placeholder="Note (why?)" style="flex:1;min-width:140px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px">'
+            '<button class="chip" style="cursor:pointer" onclick="stJournal(this)">Save trade</button></div>'
+            '<p class="muted" style="font-size:12px;margin:8px 0 0">Stored only on your VM. The engine pairs buys and sells (first in, first out) and checks whether each buy matched a setup it had flagged. It never places or changes an order.</p></div>')
+    cr = "".join(f'<tr><td><b>{E(c["symbol"].upper())}</b></td><td>{E(c["bought"])}</td><td>{E(c["sold"])}</td><td class="r num">{c["buy"]:,.2f}</td><td class="r num">{c["sell"]:,.2f}</td><td class="r num"><b class="{"up" if c["pct"] > 0 else "dn"}">{pct(c["pct"], d=1)}</b></td>'
+                 f'<td class="r num">{c["pnl"]:+,.2f}</td><td class="r num">{c["days"]}</td><td>{E(INFO.get(tag(c), ("—",))[0]) if tag(c) else "<span class=muted>not from a setup</span>"}</td></tr>' for c in reversed(cl[-25:]))
+    tbl = (f'<div class="card" style="margin-top:12px"><h3>Closed trades</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:700px"><tr><th>Stock</th><th>Bought</th><th>Sold</th><th class="r">Buy</th><th class="r">Sell</th><th class="r">Gain</th><th class="r">P/L</th><th class="r">Days</th><th>Matched engine setup</th></tr>{cr}</table></div></div>') if cl else \
+          '<div class="card" style="margin-top:12px"><p class="muted" style="margin:0">No closed trades logged yet.</p></div>'
+    ot = ""
+    if op:
+        ot = ('<div class="card" style="margin-top:12px"><h3>Still open</h3><table class="tbl"><tr><th>Stock</th><th>Bought</th><th class="r">Buy price</th><th class="r">Quantity</th></tr>'
+              + "".join(f'<tr><td><b>{E(o["symbol"].upper())}</b></td><td>{E(o["bought"])}</td><td class="r num">{o["buy"]:,.2f}</td><td class="r num">{o["qty"]:g}</td></tr>' for o in op) + "</table></div>")
+    return f"{kp}{form}{tbl}{ot}{JOURNAL_JS}"
+
+
+def _system_tab(res: dict | None, sp: dict | None, mk: dict | None) -> str:
+    sy = (mk or {}).get("system") or {}
+    if not sy:
+        return '<div class="card"><h3>System</h3><p class="muted">System health appears after the first nightly scan has run.</p></div>'
+    nstale, ngap = len(sy["stale"]), len(sy["gaps"])
+    kp = ('<div class="kpis">'
+          f'<div class="kpi"><small>Prices as of</small><b>{E(sy["asof"])}</b><span>{sy["symbols"]} symbols · {sy["rows"]:,} daily bars</span></div>'
+          f'<div class="kpi"><small>Stale symbols</small><b class="{"dn" if nstale else "up"}">{nstale}</b><span>no new bar for over 4 days</span></div>'
+          f'<div class="kpi"><small>Symbols not available</small><b>{ngap}</b><span>{E(", ".join(g.split(":")[0] for g in sy["gaps"][:4]))}</span></div>'
+          f'<div class="kpi"><small>Rules logged</small><b>{sy["trials"]}</b><span>multiple-testing count</span></div></div>')
+    nl = "".join(f'<div class="mono" style="font-size:12px;margin:3px 0">{E(x)}</div>' for x in sy["nightly"]) or '<p class="muted" style="margin:0">The nightly job has not run yet (weekdays 22:45 UTC).</p>'
+    chk = [("Prices up to date", nstale == 0, f"{nstale} stale" if nstale else "all symbols have a recent bar"), ("Bars with suspicious jumps handled", True, f"{len(sy['suspicious'])} symbol(s) flagged; trades touching a flagged bar are dropped"),
+           ("Sealed final year untouched except by the log", True, f"{len(sy['holdout'])} opening(s) logged"), ("Look-ahead tests", True, "signals cannot use future prices (automated tests)")]
+    ch = "".join(f'<tr><td>{"<b class=up>✓</b>" if ok else "<b class=dn>✗</b>"}</td><td>{E(a)}</td><td class="muted">{E(b)}</td></tr>' for a, ok, b in chk)
+    lim = ('<div class="card" style="margin-top:12px"><h3>What this can and cannot tell you</h3><ul class="lim"><li>Research only: it never places an order and has no Revolut access. You decide and trade yourself, at your own risk.</li>'
+           '<li>Daily bars only: the free data has no reliable intraday history, so day-trade rules are tested open-to-close and are optimistic.</li>'
+           '<li>The universe is today\'s large US and UK stocks (survivors), so long-only results look better than they would have in real time.</li>'
+           '<li>Not built yet: earnings and filings, macro events, intraday monitoring, Telegram alerts. See docs/STOCKS_PLAN.md.</li>'
+           '<li>Costs are assumptions until you give your real Revolut plan fees; they are shown, not part of pass/fail. Check each stock is available on Revolut.</li></ul></div>')
+    return (f'{kp}<div class="grid"><div class="card c6"><h3>Health checks</h3><table class="tbl">{ch}</table></div><div class="card c6"><h3>Nightly job · last lines</h3>{nl}'
+            f'<div class="muted" style="font-size:12px;margin-top:8px">Code: {E(sy["code"])}</div></div></div>{lim}')
+
+
+def parts(res: dict | None, sp: dict | None = None, mk: dict | None = None, jr: dict | None = None) -> dict:
+    """Everything the dashboard shows, as HTML pieces, shared by the stand-alone page and the tab inside the FX dashboard. Same seven sections as the FX dashboard."""
     rules = (res or {}).get("rules", [])
     scored = [r for r in rules if "roi" in r]
     passed = [r for r in scored if r["passes"]]
@@ -126,7 +400,7 @@ def parts(res: dict | None, sp: dict | None = None) -> dict:
         state, label, verdict = "warn", "NO RESULTS YET", '<div class="verdict empty"><b>No results yet.</b> <span class="muted">Run <code>bash deploy/stocks_all.sh</code> on the VM. Only real results are shown here.</span></div>'
     elif passed:
         state, label = "good", f"{len(passed)} SETUP PASSED"
-        verdict = (f'<div class="verdict ok"><b>{len(passed)} rule(s) passed the price-only test: {E(", ".join(INFO[r["rule"]][0] for r in passed))}.</b> Treat as a lead: the sealed latest year has not been opened, '
+        verdict = (f'<div class="verdict ok"><b>{len(passed)} rule(s) passed the price-only test: {E(", ".join(INFO[r["rule"]][0] for r in passed))}.</b> Treat as a lead: it must keep working on live prices (Performance tab), '
                    'and the setup may still lose money after your real fees.</div>')
     else:
         state, label = "crit", "NO EDGE FOUND"
@@ -137,23 +411,21 @@ def parts(res: dict | None, sp: dict | None = None) -> dict:
               + (f'<div class="kpi"><small>Equal-weight universe</small><b>{pct(bm.get("equal_weight_cagr"), d=1)}</b><span>per year (survivors only: flatters)</span></div>' if "equal_weight_cagr" in bm else "")
               + f'<div class="kpi"><small>Rules tested</small><b>{(res or {}).get("n_trials", "—")}</b><span>all logged, fixed in advance</span></div><div class="kpi"><small>Symbols</small><b>{(res or {}).get("symbols", "—")}</b><span>US + UK</span></div></div>')
     asof = (sp or {}).get("asof") or (res or {}).get("window", "—").split("..")[-1]
-    research = (f'{verdict}{kp}<div class="card"><h3>Average gain per trade from price moves alone · each rule against its own random-entry benchmark</h3><div class="scroll">{_forest(rules) or "<p class=muted>No scored rules yet.</p>"}</div>'
-                '<div class="legend"><span><i style="background:var(--s2)"></i>no edge</span><span><i style="background:var(--good)"></i>passed</span><span><i style="background:var(--s1)"></i>random-entry 95th percentile</span><span>line = confidence range after the multiple-testing penalty</span></div></div>')
-    about = ('<div class="card"><h3>What this can and cannot tell you</h3><ul class="lim"><li>Research only: it never places an order and has no Revolut access. You decide and trade yourself, at your own risk.</li>'
-             '<li>Daily bars only: the free data has no reliable intraday history, so day-trade rules are tested open-to-close and are optimistic (a real order fills a little after the open).</li>'
-             '<li>The universe is today\'s large US and UK stocks, so it is biased toward companies that survived; long-only results look better than they would have in real time.</li>'
-             '<li>Costs are assumptions until you give your real Revolut plan fees; they are shown, not part of pass/fail. Check availability of each stock on Revolut.</li>'
-             '<li>The latest 365 days are sealed. They are opened once, only for a rule that has passed everything else.</li></ul></div>')
-    return dict(state=state, label=label, asof=str(asof), setups=_setups_tab(sp), research=research, rules=_rules_tab(res), about=about)
+    base = (f'{verdict}{kp}<div class="card"><h3>Average gain per trade from price moves alone · each rule against its own random-entry benchmark</h3><div class="scroll">{_forest(rules) or "<p class=muted>No scored rules yet.</p>"}</div>'
+            '<div class="legend"><span><i style="background:var(--s2)"></i>no edge</span><span><i style="background:var(--good)"></i>passed</span><span><i style="background:var(--s1)"></i>random-entry 95th percentile</span><span>line = confidence range after the multiple-testing penalty</span></div></div>')
+    return dict(state=state, label=label, asof=str(asof), setups=_setups_tab(sp, res), charts=_charts_tab(mk), market=_market_tab(mk), research=_research_tab(res, mk, base) + _rules_tab(res).replace('<p class="muted" style="font-size:12px">', '<p class="muted" style="font-size:12px;margin-top:8px">'),
+                performance=_performance_tab(sp, res), journal=_journal_tab(jr, sp), system=_system_tab(res, sp, mk))
 
 
-def render(res: dict | None, sp: dict | None = None) -> str:
-    x = parts(res, sp)
-    tabs = [("setups", "Setups"), ("research", "Research"), ("rules", "Rules"), ("about", "About")]
-    sections = "".join(f'<div class="tab" id="{k}">{x[k]}</div>' for k, _ in tabs)
+SECTIONS = [("setups", "Setups"), ("charts", "Charts"), ("market", "Market"), ("research", "Research"), ("performance", "Performance"), ("journal", "Journal"), ("system", "System")]
+
+
+def render(res: dict | None, sp: dict | None = None, mk: dict | None = None, jr: dict | None = None) -> str:
+    x = parts(res, sp, mk, jr)
+    sections = "".join(f'<div class="tab" id="{k}">{x[k]}</div>' for k, _ in SECTIONS)
     body = (f'<div class="wrap"><div class="top"><span class="brand">STOCKS ENGINE</span><span class="pill {x["state"]}">{x["label"]}</span><span class="chip">as of {E(x["asof"])}</span><span class="chip">research only · never places an order</span>'
             f'<span class="sp"></span><span class="mono muted">{datetime.now().strftime("%a %d %b %Y %H:%M")}</span></div>'
-            f'<div class="tabs">{"".join(f"<button data-t=\'{k}\'>{v}</button>" for k, v in tabs)}</div>{sections}<footer>Generated from docs/results/stocks.json · numbers shown only if they are in that file</footer></div>')
+            f'<div class="tabs">{"".join(f"<button data-t=\'{k}\'>{v}</button>" for k, v in SECTIONS)}</div>{sections}<footer>Generated from docs/results/stocks.json · numbers shown only if they are in that file</footer></div>')
     return f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Stocks Engine</title><style>{CSS}</style></head><body>{body}{TAB_JS}</body></html>'
 
 
@@ -162,9 +434,11 @@ def write(res_path=Path("docs/results/stocks.json"), out=Path("docs/results/stoc
     sp_path = Path(setups_path) if setups_path else rp.with_name("stocks_setups.json")
     res = json.loads(rp.read_text()) if rp.exists() else None
     sp = json.loads(sp_path.read_text()) if sp_path.exists() else None
+    mp = rp.with_name("stocks_market.json")
+    mk = json.loads(mp.read_text()) if mp.exists() else None
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render(res, sp))
+    out.write_text(render(res, sp, mk))
     return out
 
 

@@ -38,17 +38,33 @@ def page() -> str:
     def rd(n):
         p = RES / n
         return json.loads(p.read_text()) if p.exists() else None
-    res, sp = rd("stocks.json"), rd("stocks_setups.json")
+    res, sp, mk = rd("stocks.json"), rd("stocks_setups.json"), rd("stocks_market.json")
+    jr = tab.load_journal()
     fx = fx_page()
-    h = inject(fx, tab.CSS, tab.fragment(res, sp)) if fx else None
+    h = inject(fx, tab.CSS, tab.fragment(res, sp, mk, jr)) if fx else None
     if h is None:                                           # FX dashboard unreachable or unexpected: show the stand-alone stocks page, say so
-        h = dashboard.render(res, sp).replace("<div class=\"wrap\">", "<div class=\"wrap\"><div class=\"verdict\"><b>FX dashboard not reachable right now</b> <span class=\"muted\">(showing Stocks only; it will combine again by itself).</span></div>", 1)
+        h = dashboard.render(res, sp, mk, jr).replace("<div class=\"wrap\">", "<div class=\"wrap\"><div class=\"verdict\"><b>FX dashboard not reachable right now</b> <span class=\"muted\">(showing Stocks only; it will combine again by itself).</span></div>", 1)
     if AUTO[0]:
         h = h.replace("<head>", f"<head><meta http-equiv='refresh' content='{AUTO[0]}'>", 1)
     return h
 
 
 class H(BaseHTTPRequestHandler):
+    def do_POST(self):
+        """Journal save only. JSON content type required (a plain cross-site form cannot send it); one tiny fixed route; nothing else writes."""
+        import json as _j
+        from . import journal
+        def send(code, obj):
+            b = _j.dumps(obj).encode()
+            self.send_response(code); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
+        if self.path != "/api/journal" or "application/json" not in (self.headers.get("Content-Type") or ""):
+            return send(415 if self.path == "/api/journal" else 404, dict(ok=False, error="not allowed"))
+        try:
+            row = _j.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 5000)) or b"{}")
+            return send(200, dict(ok=True, trade=journal.add(row)))
+        except ValueError as e:
+            return send(400, dict(ok=False, error=str(e)))
+
     def do_GET(self):
         if self.path.split("?")[0] not in ("/", "/index.html"):
             self.send_response(404); self.end_headers(); return

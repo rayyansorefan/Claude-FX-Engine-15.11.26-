@@ -16,16 +16,22 @@ WEAK_AT = -0.02                    # unrealised -2% (price only) while the rule 
 
 
 def _levels(rule: str, d: pd.DataFrame, i: int) -> dict:
-    """Numbers shown for a setup fired on bar i: strength (for ranking), the invalidation level, and the rule's exit text."""
+    """Numbers shown for a setup fired on bar i: strength (for ranking), the invalidation level, the exit level (where the rule says take it), the plain-English why."""
     c = d["close"]
     if rule == "RSI2_PULLBACK":
-        return dict(strength=float(100 - I.rsi(c, 2).iloc[i]), invalidation=float(I.sma(c, 200).iloc[i]), exit_text=f"sell the open after a close above its 5-day average ({I.sma(c, 5).iloc[i]:.2f}); give up after 10 days")
+        rs, s5, s200 = float(I.rsi(c, 2).iloc[i]), float(I.sma(c, 5).iloc[i]), float(I.sma(c, 200).iloc[i])
+        return dict(strength=100 - rs, invalidation=s200, exit_level=s5, exit_text=f"sell the open after a close above its 5-day average ({s5:.2f}); give up after 10 days",
+                    why=[f"RSI(2) is {rs:.1f}, below the 10 line: a sharp short-term dip.", f"Price {float(c.iloc[i]):.2f} is still above its 200-day average ({s200:.2f}), so the long-term trend is up."])
     if rule == "BREAKOUT_20":
-        return dict(strength=float(c.iloc[i] / I.prior_high(d["high"], 20).iloc[i] - 1), invalidation=float(I.prior_low(d["low"], 10).iloc[i]), exit_text="sell the open after a close below the 10-day low; give up after 60 days")
+        hh, ll, s50 = float(I.prior_high(d["high"], 20).iloc[i]), float(I.prior_low(d["low"], 10).iloc[i]), float(I.sma(c, 50).iloc[i])
+        return dict(strength=float(c.iloc[i] / hh - 1), invalidation=ll, exit_level=None, exit_text="sell the open after a close below the 10-day low; give up after 60 days",
+                    why=[f"Closed at a new 20-day high ({hh:.2f} was the old one), {float(c.iloc[i] / hh - 1) * 100:.1f}% above it.", f"Price is above its 50-day average ({s50:.2f})."])
     if rule == "TREND_50_200":
-        s50, s200 = I.sma(c, 50), I.sma(c, 200)
-        return dict(strength=float(s50.iloc[i] / s200.iloc[i] - 1), invalidation=float(s50.iloc[i]), exit_text="sell the open after a close below the 50-day average; give up after 250 days")
-    return dict(strength=0.0, invalidation=float("nan"), exit_text="hold about a month, then sell the open")
+        s50, s200 = float(I.sma(c, 50).iloc[i]), float(I.sma(c, 200).iloc[i])
+        return dict(strength=float(s50 / s200 - 1), invalidation=s50, exit_level=None, exit_text="sell the open after a close below the 50-day average; give up after 250 days",
+                    why=[f"The 50-day average ({s50:.2f}) just crossed above the 200-day ({s200:.2f}).", "Price is above both: a fresh long-term uptrend."])
+    return dict(strength=0.0, invalidation=float("nan"), exit_level=None, exit_text="hold about a month, then sell the open",
+                why=["Top 20% of the universe by 12-month return (skipping the most recent month).", "Month-end momentum: buy the winners, review in a month."])
 
 
 def _month_end(last: pd.Timestamp) -> bool:
@@ -57,6 +63,7 @@ def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE) -> list[dict
                 lv = _levels(rule, d, i)
                 rows.append(dict(id=f"{rule}|{s}|{d.index[i]:%Y-%m-%d}", rule=rule, symbol=s, market=market_of(s), signal_date=f"{d.index[i]:%Y-%m-%d}", close=round(float(d['close'].iloc[i]), 4),
                                  invalidation=None if np.isnan(lv["invalidation"]) else round(lv["invalidation"], 4), strength=round(lv["strength"], 4), exit_text=lv["exit_text"],
+                                 exit_level=None if lv["exit_level"] is None else round(lv["exit_level"], 4), why=lv["why"],
                                  proven=rule in passed, status="PENDING"))
         rows.sort(key=lambda r: -r["strength"])
         for k, r in enumerate(rows):              # EVERY signal is tracked (the research traded every signal); only the strongest few are shown to the owner
@@ -165,9 +172,11 @@ def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.j
     asof = max(d.index.max() for d in panel.values())
     expected = {r["rule"]: r["roi"] for r in json.loads(res.read_text())["rules"] if "roi" in r} if res.exists() else {}
     shown = [r for r in rows if r.get("shown", True) or r["status"] == "CLOSED"]
-    out.write_text(json.dumps(dict(asof=f"{asof:%Y-%m-%d}", setups=[r for r in rows if r.get("shown", True) and r["status"] != "CLOSED"], forward=forward_summary(rows, expected)), indent=1))
+    closed = [dict(rule=r["rule"], symbol=r["symbol"], market=r["market"], signal_date=r["signal_date"], **r["closed"]) for r in rows if r["status"] == "CLOSED"][-300:]
+    out.write_text(json.dumps(dict(asof=f"{asof:%Y-%m-%d}", setups=[r for r in rows if r.get("shown", True) and r["status"] != "CLOSED"], forward=forward_summary(rows, expected), closed=closed), indent=1))
     try:
-        from . import dashboard, tab
+        from . import dashboard, tab, market
+        market.write(panel, [r for r in rows if r["status"] != "CLOSED"], out.with_name("stocks_market.json"))
         dashboard.write(res, out.with_name("stocks.html"), out)
         tab.write(res, out)
     except Exception as e:                      # the dashboard is a convenience: never let it fail the scan

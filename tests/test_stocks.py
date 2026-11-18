@@ -390,3 +390,69 @@ def test_combined_page_is_served_from_the_fx_dashboard_when_it_is_reachable(tmp_
     h = urllib.request.urlopen(f"http://127.0.0.1:{srv.server_address[1]}/").read().decode()
     srv.shutdown(); up.shutdown()
     assert "fx trades" in h and "<button data-t='stocks'>Stocks</button>" in h and "FX dashboard not reachable" not in h and "http-equiv='refresh' content='60'" in h
+
+
+def _market_panel():
+    p = _panel(30, 600, 70)
+    for s in ("spy.us", "qqq.us", "iwm.us", "isf.uk", "xlk.us", "xlf.us", "gld.us", "tlt.us"):
+        p[s] = _series(600, abs(hash(s)) % 1000, vol=0.01, drift=0.0004)
+    return p
+
+
+def test_market_context_charts_and_system_health(tmp_path):
+    from fxengine.stocks import market
+    p = _market_panel()
+    setups = [dict(rule="RSI2_PULLBACK", symbol="s1.us", status="PENDING", invalidation=90.0, exit_level=120.0, entry_price=None, signal_date="2013-01-01")]
+    mk = market.build(p, setups, tmp_path)
+    assert mk["regime"]["label"] in ("UPTREND", "DOWNTREND", "MIXED") and 0 <= mk["breadth"]["above200"] <= 1 and len(mk["indices"]) == 4
+    assert mk["sectors"][0]["r21"] >= mk["sectors"][-1]["r21"] and len(mk["movers"]["up"]) == 5
+    assert "s1.us" in mk["charts"] and len(mk["charts"]["s1.us"]["c"]) == 250 and {x["kind"] for x in mk["charts"]["s1.us"]["levels"]} == {"invalidation", "exit"}
+    assert mk["system"]["symbols"] == len(p) and mk["system"]["stale"] == []
+    assert market.write(p, setups, tmp_path / "m.json", tmp_path).exists()
+
+
+def test_journal_validates_pairs_first_in_first_out_and_matches_setups(tmp_path):
+    from fxengine.stocks import journal as J
+    f = tmp_path / "j.csv"
+    for bad in (dict(date="x", symbol="aapl", side="buy", price=1, qty=1), dict(date="2026-11-01", symbol="", side="buy", price=1, qty=1), dict(date="2026-11-01", symbol="aapl", side="hold", price=1, qty=1),
+                dict(date="2026-11-01", symbol="aapl", side="buy", price="abc", qty=1), dict(date="2026-11-01", symbol="aapl", side="buy", price=-1, qty=1)):
+        with pytest.raises(ValueError):
+            J.add(bad, f)
+    assert not f.exists()
+    J.add(dict(date="2026-11-02", symbol="AAPL", side="buy", price=100, qty=2, note="x"), f)
+    J.add(dict(date="2026-11-03", symbol="aapl", side="buy", price=110, qty=1), f)
+    J.add(dict(date="2026-11-09", symbol="aapl", side="sell", price=120, qty=2.5), f)
+    pr = J.pair(J.load(f))
+    assert len(pr["closed"]) == 2 and round(pr["closed"][0]["pnl"], 2) == 40.0 and round(pr["closed"][1]["pnl"], 2) == 5.0 and pr["open"][0]["qty"] == 0.5     # FIFO: 2 @100, then 0.5 of the 110 lot
+    assert J.from_setup(pr["closed"][0], [dict(symbol="aapl.us", rule="RSI2_PULLBACK", signal_date="2026-11-01")]) == "RSI2_PULLBACK" and J.from_setup(pr["closed"][0], []) is None
+
+
+def test_every_fx_style_section_renders_and_the_chart_data_is_embedded():
+    from fxengine.stocks import market, dashboard as DB, journal as J
+    p = _market_panel()
+    mk = market.build(p, [], Path("."))
+    h = DB.render(None, None, mk, dict(closed=[], open=[], raw=0))
+    for k, name in DB.SECTIONS:
+        assert f'id="{k}"' in h and name in h
+    assert 'id="st-cd"' in h and "Sector &amp; asset strength" in h and "Log a trade you made" in h and "Health checks" in h and "Daily chart" in h
+
+
+def test_journal_endpoint_saves_a_trade_and_refuses_anything_else(tmp_path, monkeypatch):
+    import threading, urllib.request, urllib.error
+    from fxengine.stocks import serve, journal as J
+    monkeypatch.chdir(tmp_path)
+    srv = serve.ThreadingHTTPServer(("127.0.0.1", 0), serve.H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+    def post(path, body, ctype="application/json"):
+        req = urllib.request.Request(base + path, data=json.dumps(body).encode(), headers={"Content-Type": ctype})
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read())
+    good = dict(date="2026-11-02", symbol="aapl", side="buy", price=100, qty=1)
+    assert post("/api/journal", good)[0] == 200 and len(J.load(tmp_path / "data/stocks/journal.csv")) == 1
+    assert post("/api/journal", dict(good, price="x"))[0] == 400 and post("/api/journal", good, ctype="text/plain")[0] == 415 and post("/api/other", good)[0] == 404
+    srv.shutdown()
