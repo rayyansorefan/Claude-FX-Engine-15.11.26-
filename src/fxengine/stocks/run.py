@@ -70,6 +70,16 @@ def robustness(tr: pd.DataFrame) -> dict:
                 top1_share=round(float(top / r.sum()), 3) if r.sum() > 0 else float("nan"), worst_year=round(min(yr), 5) if yr else None, best_year=round(max(yr), 5) if yr else None)
 
 
+def rule_trades(rule: str, panel, events=None, hold_start=None) -> pd.DataFrame:
+    """All research-window trades of one rule (gross, net columns), sealed period excluded. The single source of a rule's trades."""
+    hs = pd.Timestamp(hold_start) if hold_start is not None else HOLDOUT_START
+    sigs = S.rule_sigs(rule, panel, events)
+    parts = [t for t in (B.trades_for(sym, d, sigs[sym]) for sym, d in panel.items()) if len(t)]
+    tr = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=["symbol", "entry_date", "exit_date", "gross", "bars"])
+    tr = B.add_net(tr, {s_: kind_of(s_) for s_ in panel})
+    return tr[tr["entry_date"] < hs].reset_index(drop=True)
+
+
 def score(rule: str, tr: pd.DataFrame, panel, start, end, n_trials: int, rng, mid) -> dict:
     if len(tr) < 50:
         return dict(rule=rule, n=int(len(tr)), verdict="too few trades")

@@ -38,12 +38,12 @@ def page() -> str:
     def rd(n):
         p = RES / n
         return json.loads(p.read_text()) if p.exists() else None
-    res, sp, mk = rd("stocks.json"), rd("stocks_setups.json"), rd("stocks_market.json")
+    res, sp, mk, fl = rd("stocks.json"), rd("stocks_setups.json"), rd("stocks_market.json"), rd("stocks_filters.json")
     jr = tab.load_journal()
     fx = fx_page()
-    h = inject(fx, tab.CSS, tab.fragment(res, sp, mk, jr)) if fx else None
+    h = inject(fx, tab.CSS, tab.fragment(res, sp, mk, jr, fl)) if fx else None
     if h is None:                                           # FX dashboard unreachable or unexpected: show the stand-alone stocks page, say so
-        h = dashboard.render(res, sp, mk, jr).replace("<div class=\"wrap\">", "<div class=\"wrap\"><div class=\"verdict\"><b>FX dashboard not reachable right now</b> <span class=\"muted\">(showing Stocks only; it will combine again by itself).</span></div>", 1)
+        h = dashboard.render(res, sp, mk, jr, fl).replace("<div class=\"wrap\">", "<div class=\"wrap\"><div class=\"verdict\"><b>FX dashboard not reachable right now</b> <span class=\"muted\">(showing Stocks only; it will combine again by itself).</span></div>", 1)
     if AUTO[0]:
         h = h.replace("<head>", f"<head><meta http-equiv='refresh' content='{AUTO[0]}'>", 1)
     return h

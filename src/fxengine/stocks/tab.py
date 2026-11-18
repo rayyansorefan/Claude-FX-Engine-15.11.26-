@@ -35,8 +35,8 @@ JS = ("<script>(function(){var r=document.getElementById('stocks');if(!r)return;
       "bs.forEach(function(b){b.onclick=function(){go(b.dataset.s)}});go('setups')})();</script>")
 
 
-def fragment(res: dict | None, sp: dict | None = None, mk: dict | None = None, jr: dict | None = None) -> str:
-    x = DB.parts(res, sp, mk, jr)
+def fragment(res: dict | None, sp: dict | None = None, mk: dict | None = None, jr: dict | None = None, fl: dict | None = None) -> str:
+    x = DB.parts(res, sp, mk, jr, fl)
     names = DB.SECTIONS
     nav = "".join(f"<button data-s='{k}'>{v}</button>" for k, v in names)
     secs = "".join(f"<div class='stsec' data-s='{k}'>{x[k]}</div>" for k, _ in names)
@@ -60,7 +60,8 @@ def write(res_path=Path("docs/results/stocks.json"), setups_path=None, out_dir=N
     mk = json.loads(mp.read_text()) if mp.exists() else None
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "stocks_tab.css").write_text(CSS)
-    (out_dir / "stocks_tab.html").write_text(fragment(res, sp, mk, load_journal()))
+    fp = rp.with_name("stocks_filters.json")
+    (out_dir / "stocks_tab.html").write_text(fragment(res, sp, mk, load_journal(), json.loads(fp.read_text()) if fp.exists() else None))
     return out_dir / "stocks_tab.html"
 
 

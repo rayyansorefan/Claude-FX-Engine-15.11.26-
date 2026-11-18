@@ -790,3 +790,64 @@ def test_macro_falls_back_to_yahoo_when_fred_does_not_answer(tmp_path):
     assert "VIXCLS" in out and "T10Y2Y" in out and len(out["VIXCLS"]) > 300 and "BAMLH0A0HYM2" not in out                     # VIX + curve from Yahoo; the credit spread simply stays absent
     m = EV.macro_context(out, pd.bdate_range("2023-01-02", periods=380))
     assert "vix" in m.columns and "curve_10y2y" in m.columns
+
+
+def _trade_features(n=8000, seed=1, effect=0.0, effect_col="spy_trend", rare=False):
+    from fxengine.stocks import filters as F
+    rng = np.random.default_rng(seed)
+    d = pd.DataFrame(dict(entry_date=pd.Timestamp("2005-01-03") + pd.to_timedelta(np.sort(rng.integers(0, 365 * 18, n)), unit="D"),
+                          spy_trend=rng.choice([-1.0, 1.0], n, p=[0.3, 0.7]), vol20=rng.uniform(0.08, 0.5, n), breadth200=rng.uniform(0.1, 0.9, n), spy_5d=rng.normal(0, 0.02, n),
+                          atr_ratio=rng.uniform(0.4, 2.0, n), ext_sma20=rng.normal(-0.5, 1.0, n), trend_with=rng.normal(0.08, 0.1, n), rs3m=rng.normal(0, 0.1, n),
+                          relvol=rng.uniform(0.5, 2.0, n), dow=rng.integers(0, 5, n).astype(float), dse=rng.choice([np.nan, 1.0, 10.0, 30.0], n)))
+    g = rng.normal(0.004, 0.03, n)
+    if effect:
+        mask = (d["spy_5d"] < -0.045) if rare else (d["spy_trend"] > 0)                 # `rare` = an effect that only exists in a small slice (a filter would have to remove most setups)
+        g = g + effect * mask.to_numpy(float)
+    d["gross"] = g
+    return d
+
+
+def test_filter_study_finds_a_real_condition_and_validates_it_on_unseen_data():
+    from fxengine.stocks import filters as F
+    r = F.study("RSI2_PULLBACK", _trade_features(8000, 1, effect=0.012))
+    assert r["verdict"].startswith("HELPFUL") and "M_up" in r["filter"] and r["validation"]["ci_lo"] > 0 and r["validation"]["kept_share"] >= 0.5
+    assert r["validation"]["kept_mean"] > r["validation"]["baseline"] and r["selected_on"] < r["validated_on"]                  # chosen on the earlier years, judged on the later ones
+
+
+def test_filter_study_finds_nothing_in_noise_and_cannot_be_starved():
+    from fxengine.stocks import filters as F
+    helpful = sum(F.study("X", _trade_features(8000, s))["verdict"].startswith("HELPFUL") for s in range(1, 9))
+    assert helpful <= 1                                                                                                           # a useless condition is almost never adopted (8 noise data sets)
+    r = F.study("X", _trade_features(8000, 3, effect=0.06, rare=True))                                                             # the only real edge sits in a slice that keeps <50% of setups
+    assert not r["verdict"].startswith("HELPFUL") or r["validation"]["kept_share"] >= F.KEEP_MIN                                  # the throughput guard: never starve the engine
+    assert F.study("X", _trade_features(500, 1))["verdict"].startswith("too few")
+
+
+def test_trade_features_use_only_the_close_before_entry():
+    from fxengine.stocks import filters as F, crossctx as C
+    p = _market_panel()
+    sig = S.rule_sigs("RSI2_PULLBACK", p)
+    parts = [B.trades_for(s, d, sig[s]) for s, d in p.items()]
+    tr = pd.concat([t for t in parts if len(t)], ignore_index=True)
+    if len(tr) < 5:
+        pytest.skip("synthetic market produced too few trades")
+    ctx = C.build(p, {})
+    a = F.attach_features(tr, p, ctx, None)
+    q = {s: d.copy() for s, d in p.items()}
+    for d in q.values():
+        d.iloc[560:, :4] *= 1.3                                                    # rewrite the future
+    ctx2 = C.build(q, {})
+    b = F.attach_features(tr[tr["entry_date"] < p["spy.us"].index[540]], q, ctx2, None)
+    a2 = a.loc[b.index]
+    cols = ["atr_ratio", "ext_sma20", "trend_with", "relvol", "spy_vs200", "vol20"]
+    assert np.allclose(a2[cols].fillna(0).to_numpy(float), b[cols].fillna(0).to_numpy(float)) and (b["sig_date"] < b["entry_date"]).all()
+
+
+def test_filter_study_results_are_shown_on_the_research_tab():
+    from fxengine.stocks import dashboard as DB
+    fl = dict(filters={"M_up": "S&P 500 in an uptrend", "S_deep": "stretched 1+ ATR below its 20-day average"}, results=[
+        dict(rule="RSI2_PULLBACK", n=9000, filter="M_up & S_deep", verdict="HELPFUL on unseen data: candidate to adopt (a written decision is still required)",
+             validation=dict(baseline=0.004, kept_mean=0.007, removed_mean=0.001, kept_share=0.6, improvement=0.003, ci_lo=0.0008, ci_hi=0.0052)),
+        dict(rule="MOM_12_1", n=500, verdict="too few trades for a filter study")])
+    h = DB.render(None, None, None, None, fl)
+    assert "Entry-filter study" in h and "S&amp;P 500 in an uptrend + stretched 1+ ATR" in h and "HELPFUL" in h and "too few trades for a filter study" in h

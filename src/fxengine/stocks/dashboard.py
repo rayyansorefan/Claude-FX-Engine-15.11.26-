@@ -322,9 +322,29 @@ def _market_tab(mk: dict | None) -> str:
             f'<div class="card c6"><h3>Biggest moves on the last day</h3><div class="grid"><div class="c6"><table class="tbl"><tr><th>Up</th><th class="r"></th></tr>{mv(mk["movers"]["up"])}</table></div><div class="c6"><table class="tbl"><tr><th>Down</th><th class="r"></th></tr>{mv(mk["movers"]["down"])}</table></div></div></div></div>')
 
 
-def _research_tab(res: dict | None, mk: dict | None, base: str) -> str:
+def _filters_card(fl: dict | None) -> str:
+    if not fl or not fl.get('results'):
+        return ''
+    desc = fl.get('filters', {})
+    rows = ''
+    for r in fl['results']:
+        nm = INFO.get(r['rule'], (r['rule'],))[0]
+        if 'validation' not in r:
+            rows += f"<tr><td>{E(nm)}</td><td colspan='5' class='muted'>{E(r.get('verdict', ''))}</td></tr>"
+            continue
+        v, f = r['validation'], r['filter']
+        names = ' + '.join(desc.get(x.strip(), x.strip()) for x in f.split('&'))
+        good = r['verdict'].startswith('HELPFUL')
+        rows += (f"<tr><td><b>{E(nm)}</b></td><td>{E(names)}</td><td class='r num'>{pct(v['baseline'])}</td><td class='r num'>{pct(v['kept_mean'])}</td>"
+                 f"<td class='r num'>{pct(v['improvement'], d=2)} [{pct(v['ci_lo'], d=2)}, {pct(v['ci_hi'], d=2)}]</td><td>{'<span class=tag&#32;p>HELPFUL</span>' if good else '<span class=tag&#32;f>NOT PROVEN</span>'}</td></tr>")
+    return ('<div class="card" style="margin-top:12px"><h3>Entry-filter study · does a market condition separate the winners from the losers?</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:820px">'
+            '<tr><th>Setup</th><th>Best condition (chosen on the earlier 60%)</th><th class="r">All setups, later 40%</th><th class="r">With the condition</th><th class="r">Improvement (95% range)</th><th>Verdict</th></tr>' + rows + '</table></div>'
+            '<p class="muted" style="font-size:12px;margin:8px 0 0">120 fixed conditions were tried per setup; the best was chosen on the earlier years and judged ONCE on the later, unseen years. A condition can never remove more than half the setups. Nothing is applied automatically: using one is a written decision.</p></div>')
+
+
+def _research_tab(res: dict | None, mk: dict | None, base: str, fl: dict | None = None) -> str:
     if not res:
-        return base
+        return base + _filters_card(fl)
     rows = []
     for r in res["rules"]:
         name = INFO.get(r["rule"], (r["rule"],))[0]
@@ -353,7 +373,7 @@ def _research_tab(res: dict | None, mk: dict | None, base: str) -> str:
            '• One position per stock at a time, same as the live scanner. • Every rule is fixed in advance; each one tried counts toward a multiple-testing penalty (Bonferroni). • Trades are grouped by week, because many stocks move together. '
            '• A rule passes only with 100+ independent weeks, a penalised range above zero, beating random entries, and being positive in both halves of history. • The latest year is sealed and opened once, for one rule. '
            '• Known bias: the universe is today\'s survivors, so long-only results look better than real time; ETF-only checks control for it.</p></div>')
-    return base + table + st + hl + how
+    return base + table + st + _filters_card(fl) + hl + how
 
 
 def _performance_tab(sp: dict | None, res: dict | None) -> str:
@@ -447,7 +467,7 @@ def _system_tab(res: dict | None, sp: dict | None, mk: dict | None) -> str:
             f'<div class="muted" style="font-size:12px;margin-top:8px">Code: {E(sy["code"])}</div></div></div>{lim}')
 
 
-def parts(res: dict | None, sp: dict | None = None, mk: dict | None = None, jr: dict | None = None) -> dict:
+def parts(res: dict | None, sp: dict | None = None, mk: dict | None = None, jr: dict | None = None, fl: dict | None = None) -> dict:
     """Everything the dashboard shows, as HTML pieces, shared by the stand-alone page and the tab inside the FX dashboard. Same seven sections as the FX dashboard."""
     rules = (res or {}).get("rules", [])
     scored = [r for r in rules if "roi" in r]
@@ -470,15 +490,15 @@ def parts(res: dict | None, sp: dict | None = None, mk: dict | None = None, jr: 
     asof = (sp or {}).get("asof") or (res or {}).get("window", "—").split("..")[-1]
     base = (f'{verdict}{kp}<div class="card"><h3>Average gain per trade from price moves alone · each rule against its own random-entry benchmark</h3><div class="scroll">{_forest(rules) or "<p class=muted>No scored rules yet.</p>"}</div>'
             '<div class="legend"><span><i style="background:var(--s2)"></i>no edge</span><span><i style="background:var(--good)"></i>passed</span><span><i style="background:var(--s1)"></i>random-entry 95th percentile</span><span>line = confidence range after the multiple-testing penalty</span></div></div>')
-    return dict(state=state, label=label, asof=str(asof), setups=_setups_tab(sp, res), charts=_charts_tab(mk), market=_market_tab(mk), research=_research_tab(res, mk, base) + _rules_tab(res).replace('<p class="muted" style="font-size:12px">', '<p class="muted" style="font-size:12px;margin-top:8px">'),
+    return dict(state=state, label=label, asof=str(asof), setups=_setups_tab(sp, res), charts=_charts_tab(mk), market=_market_tab(mk), research=_research_tab(res, mk, base, fl) + _rules_tab(res).replace('<p class="muted" style="font-size:12px">', '<p class="muted" style="font-size:12px;margin-top:8px">'),
                 performance=_performance_tab(sp, res), journal=_journal_tab(jr, sp), system=_system_tab(res, sp, mk))
 
 
 SECTIONS = [("setups", "Setups"), ("charts", "Charts"), ("market", "Market"), ("research", "Research"), ("performance", "Performance"), ("journal", "Journal"), ("system", "System")]
 
 
-def render(res: dict | None, sp: dict | None = None, mk: dict | None = None, jr: dict | None = None) -> str:
-    x = parts(res, sp, mk, jr)
+def render(res: dict | None, sp: dict | None = None, mk: dict | None = None, jr: dict | None = None, fl: dict | None = None) -> str:
+    x = parts(res, sp, mk, jr, fl)
     sections = "".join(f'<div class="tab" id="{k}">{x[k]}</div>' for k, _ in SECTIONS)
     body = (f'<div class="wrap"><div class="top"><span class="brand">STOCKS ENGINE</span><span class="pill {x["state"]}">{x["label"]}</span><span class="chip">as of {E(x["asof"])}</span><span class="chip">research only · never places an order</span>'
             f'<span class="sp"></span><span class="mono muted">{datetime.now().strftime("%a %d %b %Y %H:%M")}</span></div>'
