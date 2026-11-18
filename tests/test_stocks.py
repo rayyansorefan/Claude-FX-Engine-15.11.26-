@@ -230,3 +230,19 @@ def test_monthly_bars_are_rejected_and_a_cached_monthly_file_is_refetched(tmp_pa
 
 def test_yahoo_request_uses_explicit_dates():
     assert "period1=" in D.YAHOO and "period2={now}" in D.YAHOO and "range=max" not in D.YAHOO
+
+
+def test_only_a_real_404_is_remembered_and_other_failures_are_retried(tmp_path):
+    class R:
+        def __init__(s, c, t=""): s.status_code, s.content = c, t.encode()
+    mode = {"m": "bad"}
+
+    def get(u):
+        if "stooq" in u:
+            return R(200, "")
+        return R(200, "{}") if mode["m"] == "bad" else R(200, _yahoo_json())
+    with pytest.raises(SystemExit):
+        D.download(tmp_path, symbols=["aapl.us"], get=get, pause=0)
+    assert not list((tmp_path / "raw").glob("*.missing"))                  # an unusable reply leaves no stamp
+    mode["m"] = "good"
+    assert len(D.download(tmp_path, symbols=["aapl.us"], get=get, pause=0)) > 250      # so the next run tries again and succeeds

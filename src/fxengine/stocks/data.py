@@ -87,7 +87,7 @@ def download(out=Path("data/stocks"), symbols=SYMBOLS, get=None, pause=0.6, refr
         f, miss = raw / f"{sym}.csv", raw / f"{sym}.{source}.missing"
         try:
             fresh = f.exists() and (time.time() - f.stat().st_mtime) < refresh_hours * 3600 and is_daily(parse(f.read_text()))   # a cached non-daily file is refetched
-            if not fresh and not quota and not (miss.exists() and (time.time() - miss.stat().st_mtime) < 7 * 86400):
+            if not fresh and not quota and not (miss.exists() and (time.time() - miss.stat().st_mtime) < 86400):
                 status, body = fetch(sym)
                 time.sleep(pause)
                 if "exceeded the daily hits limit" in body.lower():
@@ -97,8 +97,8 @@ def download(out=Path("data/stocks"), symbols=SYMBOLS, get=None, pause=0.6, refr
                     f.write_text(body)
                     if miss.exists():
                         miss.unlink()
-                else:
-                    miss.write_text(f"HTTP {status}, no usable data")
+                elif status == 404:                                  # only a genuine "no such symbol" is remembered (for a day); anything else is retried next run
+                    miss.write_text("HTTP 404")
             if not f.exists():
                 gaps.append(f"{sym}: no data"); print(f"[{k}/{len(symbols)}] {sym} no data", flush=True); continue
             d = parse(f.read_text())
