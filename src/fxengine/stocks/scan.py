@@ -159,6 +159,9 @@ def recheck(setup: dict, panel, sigs=None) -> dict:
 
 def run(panel, passed: set[str], ledger: list[dict], ctx=None, events=None, cands: dict | None = None) -> list[dict]:
     """Update the ledger: re-check all known setups, then add today's new ones (never duplicated)."""
+    ca, ch = U.allowed_countries(), U.allowed_home()
+    ok = lambda sym: (ca is None or U.country_code(sym) in ca) and (ch is None or U.home_country(sym) in ch)
+    ledger = [x for x in ledger if x.get("status") == "CLOSED" or ok(x["symbol"])]        # setups tracked before a market was excluded are dropped (closed trades stay in the record)
     have = {x["id"] for x in ledger}
     new = [s for s in todays_setups(panel, passed, ctx=ctx, events=events, cands=cands) if s["id"] not in have]
     need = {x["rule"] for x in ledger if x.get("status") != "CLOSED"}

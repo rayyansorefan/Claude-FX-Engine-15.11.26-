@@ -1058,3 +1058,19 @@ def test_company_check_warns_when_earnings_are_close():
     sc = dict(F.scorecard("nvda.us", _facts_json()), next_earnings="2026-11-25", last_earnings="2026-08-27", days_to_next=7, estimated=True)
     h = dashboard._fund_card(dict(fund=dict(companies={"nvda.us": sc}), setups=[], account=dict(positions=[])))
     assert "Earnings within 10 days" in h and "NVDA in ~7d" in h
+
+
+def test_scan_drops_open_setups_from_excluded_markets_but_keeps_closed():
+    import pandas as pd
+    from fxengine.stocks import scan, universe as U
+    assert "ca" not in (U.allowed_countries() or {"ca"})
+    led = [dict(id="a", symbol="td.ca", status="PENDING", rule="X", signal_date="2026-11-18"), dict(id="b", symbol="td.ca", status="CLOSED", rule="X", signal_date="2026-10-01", closed=dict(gross=0.01))]
+    seen = {}
+    orig_t, orig_r = scan.todays_setups, scan.recheck
+    scan.todays_setups = lambda *a, **k: []
+    scan.recheck = lambda x, panel, sigs: seen.setdefault(x["id"], x)
+    try:
+        out = scan.run({}, set(), led)
+    finally:
+        scan.todays_setups, scan.recheck = orig_t, orig_r
+    assert [x["id"] for x in out] == ["b"]

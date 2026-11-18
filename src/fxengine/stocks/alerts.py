@@ -59,9 +59,9 @@ def new_setup(r: dict, held: dict | None, rank_note: str = "") -> str:
     flt = " · filter ✓ (candidate)" if r.get("cand_ok") is True else ""
     why = (r.get("why") or [r["exit_text"]])[0]
     inv = f"invalid below {r['invalidation']:,.2f}" if r.get("invalidation") else "no fixed level"
-    sz = f"Paper: ~{held['shares']:g} shares (£{held['cost']:,.0f}, £20 risk)" if held else "Paper account: taken at the open if cash allows"
+    sz = f"Paper: ~{held['shares']:g} shares (£{held['cost']:,.0f}, £20 risk)" if held else "Paper account buys it at the open if cash allows (automatic)"
     return _lines(f"🟢 NEW · {_t(r['symbol'])} ({r['market']}{adr}) · {_name(r['rule'])} · {'PASSED RESEARCH' if r.get('proven') else 'UNPROVEN'}{flt}",
-                  f"{why} Last close {r['close']:,.2f}; {inv}.", f"{sz}. Check it is on Revolut first.")
+                  f"{why} Last close {r['close']:,.2f}; {inv}.", f"{sz}. Only copy it yourself if it is on Revolut.")
 
 
 def attention(r: dict) -> str:
@@ -77,7 +77,7 @@ def closed_trade(c: dict) -> str:
 
 def entered(e: dict) -> str:
     stop = "no fixed level (default 10% stop)" if e.get("nostop") else f"invalid below {e['stop']:,.2f}"
-    return _lines(f"🟢 PAPER BUY · {_t(e['symbol'])} at the open {e['price']:,.2f} · {_name(e['rule'])}", f"~{e['shares']:g} shares, £{e['cost']:,.0f} (£20 risk); {stop}.", "Hypothetical. Check it is on Revolut; the rules still decide at the close.")
+    return _lines(f"🟢 PAPER BUY · {_t(e['symbol'])} at the open {e['price']:,.2f} · {_name(e['rule'])}", f"~{e['shares']:g} shares, £{e['cost']:,.0f} (£20 risk); {stop}.", "Paper trade only. The rules still decide at the close.")
 
 
 def sold(x: dict) -> str:
