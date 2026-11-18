@@ -49,6 +49,25 @@ def random_pool(panel, hold_bars: np.ndarray, start, end, n: int, rng, day: bool
     return np.concatenate(out) if out else np.array([])
 
 
+def robustness(tr: pd.DataFrame) -> dict:
+    """Stress checks for a rule that passed (information, not extra pass criteria): survivorship control (ETFs have no survivor bias), outlier sensitivity,
+    the crash years removed, concentration of the gains, worst year. All price-only, same trades."""
+    r = tr["gross"].to_numpy(float)
+    lo_q, hi_q = np.quantile(r, [0.01, 0.99])
+    etf = tr[tr["symbol"].map(kind_of).str.endswith("_etf")]
+    d = tr["entry_date"]
+    crisis = ((d >= "2008-09-01") & (d <= "2009-06-30")) | ((d >= "2020-02-15") & (d <= "2020-06-30"))
+    srt = np.sort(r)[::-1]
+    top = srt[: max(1, int(len(r) * 0.01))].sum()
+    yr = [float(x["gross"].mean()) for _, x in tr.groupby(d.dt.year) if len(x) >= 20]
+    e = None
+    if len(etf) >= 50:
+        lo, hi = stats.cluster_bootstrap_ci(etf["gross"].to_numpy(float), etf["entry_date"].dt.strftime("%G-%V").to_numpy(), 0.05, n=2000)
+        e = dict(n=int(len(etf)), mean=round(float(etf["gross"].mean()), 5), ci_lo=round(float(lo), 5), ci_hi=round(float(hi), 5))
+    return dict(etf_only=e, trimmed_mean=round(float(np.clip(r, lo_q, hi_q).mean()), 5), ex_crisis=(round(float(tr.loc[~crisis, "gross"].mean()), 5) if (~crisis).sum() >= 50 else None),
+                top1_share=round(float(top / r.sum()), 3) if r.sum() > 0 else float("nan"), worst_year=round(min(yr), 5) if yr else None, best_year=round(max(yr), 5) if yr else None)
+
+
 def score(rule: str, tr: pd.DataFrame, panel, start, end, n_trials: int, rng, mid) -> dict:
     if len(tr) < 50:
         return dict(rule=rule, n=int(len(tr)), verdict="too few trades")
@@ -67,7 +86,8 @@ def score(rule: str, tr: pd.DataFrame, panel, start, end, n_trials: int, rng, mi
                 gross=round(float(tr["gross"].mean()), 5), net_normal=round(float(tr["net_normal"].mean()), 5), net_stressed=round(float(tr["net_stressed"].mean()), 5), roi=round(float(r.mean()), 5),
                 ci95_lo=round(float(g["ci_lo"]), 5), ci95_hi=round(float(g["ci_hi"]), 5), mde=round(float(g["mde_r"]), 5),
                 challenger_p95=round(float(ch["p95"]), 5), real_pct=round(float(ch["pct"]), 1), halves=halves, by_market=by_mkt, by_year=by_year,
-                gates=dict(weeks=bool(c1), lower_bound=c2, beats_random=c3, both_halves=c4), passes=bool(c1 and c2 and c3 and c4), day_trade=day)
+                gates=dict(weeks=bool(c1), lower_bound=c2, beats_random=c3, both_halves=c4), passes=bool(c1 and c2 and c3 and c4), day_trade=day,
+                robust=robustness(tr) if (c1 and c2 and c3 and c4) else None)
 
 
 def benchmarks(panel, start, end) -> dict:
@@ -140,6 +160,15 @@ def render(res) -> str:
         if "roi" not in r:
             L.append(f"| {r['rule']} | {r['n']} | {r['verdict']} ||||||||"); continue
         L.append(f"| {r['rule']} | {r['n']} | {r['weeks']} | {r['hit_rate']:.0%} | {r['roi']:+.2%} | [{r['ci95_lo']:+.2%}, {r['ci95_hi']:+.2%}] | {r['mde']:.2%} | {r['challenger_p95']:+.2%} | {r['net_normal']:+.2%} | {r['net_stressed']:+.2%} | {'YES' if r['passes'] else 'no'} |")
+    pr = [r for r in res["rules"] if r.get("passes") and r.get("robust")]
+    if pr:
+        L += ["", "## Stress checks on the rules that passed (information only)", "",
+              "| rule | ETFs only (no survivor bias) | outliers trimmed | without 2008-09 & 2020 | top 1% of trades = share of all gains | worst year | best year |", "|---|---|---|---|---|---|---|"]
+        for r in pr:
+            b = r["robust"]
+            e = b["etf_only"]
+            L.append(f"| {r['rule']} | {('n/a' if not e else format(e['mean'], '+.2%') + ' [' + format(e['ci_lo'], '+.2%') + ', ' + format(e['ci_hi'], '+.2%') + '] n=' + str(e['n']))} | {b['trimmed_mean']:+.2%} | "
+                     f"{('n/a' if b['ex_crisis'] is None else format(b['ex_crisis'], '+.2%'))} | {b['top1_share']:.0%} | {b['worst_year']:+.2%} | {b['best_year']:+.2%} |")
     L += ["", "A rule passes only if (price moves alone): 100+ independent weeks, penalised lower bound above 0, beats random entries, and is positive in both halves of the window."]
     return "\n".join(L)
 

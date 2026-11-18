@@ -246,3 +246,24 @@ def test_only_a_real_404_is_remembered_and_other_failures_are_retried(tmp_path):
     assert not list((tmp_path / "raw").glob("*.missing"))                  # an unusable reply leaves no stamp
     mode["m"] = "good"
     assert len(D.download(tmp_path, symbols=["aapl.us"], get=get, pause=0)) > 250      # so the next run tries again and succeeds
+
+
+def test_rules_that_pass_get_stress_checks_and_labels_are_honest(tmp_path):
+    from fxengine.stocks import dashboard as DB
+    p = {}
+    for i in range(40):
+        d = _series(2500, 300 + i, vol=0.012)
+        c = d["close"].to_numpy().copy()
+        r = np.r_[0, np.diff(np.log(c))]
+        for t in range(210, len(r) - 5):
+            if r[t] + r[t - 1] < -0.025:
+                r[t + 1: t + 4] += 0.02
+        c2 = 100 * np.exp(np.cumsum(r))
+        p[f"s{i}.us" if i < 30 else f"e{i}.us"] = d.assign(close=c2, open=np.r_[c2[0], c2[:-1]], high=c2 * 1.004, low=c2 * 0.996)
+    res = _run(p, tmp_path)
+    rsi = next(r for r in res["rules"] if r["rule"] == "RSI2_PULLBACK")
+    assert rsi["passes"] and rsi["robust"] and rsi["robust"]["trimmed_mean"] > 0 and 0 < rsi["robust"]["top1_share"] < 1
+    assert "Stress checks" in (tmp_path / "res" / "stocks.md").read_text()
+    h = DB.render(res, dict(asof="2026-11-18", setups=[dict(id="a", rule="RSI2_PULLBACK", symbol="aapl.us", market="US", signal_date="2026-11-18", close=1.0, invalidation=0.9,
+                                                              strength=1, exit_text="x", proven=True, status="PENDING")]))
+    assert "PASSED RESEARCH TEST" in h and ">PROVEN<" not in h and "Stress checks" in h

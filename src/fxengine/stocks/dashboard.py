@@ -69,13 +69,13 @@ def _setups_tab(sp: dict | None) -> str:
         body = "".join(
             f'<tr><td><b>{E(r["symbol"].split(".")[0].upper())}</b> <span class="muted">{E(r["market"])}</span></td><td>{E(INFO.get(r["rule"], (r["rule"],))[0])}</td><td>{E(r["signal_date"])}</td>'
             f'<td class="r num">{r["close"]:,.2f}</td><td class="r num">{"" if r.get("invalidation") is None else format(r["invalidation"], ",.2f")}</td><td>{_badge(r["status"])}</td>'
-            f'<td class="muted">{E(r.get("detail") or r["exit_text"])}</td><td>{"<span class=badge&#32;n>PROVEN</span>" if r["proven"] else "<span class=badge&#32;u>UNPROVEN</span>"}</td></tr>' for r in items)
+            f'<td class="muted">{E(r.get("detail") or r["exit_text"])}</td><td>{"<span class=badge&#32;n>PASSED RESEARCH TEST</span>" if r["proven"] else "<span class=badge&#32;u>UNPROVEN</span>"}</td></tr>' for r in items)
         return ('<div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:820px"><tr><th>Stock</th><th>Setup</th><th>Signal (close of)</th><th class="r">Last close</th><th class="r">Invalid below</th><th>Status</th><th>What happens next</th><th>Evidence</th></tr>'
                 + body + "</table></div>")
     new = [r for r in rows if r["status"] == "PENDING"]
     live = [r for r in rows if r["status"] in ("VALID", "WEAKENING")]
     att = [r for r in rows if r["status"] in ("EXIT SIGNAL", "INVALIDATED", "TIME STOP")]
-    return (f'<div class="paperbanner"><b>RESEARCH ONLY.</b> These are what the pre-registered rules flag, as of the close of {E(sp["asof"])}. Nothing here is advice or an order. Every setup is <b>UNPROVEN</b> unless its rule passed the research gate. Check the stock is available to trade on Revolut before anything else.</div>'
+    return (f'<div class="paperbanner"><b>RESEARCH ONLY.</b> These are what the pre-registered rules flag, as of the close of {E(sp["asof"])}. Nothing here is advice or an order. Every setup is <b>UNPROVEN</b>; "passed research test" means only that the rule cleared the historical test, not that it is proven to make money. Check the stock is available to trade on Revolut before anything else.</div>'
             f'<div class="card"><h3>New for the next open · {len(new)}</h3>{table(new)}</div>'
             f'<div class="card" style="margin-top:12px"><h3>Being tracked · {len(live)}</h3>{table(live)}</div>'
             f'<div class="card" style="margin-top:12px"><h3>Needs attention · {len(att)}</h3><p class="muted" style="margin-top:0">The rule says exit, the setup is invalidated, or its time limit is up.</p>{table(att)}</div>')
@@ -92,13 +92,16 @@ def _rules_tab(res: dict | None) -> str:
             continue
         g = r["gates"]
         mk = lambda ok, t: f'<b class="{"ok" if ok else "no"}">{"✓" if ok else "✗"}</b> <span>{t}</span>'
-        cards.append(
+        parts = [
             f'<div class="card c4 rulecard"><span class="tag {"p" if r["passes"] else "f"}">{"PASSED" if r["passes"] else "NO EDGE"}</span><h4>{E(name)}</h4><div class="d">{E(desc)}</div>'
             f'<div class="nums"><div><small>Avg gain / trade</small><b>{pct(r["roi"])}</b></div><div><small>Range</small><b style="font-size:13px">{pct(r["ci95_lo"], d=1)} to {pct(r["ci95_hi"], d=1)}</b></div>'
             f'<div><small>Trades · wins</small><b style="font-size:14px">{r["n"]:,} · {r["hit_rate"]:.0%}</b></div><div><small>Avg hold</small><b style="font-size:14px">{"same day" if r["avg_hold"] == 0 else format(r["avg_hold"], ".0f") + " days"}</b></div>'
             f'<div><small>After costs (normal)</small><b style="font-size:14px">{pct(r["net_normal"])}</b></div><div><small>After costs (stressed)</small><b style="font-size:14px">{pct(r["net_stressed"])}</b></div></div>'
             f'<div class="chk">{mk(g["weeks"], "100+ weeks")}{mk(g["lower_bound"], "range above 0")}{mk(g["beats_random"], "beats random")}{mk(g["both_halves"], "both halves")}</div>'
-            f'<div class="muted" style="font-size:11.5px">US {pct(r["by_market"].get("US"))} · UK {pct(r["by_market"].get("UK"))} · first half {pct(r["halves"].get("first"))} · second half {pct(r["halves"].get("second"))}</div></div>')
+        ]
+        parts.append((f'<div class="muted" style="font-size:11.5px;margin-top:4px"><b>Stress checks:</b> ETFs only {pct(r["robust"]["etf_only"]["mean"]) if r["robust"].get("etf_only") else "n/a"} · outliers trimmed {pct(r["robust"]["trimmed_mean"])} · without 2008-09 &amp; 2020 {pct(r["robust"]["ex_crisis"]) if r["robust"].get("ex_crisis") is not None else "n/a"} · top 1% of trades = {r["robust"]["top1_share"] * 100:.0f}% of all gains · worst year {pct(r["robust"]["worst_year"])}</div>' if r.get("robust") else ""))
+        parts.append(f'<div class="muted" style="font-size:11.5px">US {pct(r["by_market"].get("US"))} · UK {pct(r["by_market"].get("UK"))} · first half {pct(r["halves"].get("first"))} · second half {pct(r["halves"].get("second"))}</div></div>')
+        cards.append("".join(parts))
     return f'<div class="grid">{"".join(cards)}</div><p class="muted" style="font-size:12px">Pass/fail uses price moves only; the two "after costs" numbers are information (see the plan for the cost assumptions).</p>'
 
 
