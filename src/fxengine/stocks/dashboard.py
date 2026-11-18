@@ -99,6 +99,29 @@ def _live_strip(sp: dict) -> str:
             '<p class="muted" style="font-size:12px;margin:8px 0 0">Provisional: entries use the real open, exits follow the rules\' sell signals from last night. The nightly scan writes the final record.</p></div>')
 
 
+def _fund_card(sp: dict) -> str:
+    """Company check from the official filings: for today's setups, the paper positions and the names on ops/stocks_watch.txt (e.g. a stock you hold yourself)."""
+    fd = ((sp.get("fund") or {}).get("companies")) or {}
+    if not fd:
+        return ""
+    from pathlib import Path as _P
+    watch = [x.split("#")[0].strip().lower() for x in _P("ops/stocks_watch.txt").read_text().splitlines()] if _P("ops/stocks_watch.txt").exists() else []
+    syms = [x for x in dict.fromkeys(watch + [p_["symbol"] for p_ in (sp.get("account") or {}).get("positions", [])] + [r["symbol"] for r in sp.get("setups", [])]) if x]
+    E_ = lambda t: html_escape(str(t))
+    rows = ""
+    for sym in syms:
+        f = fd.get(sym)
+        if not f:
+            rows += f"<tr><td><b>{E_(sym.split('.')[0].upper())}</b></td><td colspan=4 class='muted'>No SEC filing data (non-US reporter or not downloaded yet)</td></tr>"
+            continue
+        col = {"STRONG": "pos", "WEAK": "neg"}.get(f["verdict"], "")
+        det = " · ".join(("✓ " if c["ok"] else "✗ ") + E_(c["name"]) + " (" + E_(c["detail"]) + ")" for c in f["checks"] if c["ok"] is not None)
+        rows += f"<tr><td><b>{E_(sym.split('.')[0].upper())}</b></td><td><b class='{col}'>{f['verdict']}</b></td><td class='num'>{f['passed']}/{f['of']}</td><td style='font-size:12px'>{('last ' + E_(f['last_earnings']) + '<br>next ~' + E_(f['next_earnings']) + ' (' + str(f['days_to_next']) + 'd, estimate)') if f.get('next_earnings') else 'n/a'}</td><td style='font-size:12px'>{det}</td></tr>"
+    return ('<div class="card" style="margin-top:16px"><h3>Company check · from the official SEC filings (latest quarter)</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:720px">'
+            '<tr><th>Stock</th><th>Business</th><th class="r">Checks</th><th>Earnings</th><th>Detail</th></tr>' + rows + '</table></div>'
+            '<p class="muted" style="font-size:12px;margin:8px 0 0">Eight yes/no checks on revenue, earnings, margins, cash, debt and share count, read from the companies\' own filings. Information only: it has not yet been tested as a predictor and never changes a setup or a paper trade.</p></div>')
+
+
 def _trade_card(r: dict, held: dict | None = None, live: dict | None = None) -> str:
     if live and live.get('price'):
         r = dict(r, last_close=live['price'], _live_t=live.get('t'))
@@ -274,7 +297,7 @@ def _setups_tab(sp: dict | None, res: dict | None = None) -> str:
                 '<tr><th>Stock</th><th>Setup</th><th>Entered</th><th>Exited</th><th class="r">Gain</th><th class="r">Days</th></tr>' + hr + "</table></div></div>")
     return (f'<div class="paperbanner"><b>RESEARCH ONLY.</b> These are what the pre-registered rules flag, as of the close of {E(sp["asof"])}. Nothing here is advice or an order. Every setup is <b>UNPROVEN</b>; '
             '"passed research test" means only that the rule cleared the historical test, not that it is proven to make money. Check the stock is available on Revolut first.</div>'
-            f'{top}{charts}<h2 class="sec">Active setups<small>{len(pend)} new for the next open · {len(live)} being tracked · {len(att)} need attention</small></h2><div class="trades">{cards}</div>{hist}')
+            f'{top}{charts}<h2 class="sec">Active setups<small>{len(pend)} new for the next open · {len(live)} being tracked · {len(att)} need attention</small></h2><div class="trades">{cards}</div>{_fund_card(sp)}{hist}')
 
 
 def _rules_tab(res: dict | None) -> str:

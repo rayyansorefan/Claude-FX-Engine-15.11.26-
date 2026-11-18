@@ -41,6 +41,7 @@ def page() -> str:
     res, sp, mk, fl = rd("stocks.json"), rd("stocks_setups.json"), rd("stocks_market.json"), rd("stocks_filters.json")
     if sp is not None:
         sp["live"] = rd("stocks_live.json")
+        sp["fund"] = rd("stocks_fundamentals.json")
     jr = tab.load_journal()
     fx = fx_page()
     h = inject(fx, tab.CSS, tab.fragment(res, sp, mk, jr, fl)) if fx else None

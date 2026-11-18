@@ -987,3 +987,46 @@ def test_home_country_filter_hides_countries_missing_from_revolut_app():
     h = U.allowed_home()
     assert h and {"us", "uk", "de", "ch", "ca", "il", "sg"} <= h
     assert U.home_country("tsm.us") not in h and "jp" not in h and "cn" not in h and "in" not in h
+
+
+def _facts_json(rev_growth=0.10, margin=0.40, shares_growth=0.0):
+    import pandas as pd
+    def series(vals, tag_unit="USD", dur=True):
+        out = []
+        for k, v in enumerate(vals):
+            end = pd.Timestamp("2024-03-31") + pd.DateOffset(months=3 * k)
+            d = dict(end=f"{end:%Y-%m-%d}", val=v, form="10-Q", filed=f"{end + pd.Timedelta(days=30):%Y-%m-%d}")
+            if dur:
+                d["start"] = f"{end - pd.Timedelta(days=90):%Y-%m-%d}"
+            out.append(d)
+        return {"units": {tag_unit: out}}
+    n = 8
+    rev = [100 * (1 + rev_growth) ** (k / 4) for k in range(n)]
+    ann = lambda v: {"units": {"USD": [dict(start="2024-01-01", end="2024-12-31", val=v, form="10-K", filed="2025-02-20")]}}
+    return {"facts": {"us-gaap": {"Revenues": series(rev), "GrossProfit": series([r * margin for r in rev]), "OperatingIncomeLoss": series([r * 0.2 for r in rev]),
+                                  "EarningsPerShareDiluted": series([1 + 0.1 * k for k in range(n)], "USD/shares"), "NetCashProvidedByUsedInOperatingActivities": ann(500.0),
+                                  "LongTermDebtNoncurrent": {"units": {"USD": [dict(end="2025-12-31", val=900.0, form="10-Q", filed="2026-02-01")]}},
+                                  "WeightedAverageNumberOfDilutedSharesOutstanding": series([100 * (1 + shares_growth) ** (k / 4) for k in range(n)], "USD")}}}
+
+
+def test_fundamentals_scorecard_strong_and_weak():
+    from fxengine.stocks import fundamentals as F
+    good = F.scorecard("x.us", _facts_json())
+    assert good and good["verdict"] in ("STRONG", "MIXED") and good["passed"] >= 6
+    bad = F.scorecard("y.us", _facts_json(rev_growth=-0.2, margin=0.3, shares_growth=0.2))
+    assert bad and bad["passed"] < good["passed"] and bad["verdict"] in ("WEAK", "MIXED")
+    assert F.scorecard("z.us", {"facts": {}}) is None
+
+
+def test_dashboard_company_check_table():
+    from fxengine.stocks import dashboard, fundamentals as F
+    sc = F.scorecard("nvda.us", _facts_json())
+    h = dashboard._fund_card(dict(fund=dict(companies={"nvda.us": sc}), setups=[], account=dict(positions=[])))
+    assert "Company check" in h and "NVDA" in h
+
+
+def test_next_earnings_estimate_from_filing_rhythm():
+    from fxengine.stocks import fundamentals as F
+    sub = {"filings": {"recent": {"form": ["8-K"] * 4, "items": ["2.02"] * 4, "filingDate": ["2025-02-20", "2025-05-22", "2025-08-27", "2025-11-19"], "acceptanceDateTime": [""] * 4}}}
+    n = F.next_earnings(sub, today="2026-02-01")
+    assert n["next_earnings"] == "2026-02-19" and n["days_to_next"] == 18 and n["estimated"]

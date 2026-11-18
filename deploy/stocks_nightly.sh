@@ -21,6 +21,7 @@ done
 $PY -m fxengine.stocks.data > data/stocks_data.log 2>&1 || log "price download exit code $?"
 log "prices: $(tail -1 data/stocks_data.log | cut -c1-120)"
 [ -s data/stocks/sec_contact.txt ] && { $PY -m fxengine.stocks.events > data/stocks_events.log 2>&1 || log "events exit code $?"; }
+$PY -m fxengine.stocks.fundamentals > data/stocks_fund.log 2>&1 || log "fundamentals exit code $?"
 $PY -m fxengine.stocks.scan > data/stocks_scan.log 2>&1 || log "scan exit code $?"
 log "scan: $(tail -1 data/stocks_scan.log | cut -c1-140)"
 $PY -m fxengine.stocks.alerts > data/stocks_alerts.log 2>&1 || log "alerts exit code $?"

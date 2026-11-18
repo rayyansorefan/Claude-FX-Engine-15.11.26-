@@ -1,0 +1,2 @@
+# Stocks you hold yourself or want checked (one per line, e.g. nvda.us). The Company check table on the Setups tab shows them.
+nvda.us
