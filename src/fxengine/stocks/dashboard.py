@@ -58,10 +58,21 @@ def _badge(status: str) -> str:
 
 
 def _setups_tab(sp: dict | None) -> str:
-    if not sp or not sp.get("setups"):
+    if not sp or (not sp.get("setups") and not sp.get("forward")):
         return ('<div class="card"><h3>Setups</h3><p class="muted">No setups yet. Run <code>bash deploy/stocks_all.sh</code> on the VM; after each market close the scanner lists the setups that fired, '
                 'and re-checks every earlier one against the newest prices.</p></div>')
     rows = sp["setups"]
+    fw = sp.get("forward") or {}
+
+    def forward_card():
+        if not fw:
+            return ('<div class="card" style="margin-bottom:12px"><h3>Forward test · live, out-of-sample</h3><p class="muted" style="margin:0">Every new setup the rules fire is tracked from now on, exactly as in the research. '
+                    'As trades close their results appear here. This is the real confirmation: nothing in it was seen when the rules were chosen.</p></div>')
+        body = "".join(f'<tr><td>{E(INFO.get(k, (k,))[0])}</td><td class="r num">{v["n"]}</td><td class="r num">{pct(v["hit_rate"], False, 0)}</td><td class="r num">{pct(v["mean"])}</td>'
+                       f'<td class="r num">{"needs 30+" if v["lo"] is None else pct(v["lo"], d=1) + " to " + pct(v["hi"], d=1)}</td><td class="r num">{pct(v.get("expected"))}</td></tr>' for k, v in fw.items())
+        return ('<div class="card" style="margin-bottom:12px"><h3>Forward test · live, out-of-sample</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:560px"><tr><th>Setup</th><th class="r">Closed</th><th class="r">Win rate</th>'
+                '<th class="r">Avg gain</th><th class="r">95% range</th><th class="r">Research said</th></tr>' + body + '</table></div>'
+                '<p class="muted" style="font-size:12px;margin:8px 0 0">Price-only. Fewer than 30 closed trades is mostly luck either way; trust it only once the range is narrow.</p></div>')
 
     def table(items):
         if not items:
@@ -75,7 +86,7 @@ def _setups_tab(sp: dict | None) -> str:
     new = [r for r in rows if r["status"] == "PENDING"]
     live = [r for r in rows if r["status"] in ("VALID", "WEAKENING")]
     att = [r for r in rows if r["status"] in ("EXIT SIGNAL", "INVALIDATED", "TIME STOP")]
-    return (f'<div class="paperbanner"><b>RESEARCH ONLY.</b> These are what the pre-registered rules flag, as of the close of {E(sp["asof"])}. Nothing here is advice or an order. Every setup is <b>UNPROVEN</b>; "passed research test" means only that the rule cleared the historical test, not that it is proven to make money. Check the stock is available to trade on Revolut before anything else.</div>'
+    return (forward_card() + f'<div class="paperbanner"><b>RESEARCH ONLY.</b> These are what the pre-registered rules flag, as of the close of {E(sp["asof"])}. Nothing here is advice or an order. Every setup is <b>UNPROVEN</b>; "passed research test" means only that the rule cleared the historical test, not that it is proven to make money. Check the stock is available to trade on Revolut before anything else.</div>'
             f'<div class="card"><h3>New for the next open · {len(new)}</h3>{table(new)}</div>'
             f'<div class="card" style="margin-top:12px"><h3>Being tracked · {len(live)}</h3>{table(live)}</div>'
             f'<div class="card" style="margin-top:12px"><h3>Needs attention · {len(att)}</h3><p class="muted" style="margin-top:0">The rule says exit, the setup is invalidated, or its time limit is up.</p>{table(att)}</div>')

@@ -8,7 +8,7 @@ from .data import BAD_MOVE
 from .strategies import Sig
 
 
-def swing_trades(o: np.ndarray, sig: Sig, bad_cum: np.ndarray) -> list[tuple[int, int, int]]:
+def swing_trades(o: np.ndarray, sig: Sig, bad_cum: np.ndarray, return_open: bool = False):
     """Returns (signal_bar, entry_bar, exit_bar): signal at the close of i, buy open of i+1, sell open of the bar after the exit condition (or after max_hold)."""
     n, res, i = len(o), [], 0
     while i < n - 1:
@@ -21,11 +21,13 @@ def swing_trades(o: np.ndarray, sig: Sig, bad_cum: np.ndarray) -> list[tuple[int
                 x = j + 1
                 break
         if x is None:
+            if return_open:
+                return res, i                                  # signal bar of the trade still open at the end of the data
             break                                              # ran out of data: still open, not scored
         if bad_cum[x + 1] - bad_cum[i + 1] == 0:
             res.append((i, e, x))
         i = x
-    return res
+    return (res, None) if return_open else res
 
 
 def trades_for(sym: str, d: pd.DataFrame, sig: Sig) -> pd.DataFrame:

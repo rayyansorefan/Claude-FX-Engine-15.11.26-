@@ -32,7 +32,16 @@ def _month_end(last: pd.Timestamp) -> bool:
     return (last + pd.offsets.BDay(1)).month != last.month
 
 
-def todays_setups(panel, passed: set[str]) -> list[dict]:
+def _already_in_position(d: pd.DataFrame, sig) -> bool:
+    """The research holds ONE position per stock per rule: a signal while that stock's earlier trade is still open is ignored. Mirror that exactly."""
+    from . import backtest as B
+    c = d["close"].to_numpy(float)
+    bad = np.r_[False, np.abs(c[1:] / c[:-1] - 1.0) > B.BAD_MOVE]
+    _, open_i = B.swing_trades(d["open"].to_numpy(float), sig, np.r_[0, np.cumsum(bad)], return_open=True)
+    return open_i is not None and open_i < len(d) - 1
+
+
+def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE) -> list[dict]:
     mom = S.momentum_entries(panel) if _month_end(max(d.index.max() for d in panel.values())) else {}
     out = []
     for rule in ("RSI2_PULLBACK", "BREAKOUT_20", "TREND_50_200", "MOM_12_1"):
@@ -40,26 +49,52 @@ def todays_setups(panel, passed: set[str]) -> list[dict]:
         for s, d in panel.items():
             i = len(d) - 1
             if rule == "MOM_12_1":
-                fired = bool(mom.get(s, np.zeros(1, bool))[-1]) if s in mom else False
+                sg = S.Sig(mom[s], np.zeros(len(d), bool), 21) if s in mom else None
             else:
                 sg = S.BAR_RULES[rule](d)
-                fired = bool(sg.entry[i])
+            fired = bool(sg is not None and sg.entry[i] and not _already_in_position(d, sg))
             if fired and d.index[i] >= max(x.index.max() for x in panel.values()) - pd.Timedelta(days=4):
                 lv = _levels(rule, d, i)
                 rows.append(dict(id=f"{rule}|{s}|{d.index[i]:%Y-%m-%d}", rule=rule, symbol=s, market=market_of(s), signal_date=f"{d.index[i]:%Y-%m-%d}", close=round(float(d['close'].iloc[i]), 4),
                                  invalidation=None if np.isnan(lv["invalidation"]) else round(lv["invalidation"], 4), strength=round(lv["strength"], 4), exit_text=lv["exit_text"],
                                  proven=rule in passed, status="PENDING"))
         rows.sort(key=lambda r: -r["strength"])
-        out += rows[:MAX_PER_RULE]
+        for k, r in enumerate(rows):              # EVERY signal is tracked (the research traded every signal); only the strongest few are shown to the owner
+            r["shown"] = k < top
+        out += rows
     return out
 
 
-def recheck(setup: dict, panel) -> dict:
+def closed_trade(setup: dict, panel, mom=None) -> dict | None:
+    """The finished trade for a tracked setup, produced by the SAME backtest code the research used; None while it is still open."""
+    from . import backtest as B
+    d = panel.get(setup["symbol"])
+    if d is None:
+        return None
+    rule = setup["rule"]
+    sig = S.Sig(mom[setup["symbol"]], np.zeros(len(d), bool), 21) if rule == "MOM_12_1" and mom is not None else S.BAR_RULES.get(rule) and S.BAR_RULES[rule](d)
+    if not sig:
+        return None
+    sd = pd.Timestamp(setup["signal_date"])
+    later = d.index[d.index > sd]
+    if len(later) == 0:
+        return None
+    tr = B.trades_for(setup["symbol"], d, sig)
+    m = tr[tr["entry_date"] == later[0]]
+    if m.empty:
+        return None
+    r = m.iloc[0]
+    return dict(gross=round(float(r["gross"]), 5), entry_date=f"{pd.Timestamp(r['entry_date']):%Y-%m-%d}", exit_date=f"{pd.Timestamp(r['exit_date']):%Y-%m-%d}", bars=int(r["bars"]))
+
+
+def recheck(setup: dict, panel, mom=None) -> dict:
     """Re-evaluate one stored setup against the newest prices (price-only). Returns the updated setup."""
     d = panel.get(setup["symbol"])
     if d is None:
         return setup
     s = dict(setup)
+    if s.get("status") == "CLOSED":
+        return s
     sd = pd.Timestamp(s["signal_date"])
     later = d.index[d.index > sd]
     if len(later) == 0:
@@ -69,6 +104,10 @@ def recheck(setup: dict, panel) -> dict:
     o, c, last = float(d["open"].iloc[e]), d["close"], len(d) - 1
     held, ret = last - e + 1, float(c.iloc[last] / o - 1)
     s.update(entry_price=round(o, 4), held=held, unrealised=round(ret, 4), last_close=round(float(c.iloc[last]), 4))
+    ct = closed_trade(s, panel, mom)
+    if ct:
+        s.update(status="CLOSED", detail=f"closed {ct['gross']:+.1%} in {ct['bars']} days", closed=ct)
+        return s
     rule = s["rule"]
     exit_now = bool(S.BAR_RULES[rule](d).exit[last]) if rule in S.BAR_RULES else False
     inv = s.get("invalidation")
@@ -92,8 +131,25 @@ def run(panel, passed: set[str], ledger: list[dict]) -> list[dict]:
     """Update the ledger: re-check all known setups, then add today's new ones (never duplicated)."""
     have = {x["id"] for x in ledger}
     new = [s for s in todays_setups(panel, passed) if s["id"] not in have]
-    rows = [recheck(x, panel) for x in ledger] + new
+    mom = S.momentum_entries(panel) if any(x["rule"] == "MOM_12_1" and x.get("status") != "CLOSED" for x in ledger) else None
+    rows = [recheck(x, panel, mom) for x in ledger] + new
     return rows
+
+
+def forward_summary(rows: list[dict], expected: dict[str, float]) -> dict:
+    """Live out-of-sample scoreboard per rule from CLOSED tracked trades: count, mean price-only gain, hit rate, and a 95% range once there are 30+."""
+    out = {}
+    for rule in ("RSI2_PULLBACK", "BREAKOUT_20", "TREND_50_200", "MOM_12_1"):
+        g = [x["closed"]["gross"] for x in rows if x["rule"] == rule and x.get("status") == "CLOSED"]
+        if not g:
+            continue
+        n, m = len(g), float(np.mean(g))
+        lo = hi = None
+        if n >= 30:
+            sd = float(np.std(g, ddof=1))
+            lo, hi = m - 1.96 * sd / n ** 0.5, m + 1.96 * sd / n ** 0.5
+        out[rule] = dict(n=n, mean=round(m, 5), hit_rate=round(float(np.mean(np.array(g) > 0)), 4), lo=None if lo is None else round(lo, 5), hi=None if hi is None else round(hi, 5), expected=expected.get(rule))
+    return out
 
 
 def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.json"), res=Path("docs/results/stocks.json"), out=Path("docs/results/stocks_setups.json")):
@@ -101,12 +157,15 @@ def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.j
     passed = {r["rule"] for r in json.loads(res.read_text())["rules"] if r.get("passes")} if res.exists() else set()
     ledger = json.loads(led.read_text()) if led.exists() else []
     rows = run(panel, passed, ledger)
-    rows = [r for r in rows if r["status"] in ("PENDING", "VALID", "WEAKENING", "EXIT SIGNAL") or r["signal_date"] >= (pd.Timestamp.today() - pd.Timedelta(days=14)).strftime("%Y-%m-%d")]
+    cut = (pd.Timestamp.today() - pd.Timedelta(days=45)).strftime("%Y-%m-%d")
+    rows = [r for r in rows if r["status"] in ("PENDING", "VALID", "WEAKENING", "EXIT SIGNAL", "CLOSED") or r["signal_date"] >= cut]       # closed trades are kept: they are the forward test
     led.parent.mkdir(parents=True, exist_ok=True)
     led.write_text(json.dumps(rows, indent=1))
     out.parent.mkdir(parents=True, exist_ok=True)
     asof = max(d.index.max() for d in panel.values())
-    out.write_text(json.dumps(dict(asof=f"{asof:%Y-%m-%d}", setups=rows), indent=1))
+    expected = {r["rule"]: r["roi"] for r in json.loads(res.read_text())["rules"] if "roi" in r} if res.exists() else {}
+    shown = [r for r in rows if r.get("shown", True) or r["status"] == "CLOSED"]
+    out.write_text(json.dumps(dict(asof=f"{asof:%Y-%m-%d}", setups=[r for r in rows if r.get("shown", True) and r["status"] != "CLOSED"], forward=forward_summary(rows, expected)), indent=1))
     try:
         from . import dashboard, tab
         dashboard.write(res, out.with_name("stocks.html"), out)
@@ -114,7 +173,7 @@ def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.j
     except Exception as e:                      # the dashboard is a convenience: never let it fail the scan
         print("dashboard not refreshed:", type(e).__name__)
     print(f"as of {asof:%Y-%m-%d}: {sum(r['status'] == 'PENDING' for r in rows)} new, {sum(r['status'] in ('VALID', 'WEAKENING') for r in rows)} open, "
-          f"{sum(r['status'] in ('INVALIDATED', 'EXIT SIGNAL', 'TIME STOP') for r in rows)} need attention")
+          f"{sum(r['status'] in ('INVALIDATED', 'EXIT SIGNAL', 'TIME STOP') for r in rows)} need attention, {sum(r['status'] == 'CLOSED' for r in rows)} closed (forward test)")
     return rows
 
 

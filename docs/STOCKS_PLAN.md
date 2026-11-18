@@ -67,3 +67,11 @@ Benchmark shown beside every result: buy-and-hold SPY and an equal-weight buy-an
 - 2026-11-18: created (before any real-data result).
 - 2026-11-18 (design fix, before any holdout look): the sealed boundary was computed as 'latest date minus 365 days', which would have moved every day. It is now FIXED at 2025-11-18 (the boundary of the first real run, so no sealed data has influenced any result); everything from that date on is sealed/forward data. Holdout command: `python -m fxengine.stocks.run --holdout RULE --why "..."`, once per rule, only for a rule that passed the gate, logged in docs/stocks_holdout_log.txt.
 - 2026-11-18: owner instruction: gate and headline are now price-only (gross); costs are information only. Logged before any real-data result.
+
+## Update 2026-11-18 (later): first real results, stress checks, sealed year, forward test
+- First real-data run (103 symbols, 2000-2025, price-only gate): RSI2_PULLBACK, MOM_12_1, GAP_FADE_DAY passed the gate.
+- Stress checks: GAP_FADE_DAY rejected (top 1% of trades = 94% of all gains, one year at +46% per trade: outliers/data errors, ETF-only range includes zero).
+  RSI2_PULLBACK survives (ETF-only +0.36% [+0.22%, +0.50%], trimmed +0.40%, crash years removed +0.42%). MOM_12_1 survives with thinner evidence (ETF-only n=192, survivorship-flattered).
+- Sealed boundary fixed at 2025-11-18 (it was a moving 365-day window: fixed before any holdout look).
+- Holdout opened ONCE for RSI2_PULLBACK on 2026-11-18 (docs/stocks_holdout_log.txt): n=800, mean +0.536%, 65.5% wins, range [+0.14%, +0.94%] -> PASS. Needs forward confirmation.
+- Forward test (from 2026-11-18): the scanner tracks EVERY signal of the four swing rules, mirrors the research's one-position-per-stock rule, and closes trades with the same backtest code, so live results are directly comparable. Nightly timer (weekdays 22:45 UTC).

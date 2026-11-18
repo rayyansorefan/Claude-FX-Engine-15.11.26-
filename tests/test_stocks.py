@@ -122,11 +122,8 @@ def test_results_files_and_trial_registry_are_written(tmp_path):
 
 def test_scanner_lists_todays_setup_then_tracks_it_through_to_invalidation():
     from fxengine.stocks import scan
-    rng = np.random.default_rng(5)
-    d = _series(500, 8, vol=0.01, drift=0.0008)                       # a gentle uptrend (RSI2 needs close > 200-day average)
-    c = d["close"].to_numpy().copy()
-    c[-3:] = c[-4] * np.array([0.975, 0.955, 0.94])                   # three hard down days at the end -> RSI(2) oversold on the last bar
-    d = d.assign(close=c, open=np.r_[c[0], c[:-1]], high=c * 1.003, low=c * 0.997)
+    d = _one_signal_series()                                          # an uptrend with one hard down day at the end -> RSI(2) oversold on the last bar
+    c = d["close"].to_numpy()
     panel = {"aaa.us": d}
     rows = scan.run(panel, set(), [])
     s = next(r for r in rows if r["rule"] == "RSI2_PULLBACK")
@@ -308,3 +305,56 @@ def test_holdout_opens_once_only_for_a_rule_that_passed_and_reports_honestly(tmp
     assert out["n"] > 100 and out["mean"] > 0 and out["verdict"].startswith("PASS") and "RSI2_PULLBACK" in log.read_text()
     with pytest.raises(SystemExit, match="already opened"):
         R.open_holdout("RSI2_PULLBACK", "again", tmp_path / "prices.parquet", tmp_path / "res" / "stocks.json", log, "2020-07-30")
+
+
+def _one_signal_series(seed=8, drop=0.93):
+    """An uptrend whose only RSI(2) signal is on the very last bar (one hard down day)."""
+    d = _series(500, seed, vol=0.006, drift=0.0009)
+    c = d["close"].to_numpy().copy()
+    c[-1] = c[-2] * drop
+    return d.assign(close=c, open=np.r_[c[0], c[:-1]], high=c * 1.003, low=c * 0.997)
+
+
+def test_scanner_ignores_a_signal_while_the_stock_is_already_in_a_trade():
+    from fxengine.stocks import scan
+    d = _series(500, 8, vol=0.01, drift=0.0008)
+    c = d["close"].to_numpy().copy()
+    c[-3:] = c[-4] * np.array([0.975, 0.955, 0.94])               # signals on the 2nd AND 3rd down day: the 3rd overlaps the trade the 2nd would open
+    d = d.assign(close=c, open=np.r_[c[0], c[:-1]], high=c * 1.003, low=c * 0.997)
+    rows = [r for r in scan.run({"aaa.us": d}, set(), []) if r["rule"] == "RSI2_PULLBACK"]
+    assert rows == []                                              # the research would have skipped it, so it is not listed
+
+
+def test_forward_test_closes_setups_exactly_like_the_backtest_and_tracks_every_signal():
+    from fxengine.stocks import scan, backtest as B, strategies as S2
+    d = _one_signal_series()
+    rows = scan.run({"aaa.us": d}, {"RSI2_PULLBACK"}, [])
+    s = next(r for r in rows if r["rule"] == "RSI2_PULLBACK")
+    assert s["shown"] is True and s["proven"] is True and s["signal_date"] == f"{d.index[-1]:%Y-%m-%d}"
+    c = d["close"].to_numpy()
+    idx = pd.bdate_range(d.index[-1] + pd.offsets.BDay(1), periods=3)
+    cl = [c[-1] * 1.04, c[-1] * 1.07, c[-1] * 1.06]
+    ext = pd.concat([d, pd.DataFrame(dict(open=np.r_[c[-1], cl[:-1]], high=np.array(cl) * 1.003, low=np.array(cl) * 0.997, close=cl, volume=1e6), index=idx)])
+    upd = scan.recheck(s, {"aaa.us": ext})
+    assert upd["status"] == "CLOSED" and upd["closed"]["bars"] >= 1
+    bt = B.trades_for("aaa.us", ext, S2.BAR_RULES["RSI2_PULLBACK"](ext))
+    assert abs(bt[bt["entry_date"] == pd.Timestamp(upd["closed"]["entry_date"])]["gross"].iloc[0] - upd["closed"]["gross"]) < 1e-5          # identical to the backtest's own number
+    assert scan.recheck(upd, {"aaa.us": ext}) == upd                                                                                         # a closed trade never changes
+    fw = scan.forward_summary([upd], {"RSI2_PULLBACK": 0.004})
+    assert fw["RSI2_PULLBACK"]["n"] == 1 and fw["RSI2_PULLBACK"]["lo"] is None and fw["RSI2_PULLBACK"]["expected"] == 0.004
+
+
+def test_only_the_strongest_setups_are_shown_but_all_are_tracked():
+    from fxengine.stocks import scan
+    panel = {}
+    for i in range(8):
+        panel[f"s{i}.us"] = _one_signal_series(20 + i, 0.93 - 0.004 * i)
+    rows = [r for r in scan.run(panel, set(), []) if r["rule"] == "RSI2_PULLBACK"]
+    assert len(rows) >= 6 and sum(r["shown"] for r in rows) == scan.MAX_PER_RULE
+
+
+def test_forward_card_appears_on_the_setups_tab():
+    from fxengine.stocks import dashboard as DB
+    sp = dict(asof="2026-11-18", setups=[], forward={"RSI2_PULLBACK": dict(n=12, mean=0.004, hit_rate=0.66, lo=None, hi=None, expected=0.0039)})
+    h = DB.render(None, sp)
+    assert "Forward test" in h and "needs 30+" in h and "Short-term pullback" in h
