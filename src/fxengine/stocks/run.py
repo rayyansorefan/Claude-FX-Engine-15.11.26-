@@ -144,6 +144,8 @@ def main(path=Path("data/stocks/prices.parquet"), out=Path("docs/results"), reg=
     try:
         from . import dashboard
         dashboard.write(out / "stocks.json", out / "stocks.html")
+        from . import tab
+        tab.write(out / "stocks.json")
     except ImportError:
         pass
     return res

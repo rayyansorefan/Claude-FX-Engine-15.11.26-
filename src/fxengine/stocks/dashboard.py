@@ -105,7 +105,8 @@ def _rules_tab(res: dict | None) -> str:
     return f'<div class="grid">{"".join(cards)}</div><p class="muted" style="font-size:12px">Pass/fail uses price moves only; the two "after costs" numbers are information (see the plan for the cost assumptions).</p>'
 
 
-def render(res: dict | None, sp: dict | None = None) -> str:
+def parts(res: dict | None, sp: dict | None = None) -> dict:
+    """Everything the dashboard shows, as HTML pieces, shared by the stand-alone page and the tab inside the FX dashboard."""
     rules = (res or {}).get("rules", [])
     scored = [r for r in rules if "roi" in r]
     passed = [r for r in scored if r["passes"]]
@@ -125,19 +126,23 @@ def render(res: dict | None, sp: dict | None = None) -> str:
               + (f'<div class="kpi"><small>Equal-weight universe</small><b>{pct(bm.get("equal_weight_cagr"), d=1)}</b><span>per year (survivors only: flatters)</span></div>' if "equal_weight_cagr" in bm else "")
               + f'<div class="kpi"><small>Rules tested</small><b>{(res or {}).get("n_trials", "—")}</b><span>all logged, fixed in advance</span></div><div class="kpi"><small>Symbols</small><b>{(res or {}).get("symbols", "—")}</b><span>US + UK</span></div></div>')
     asof = (sp or {}).get("asof") or (res or {}).get("window", "—").split("..")[-1]
+    research = (f'{verdict}{kp}<div class="card"><h3>Average gain per trade from price moves alone · each rule against its own random-entry benchmark</h3><div class="scroll">{_forest(rules) or "<p class=muted>No scored rules yet.</p>"}</div>'
+                '<div class="legend"><span><i style="background:var(--s2)"></i>no edge</span><span><i style="background:var(--good)"></i>passed</span><span><i style="background:var(--s1)"></i>random-entry 95th percentile</span><span>line = confidence range after the multiple-testing penalty</span></div></div>')
+    about = ('<div class="card"><h3>What this can and cannot tell you</h3><ul class="lim"><li>Research only: it never places an order and has no Revolut access. You decide and trade yourself, at your own risk.</li>'
+             '<li>Daily bars only: the free data has no reliable intraday history, so day-trade rules are tested open-to-close and are optimistic (a real order fills a little after the open).</li>'
+             '<li>The universe is today\'s large US and UK stocks, so it is biased toward companies that survived; long-only results look better than they would have in real time.</li>'
+             '<li>Costs are assumptions until you give your real Revolut plan fees; they are shown, not part of pass/fail. Check availability of each stock on Revolut.</li>'
+             '<li>The latest 365 days are sealed. They are opened once, only for a rule that has passed everything else.</li></ul></div>')
+    return dict(state=state, label=label, asof=str(asof), setups=_setups_tab(sp), research=research, rules=_rules_tab(res), about=about)
+
+
+def render(res: dict | None, sp: dict | None = None) -> str:
+    x = parts(res, sp)
     tabs = [("setups", "Setups"), ("research", "Research"), ("rules", "Rules"), ("about", "About")]
-    sections = [f'<div class="tab" id="setups">{_setups_tab(sp)}</div>',
-                f'<div class="tab" id="research">{verdict}{kp}<div class="card"><h3>Average gain per trade from price moves alone · each rule against its own random-entry benchmark</h3><div class="scroll">{_forest(rules) or "<p class=muted>No scored rules yet.</p>"}</div>'
-                '<div class="legend"><span><i style="background:var(--s2)"></i>no edge</span><span><i style="background:var(--good)"></i>passed</span><span><i style="background:var(--s1)"></i>random-entry 95th percentile</span><span>line = confidence range after the multiple-testing penalty</span></div></div></div>',
-                f'<div class="tab" id="rules">{_rules_tab(res)}</div>',
-                '<div class="tab" id="about"><div class="card"><h3>What this can and cannot tell you</h3><ul class="lim"><li>Research only: it never places an order and has no Revolut access. You decide and trade yourself, at your own risk.</li>'
-                '<li>Daily bars only: the free data has no reliable intraday history, so day-trade rules are tested open-to-close and are optimistic (a real order fills a little after the open).</li>'
-                '<li>The universe is today\'s large US and UK stocks, so it is biased toward companies that survived; long-only results look better than they would have in real time.</li>'
-                '<li>Costs are assumptions until you give your real Revolut plan fees; they are shown, not part of pass/fail. Check availability of each stock on Revolut.</li>'
-                '<li>The latest 365 days are sealed. They are opened once, only for a rule that has passed everything else.</li></ul></div></div>']
-    body = (f'<div class="wrap"><div class="top"><span class="brand">STOCKS ENGINE</span><span class="pill {state}">{label}</span><span class="chip">as of {E(str(asof))}</span><span class="chip">research only · never places an order</span>'
+    sections = "".join(f'<div class="tab" id="{k}">{x[k]}</div>' for k, _ in tabs)
+    body = (f'<div class="wrap"><div class="top"><span class="brand">STOCKS ENGINE</span><span class="pill {x["state"]}">{x["label"]}</span><span class="chip">as of {E(x["asof"])}</span><span class="chip">research only · never places an order</span>'
             f'<span class="sp"></span><span class="mono muted">{datetime.now().strftime("%a %d %b %Y %H:%M")}</span></div>'
-            f'<div class="tabs">{"".join(f"<button data-t=\'{k}\'>{v}</button>" for k, v in tabs)}</div>{"".join(sections)}<footer>Generated from docs/results/stocks.json · numbers shown only if they are in that file</footer></div>')
+            f'<div class="tabs">{"".join(f"<button data-t=\'{k}\'>{v}</button>" for k, v in tabs)}</div>{sections}<footer>Generated from docs/results/stocks.json · numbers shown only if they are in that file</footer></div>')
     return f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Stocks Engine</title><style>{CSS}</style></head><body>{body}{TAB_JS}</body></html>'
 
 

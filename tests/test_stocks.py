@@ -267,3 +267,14 @@ def test_rules_that_pass_get_stress_checks_and_labels_are_honest(tmp_path):
     h = DB.render(res, dict(asof="2026-11-18", setups=[dict(id="a", rule="RSI2_PULLBACK", symbol="aapl.us", market="US", signal_date="2026-11-18", close=1.0, invalidation=0.9,
                                                               strength=1, exit_text="x", proven=True, status="PENDING")]))
     assert "PASSED RESEARCH TEST" in h and ">PROVEN<" not in h and "Stress checks" in h
+
+
+def test_fx_tab_fragment_is_scoped_and_does_not_collide_with_the_fx_tab_script(tmp_path):
+    from fxengine.stocks import tab
+    (tmp_path / "stocks.json").write_text(json.dumps(dict(n_trials=6, symbols=3, window="2000-01-03..2025-01-01", benchmarks={}, rules=[dict(rule="MOM_12_1", n=5, verdict="too few trades")])))
+    p = tab.write(tmp_path / "stocks.json")
+    h, css = p.read_text(), (tmp_path / "stocks_tab.css").read_text()
+    assert h.startswith("<div class='tab' id='stocks'>") and h.count("class='tab'") == 1                       # exactly ONE element the FX page's tab script will manage
+    assert "class=\\"tab\\"" not in h and "<style" not in h and "<link" not in h and "http" not in h
+    assert all(line.startswith("#stocks") for line in css.strip().splitlines() if line.strip())             # every style rule is scoped to the Stocks tab
+    assert tab.write(tmp_path / "missing.json").exists()                                                      # no results yet -> still a valid, honest "No results yet" tab

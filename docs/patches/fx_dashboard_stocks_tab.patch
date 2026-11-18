@@ -1,0 +1,54 @@
+diff --git a/src/fxengine/dashboard/build.py b/src/fxengine/dashboard/build.py
+index 49eea38..59638b1 100644
+--- a/src/fxengine/dashboard/build.py
++++ b/src/fxengine/dashboard/build.py
+@@ -2,7 +2,7 @@
+ Private by construction: it lives on your machine; nothing is uploaded.
+ PYTHONPATH=src python -m fxengine.dashboard.build   ->  dashboard/index.html   (open it in a browser)"""
+ from __future__ import annotations
+-import html as H, json
++import html as H, json, os
+ from pathlib import Path
+ import numpy as np
+ import pandas as pd
+@@ -650,6 +650,15 @@ def pair_table(root, cands, lv):
+ 
+ 
+ # ---------- page ----------
++def _stocks_tab() -> tuple[str, str]:
++    """Optional Stocks tab: two small files written by the SEPARATE stocks engine (css, html). Absent or unreadable -> no tab. Never raises, never writes."""
++    d = Path(os.environ.get("STOCKS_TAB_DIR") or Path.home() / "stocks" / "docs" / "results")
++    try:
++        return (d / "stocks_tab.css").read_text(), (d / "stocks_tab.html").read_text()
++    except Exception:
++        return "", ""
++
++
+ CSS = """
+ :root{--bg:#111110;--card:#1a1a19;--line:#2c2c2a;--ink:#f0efec;--ink2:#c3c2b7;--mute:#8d8c84;--s1:#3987e5;--s2:#d95926;--good:#0ca30c;--warn:#fab219;--crit:#d03b3b}
+ *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,'Inter','Segoe UI',sans-serif}
+@@ -970,11 +979,13 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
+     tcount = f"{n_open} open · {n_pend} waiting for entry · newest first · closed trades: tap a row in History below"
+     tr_json = json.dumps([{k: t[k] for k in ("run_id", "pair", "tf", "state", "entry", "stop", "target", "fill", "fill_ts", "created", "price", "dir", "closed_ts", "closed")} for t in trades])
+     cd = json.dumps(candle_data(root)).replace("</", "<\\/")
++    sx_css, sx_html = _stocks_tab()
++    sx_btn = "<button data-t='stocks'>Stocks</button>" if sx_html else ""
+     page = f"""<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
+-<title>FX Engine</title><style>{CSS}</style></head><body><div class='wrap'>{banner}
++<title>FX Engine</title><style>{CSS}{sx_css}</style></head><body><div class='wrap'>{banner}
+ <div class='top'><span class='brand'>FX ENGINE</span><span class='pill {state}'>{icon} {label}</span><span class='chip'>data age {'n/a' if age is None else f'{age:.0f} min'}</span><span class='chip'>uptime {uptime}</span><span class='chip'>next cycle {next_cycle}</span><span class='chip'>RESEARCH ONLY · NO ORDERS</span>
+ <span class='sp'></span><span class='mono muted'>{uk(now):%a %d %b %Y %H:%M} {uk(now):%Z}</span></div>
+-<div class='tabs'><button data-t='overview'>Trades</button><button data-t='charts'>Charts</button><button data-t='market'>Market</button><button data-t='research'>Research</button><button data-t='performance'>Performance</button><button data-t='journal'>Journal</button><button data-t='system'>System</button></div>
++<div class='tabs'><button data-t='overview'>Trades</button><button data-t='charts'>Charts</button><button data-t='market'>Market</button><button data-t='research'>Research</button><button data-t='performance'>Performance</button><button data-t='journal'>Journal</button><button data-t='system'>System</button>{sx_btn}</div>
+ <div class='tab' id='overview'><div class='grid' style='margin-bottom:6px'>{livehtml}</div><h2 class='sec'>Active trades<small>{tcount}</small></h2><div class='trades'>{tcards}</div><div class='card' style='margin-top:16px'><h3>History · every published setup, scored as a hypothetical</h3>{livetbl}</div></div>
+ <div class='tab' id='market'><div class='kpis'>{kpis}</div>
+ <div class='verdict'><b>Research verdict: no edge found.</b> {n_strats} strategy/timeframe combinations, {trials} logged tests, {n_pass} passed. {'The M5-resolution rerun (R0) is below.' if m5rows else 'The M5-resolution rerun (R0) has not been run yet, so the four H4 verdicts rest on 4h-bar scoring only.'} Candidates are UNPROVEN and research only.</div>
+@@ -997,7 +1008,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
+ <div class='tab' id='performance'>{perf}</div>
+ <div class='tab' id='journal'><div class='card'><h3>Your paper trades · behaviour &amp; discipline</h3>{J.panel(jr)}</div></div>
+ <div class='tab' id='system'><div class='card'><h3>Reliability · live cycles, freshness, alert latency, audit</h3>{sysc}</div></div>
+-</div>{tpls}<div id='modal'><div class='mc'><button id='mx' aria-label='Close'>×</button><div id='mbody'></div></div></div><script type='application/json' id='cd'>{cd}</script><script type='application/json' id='lv'>{json.dumps(levels)}</script><script type='application/json' id='tr'>{tr_json}</script>{JS}</body></html>"""
++{sx_html}</div>{tpls}<div id='modal'><div class='mc'><button id='mx' aria-label='Close'>×</button><div id='mbody'></div></div></div><script type='application/json' id='cd'>{cd}</script><script type='application/json' id='lv'>{json.dumps(levels)}</script><script type='application/json' id='tr'>{tr_json}</script>{JS}</body></html>"""
+     if out is None:
+         return page
+     Path(out).parent.mkdir(parents=True, exist_ok=True)

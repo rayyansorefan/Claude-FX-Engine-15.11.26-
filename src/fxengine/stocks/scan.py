@@ -107,6 +107,12 @@ def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.j
     out.parent.mkdir(parents=True, exist_ok=True)
     asof = max(d.index.max() for d in panel.values())
     out.write_text(json.dumps(dict(asof=f"{asof:%Y-%m-%d}", setups=rows), indent=1))
+    try:
+        from . import dashboard, tab
+        dashboard.write(res, out.with_name("stocks.html"), out)
+        tab.write(res, out)
+    except Exception as e:                      # the dashboard is a convenience: never let it fail the scan
+        print("dashboard not refreshed:", type(e).__name__)
     print(f"as of {asof:%Y-%m-%d}: {sum(r['status'] == 'PENDING' for r in rows)} new, {sum(r['status'] in ('VALID', 'WEAKENING') for r in rows)} open, "
           f"{sum(r['status'] in ('INVALIDATED', 'EXIT SIGNAL', 'TIME STOP') for r in rows)} need attention")
     return rows
