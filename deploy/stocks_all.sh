@@ -4,6 +4,9 @@
 #   cd ~/stocks && nohup setsid bash deploy/stocks_all.sh > data/stocks_all.log 2>&1 &        later:  cat ~/stocks/data/stocks_report.txt
 set -uo pipefail
 cd "$(dirname "$0")/.."
+mkdir -p data
+exec 9>data/stocks_job.lock                                    # ONE stocks job at a time: a second copy exits at once instead of running in parallel
+flock -n 9 || { echo "[$(date -u +%H:%M:%S)] another stocks job is already running: exiting (nothing changed)"; exit 0; }
 export PYTHONPATH=src
 R=data/stocks_report.txt
 log() { echo "[$(date -u +%H:%M:%S)] $*"; }

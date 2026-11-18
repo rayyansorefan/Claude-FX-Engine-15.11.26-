@@ -3,6 +3,9 @@
 # Light (no research rerun). Waits for a quiet VM; never touches the FX services; if anything is off it logs and stops.
 set -uo pipefail
 cd "$(dirname "$0")/.."
+mkdir -p data
+exec 9>data/stocks_job.lock                                    # ONE stocks job at a time: a second copy exits at once instead of running in parallel
+flock -n 9 || { echo "[$(date -u +%H:%M:%S)] another stocks job is already running: exiting (nothing changed)"; exit 0; }
 export PYTHONPATH=src
 PY=.venv/bin/python
 L=data/stocks_nightly.log
