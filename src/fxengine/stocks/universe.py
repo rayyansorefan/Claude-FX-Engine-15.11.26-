@@ -10,6 +10,17 @@ US_ETFS = "spy qqq iwm dia xlk xlf xle xlv xly xlp xli xlu gld tlt".split()
 UK_STOCKS = ("azn shel hsba ulvr bp gsk rio bats dge lseg rel ng vod barc lloy nwg glen aal tsco rr iag stan pru lgen expn fltr abf sse rkt").split()
 UK_ETFS = "isf vusa cspx".split()
 
+# US-listed ADRs / cross-listings: companies from other countries that trade on US exchanges (so on Revolut, which offers US, EEA and UK listings). ticker -> company's home country code.
+ADRS = {"tsm": "tw", "tm": "jp", "sony": "jp", "mfg": "jp", "hmc": "jp", "baba": "cn", "pdd": "cn", "jd": "cn", "bidu": "cn", "nio": "cn", "li": "cn", "infy": "in", "hdb": "in", "ibn": "in", "wit": "in",
+        "vale": "br", "pbr": "br", "itub": "br", "bbd": "br", "nu": "br", "abev": "br", "meli": "ar", "shop": "ca", "ry": "ca", "td": "ca", "enb": "ca", "cnq": "ca", "bmo": "ca", "bns": "ca", "cp": "ca", "cni": "ca",
+        "bhp": "au", "rio": "au", "se": "sg", "grab": "sg", "nvo": "dk", "sap": "de", "asml": "nl", "ing": "nl", "nvs": "ch", "ubs": "ch", "azn": "uk", "gsk": "uk", "bp": "uk", "shel": "uk", "hsbc": "uk",
+        "ul": "uk", "deo": "uk", "bti": "uk", "lyg": "uk", "bcs": "uk", "vod": "uk", "sny": "fr", "ttE": "fr", "stm": "fr", "eqnr": "no", "nok": "fi", "eric": "se", "spot": "se", "wix": "il", "teva": "il",
+        "chkp": "il", "cyber": "il", "kb": "kr", "skm": "kr", "pkx": "kr", "lpl": "kr", "tcom": "cn", "yum": "cn", "gold": "ca", "wpm": "ca", "fnv": "ca", "sqm": "cl", "ec": "co", "bap": "pe", "fmx": "mx",
+        "ambev": "br", "amx": "mx", "cx": "mx", "tv": "mx", "gfi": "za", "ang": "za", "ntes": "cn", "yumc": "cn", "hdb2": "in"}
+ADRS = {k.lower(): v for k, v in ADRS.items() if k not in ("hdb2", "ambev", "yum", "ttE", "li", "nio")}
+ADRS.update({"tte": "fr"})
+US_STOCKS = list(dict.fromkeys(list(US_STOCKS) + [t for t in ADRS if t not in US_STOCKS]))        # (the list above this line is rebuilt below with ADRs included)
+
 # International large caps (Yahoo tickers without the exchange suffix). Revolut availability differs by country and changes: the owner confirms what he can trade;
 # anything Yahoo does not carry simply shows up as a gap in the data report. Symbols are '<ticker>.<country code>'.
 INTL = {
@@ -42,7 +53,13 @@ INTL = {
 }
 MINOR_UNIT = {"uk": ("GBP", 100.0), "za": ("ZAR", 100.0), "il": ("ILS", 100.0)}        # quoted in pence / cents / agorot
 USD_QUOTED = {"cspx.uk"}                                                                 # London-listed but quoted in US dollars
-COUNTRY = {"us": "United States", "uk": "United Kingdom", **{k: v[1] for k, v in INTL.items()}}
+COUNTRY = {"us": "United States", "uk": "United Kingdom", "cn": "China", "ar": "Argentina", "cl": "Chile", "co": "Colombia", "pe": "Peru", **{k: v[1] for k, v in INTL.items()}}
+
+
+def home_country(sym: str) -> str:
+    """The company's home country: for a US-listed ADR it differs from the listing (e.g. 'tsm.us' -> 'tw'); otherwise the listing country."""
+    t, c = sym.rsplit(".", 1)
+    return ADRS.get(t, c) if c == "us" else c
 
 INTL_SYMBOLS = [f"{t}.{m}" for m, (_, _, _, ts) in INTL.items() for t in ts.split()]
 SYMBOLS = ([f"{t}.us" for t in US_STOCKS + US_ETFS] + [f"{t}.uk" for t in UK_STOCKS + UK_ETFS] + INTL_SYMBOLS)

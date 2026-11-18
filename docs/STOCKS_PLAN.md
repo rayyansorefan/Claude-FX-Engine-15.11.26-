@@ -131,3 +131,7 @@ Measured behaviour on synthetic data: finds a planted real condition; adopts a u
 ## First entry-filter study results (2026-11-18)
 Six rules studied. HELPFUL on the unseen later 40%: BOLLINGER_REVERT and STOCH_PULLBACK, both with "US dollar not surging (from the FX data) & stock 5%+ above its 200-day": improvement +0.30% [+0.01, +0.72] and +0.35% [+0.00, +0.94]: marginal, and the two rules are near-duplicates, so ONE finding. Not helpful: RSI2 (the condition helped, +0.11% [+0.02, +0.20], but would remove more than half the setups: the throughput guard refuses it), MOM_12_1, IBS_REVERT, RS_PULLBACK.
 Decision (written, per the plan): NOT adopted. Both are CANDIDATES (ops/stocks_filter_candidates.json): the scanner tags each new setup that meets the condition and the Performance tab reports live results with and without it; the tag never removes a setup. Adoption needs live evidence.
+
+## Revolut's actual market (found 2026-11-18, Revolut help page "Products available to trade"): US, EEA and UK listings (4,000+ stocks) plus ADRs
+The owner's "36 countries" are company home countries (the app's country filter), reached through US-listed ADRs; direct Tokyo/Hong Kong/Sydney/Toronto/etc. listings are probably NOT tradable. Universe now: 435 symbols incl. 80 ADRs covering many home countries.
+ops/stocks_countries.txt (committed, editable) limits which venues show setups / paper trades: US, UK and EEA venues. The research still uses every market. Owner to confirm in the app; unverified: Revolut changes its list.

@@ -80,7 +80,7 @@ def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE, ctx=None, ev
                 cx = dict(CX.at(ctx, d.index[i]) if ctx is not None else {}, days_since_earnings=EV.days_since_earnings(events, s, d.index[i]))
                 fx_ = dict(cx, dse=cx.get("days_since_earnings"), **{k: (None if v != v else round(float(v), 4)) for k, v in sfeat[s].items()})
                 cand = cands.get(rule)
-                rows.append(dict(id=f"{rule}|{s}|{d.index[i]:%Y-%m-%d}", rule=rule, symbol=s, market=market_of(s), signal_date=f"{d.index[i]:%Y-%m-%d}", close=round(float(d['close'].iloc[i]), 4),
+                rows.append(dict(id=f"{rule}|{s}|{d.index[i]:%Y-%m-%d}", rule=rule, symbol=s, market=market_of(s), home=U.home_country(s), signal_date=f"{d.index[i]:%Y-%m-%d}", close=round(float(d['close'].iloc[i]), 4),
                                  invalidation=None if np.isnan(lv["invalidation"]) else round(lv["invalidation"], 4), strength=round(lv["strength"], 4), exit_text=lv["exit_text"],
                                  exit_level=None if lv["exit_level"] is None else round(lv["exit_level"], 4), why=lv["why"],
                                  proven=rule in passed, status="PENDING", ctx=fx_, cand_filter=cand, cand_ok=(FL.passes(cand, fx_) if cand else None)))
@@ -226,8 +226,14 @@ def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.j
     for r in rows:
         if r["status"] == "PENDING":
             cov.setdefault(U.country_code(r["symbol"]), dict(symbols=0, setups=0))["setups"] += 1
+    cov_home: dict = {}
+    for sym in panel:
+        cov_home.setdefault(U.home_country(sym), dict(symbols=0, setups=0))["symbols"] += 1
+    for r in rows:
+        if r["status"] == "PENDING":
+            cov_home.setdefault(r.get("home") or U.country_code(r["symbol"]), dict(symbols=0, setups=0))["setups"] += 1
     allowed_now = sorted(U.allowed_countries() or [])
-    out.write_text(json.dumps(dict(asof=f"{asof:%Y-%m-%d}", coverage=cov, allowed=allowed_now, setups=[r for r in rows if r.get("shown", True) and r["status"] != "CLOSED"], forward=forward_summary(rows, expected), closed=closed, account=acct), indent=1))
+    out.write_text(json.dumps(dict(asof=f"{asof:%Y-%m-%d}", coverage=cov, coverage_home=cov_home, allowed=allowed_now, setups=[r for r in rows if r.get("shown", True) and r["status"] != "CLOSED"], forward=forward_summary(rows, expected), closed=closed, account=acct), indent=1))
     try:
         from . import dashboard, tab, market
         market.write(panel, [r for r in rows if r["status"] != "CLOSED"], out.with_name("stocks_market.json"))

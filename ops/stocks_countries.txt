@@ -1,0 +1,17 @@
+# Stock markets (listing venues) you can trade on Revolut. Source: Revolut's help page "Products available to trade": US, EEA and UK listings, plus ADRs
+# (overseas companies listed in the US, which count as "us" here). Edit freely: delete a line to hide that market, add one to show it.
+# The research always uses every market; this list only limits which setups are shown, tracked and paper-traded.
+us
+uk
+de   # Germany
+fr   # France
+nl   # Netherlands
+it   # Italy
+es   # Spain
+be   # Belgium
+pt   # Portugal
+at   # Austria
+fi   # Finland
+se   # Sweden
+dk   # Denmark
+no   # Norway

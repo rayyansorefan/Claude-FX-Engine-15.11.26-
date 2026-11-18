@@ -899,3 +899,15 @@ def test_only_countries_the_owner_can_trade_show_up_but_the_research_uses_all(tm
               system=dict(asof="2026-11-18", symbols=2, stale=[], gaps=[], suspicious=[], nightly=[], code="c", trials=16, holdout=[], rows=10))
     h = DB.render(None, dict(asof="2026-11-18", setups=[], forward={}, closed=[], coverage={"us": dict(symbols=100, setups=7), "de": dict(symbols=14, setups=3)}, allowed=["us"]), mk)
     assert "Coverage by country" in h and "YOU CAN TRADE" in h and "research only" in h and "Germany" in h
+
+
+def test_adrs_give_tradable_exposure_to_other_countries_and_the_default_list_matches_revolut():
+    from fxengine.stocks import dashboard as DB
+    assert U.home_country("tsm.us") == "tw" and U.home_country("toyota.us") == "us" and U.home_country("aapl.us") == "us" and U.home_country("sap.de") == "de"
+    assert {"tsm.us", "baba.us", "bhp.us", "vale.us", "shop.us", "infy.us"} <= set(U.SYMBOLS) and len(set(U.SYMBOLS)) == len(U.SYMBOLS)
+    homes = {U.home_country(s) for s in U.SYMBOLS if s.endswith(".us")}
+    assert {"tw", "jp", "cn", "in", "br", "ca", "au", "il", "kr", "mx"} <= homes                                       # many company countries are reachable through US listings
+    allowed = U.allowed_countries(str(Path("ops/stocks_countries.txt")))
+    assert allowed == {"us", "uk", "de", "fr", "nl", "it", "es", "be", "pt", "at", "fi", "se", "dk", "no"}                # US + UK + EEA venues; Tokyo/Hong Kong/Sydney etc. are research-only
+    r = dict(id="a", rule="RSI2_PULLBACK", symbol="tsm.us", market="US", home="tw", signal_date="2026-11-18", close=100.0, invalidation=90.0, strength=1, exit_text="x", proven=True, status="PENDING")
+    assert "Taiwan company (US-listed ADR)" in DB._trade_card(r) and "ADR" not in DB._trade_card(dict(r, symbol="aapl.us", home="us"))

@@ -70,6 +70,16 @@ def _bar(r) -> str:
     return (f"<div class='bar'><b style='left:{pos:.1f}%'></b></div><div class='barl'><span>INVALID BELOW {a:,.2f}</span><span>price {px:,.2f}</span><span>EXIT SIGNAL ABOVE {b:,.2f}</span></div>")
 
 
+def _is_adr(r: dict) -> bool:
+    h = r.get("home")
+    return bool(h) and h.lower() != str(r.get("market", "")).lower()
+
+
+def _home_name(r: dict) -> str:
+    from .universe import COUNTRY
+    return COUNTRY.get(r["home"], r["home"].upper())
+
+
 def _trade_card(r: dict, held: dict | None = None) -> str:
     st = r["status"]
     un = r.get("unrealised")
@@ -95,7 +105,7 @@ def _trade_card(r: dict, held: dict | None = None) -> str:
         chips = [f"IN PAPER ACCOUNT · {held['shares']:g} shares · £{held['cost']:,.0f} · risk £{held['risk']:.0f}"] + chips
     tl = "".join(f"<span class='chip'>{E(x[:70])}</span>" for x in chips)
     return (f"<div class='trade {cls}'><div class='th'><div><span class='pair'>{E(r['symbol'].split('.')[0].upper())}</span><span class='dir long'>LONG</span><span class='state'>{E(st)}</span></div>"
-            f"<div class='pl'><b class='{c}'>{big}</b><small>{sub}</small></div></div><div class='rule'>{E(name)} · {E(r['market'])} · {proven}</div>{_bar(r)}"
+            f"<div class='pl'><b class='{c}'>{big}</b><small>{sub}</small></div></div><div class='rule'>{E(name)} · {E(r['market'])}{(' · ' + E(_home_name(r)) + ' company (US-listed ADR)') if _is_adr(r) else ''} · {proven}</div>{_bar(r)}"
             f"<div class='nums'>{nh}</div><div class='why'>{why}<div class='muted' style='margin-top:4px'>{E(r['exit_text'])}</div></div><div class='tl'>{tl}</div></div>")
 
 
@@ -479,6 +489,12 @@ def _system_tab(res: dict | None, sp: dict | None, mk: dict | None) -> str:
                         for k, v in sorted(cv.items(), key=lambda kv: -kv[1]["setups"]))
         cov = ('<div class="card" style="margin-top:12px"><h3>Coverage by country · stocks tracked and new setups today</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:520px"><tr><th>Country</th><th class="r">Stocks</th><th class="r">New setups</th><th>Your Revolut list</th></tr>' + rows_ + '</table></div>'
                '<p class="muted" style="font-size:12px;margin:8px 0 0">The research uses every market. Which ones show setups and trade in your paper account is set in ops/stocks_countries.txt (one country per line).</p></div>')
+    ch_ = (sp or {}).get("coverage_home") or {}
+    if ch_:
+        from .universe import COUNTRY as CN
+        hr = "".join(f'<tr><td><b>{E(CN.get(k, k.upper()))}</b></td><td class="r num">{v["symbols"]}</td><td class="r num">{v["setups"]}</td></tr>' for k, v in sorted(ch_.items(), key=lambda kv: (-kv[1]["setups"], -kv[1]["symbols"])))
+        cov += ('<div class="card" style="margin-top:12px"><h3>Companies by home country · what Revolut\'s country filter shows</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:420px"><tr><th>Company country</th><th class="r">Stocks</th><th class="r">New setups</th></tr>' + hr + '</table></div>'
+                '<p class="muted" style="font-size:12px;margin:8px 0 0">Overseas companies are traded through their US-listed shares (ADRs), which Revolut offers; direct listings in Tokyo, Hong Kong, Sydney, Toronto and similar exchanges are researched but not shown unless you add them to ops/stocks_countries.txt.</p></div>')
     return (f'{kp}<div class="grid"><div class="card c6"><h3>Health checks</h3><table class="tbl">{ch}</table></div><div class="card c6"><h3>Nightly job · last lines</h3>{nl}'
             f'<div class="muted" style="font-size:12px;margin-top:8px">Code: {E(sy["code"])}</div></div></div>{cov}{lim}')
 
