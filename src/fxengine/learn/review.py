@@ -90,9 +90,32 @@ def log(conn, now, kind, detail):
     conn.commit()
 
 
+MAX_FILTER_SHARE = 0.5      # if filters remove more than half of the candidates over a week, they are switched off (the old engine starved itself of trades)
+MIN_CANDIDATES = 6
+
+
+def throughput(conn, now, days=7) -> dict:
+    """Published setups vs candidates removed by entry filters over the last `days` days."""
+    pub = conn.execute("SELECT COUNT(*) FROM setups WHERE created_at >= ?", (str(pd.Timestamp(now) - pd.Timedelta(days=days)),)).fetchone()[0]
+    filt = sum(int(DB.kv_get(conn, f"filtered-{(pd.Timestamp(now) - pd.Timedelta(days=i)).date()}", 0)) for i in range(days))
+    share = filt / (pub + filt) if (pub + filt) else 0.0
+    return dict(published=int(pub), filtered=int(filt), share=share)
+
+
+def throughput_guard(conn, now) -> list[str]:
+    """Stops filters from becoming a bottleneck: too many vetoes -> filters off, announced."""
+    from . import filters as FL
+    t = throughput(conn, now)
+    if FL.load() and not DB.kv_get(conn, "filters_disabled") and t["published"] + t["filtered"] >= MIN_CANDIDATES and t["share"] > MAX_FILTER_SHARE:
+        DB.kv_set(conn, "filters_disabled", 1)
+        log(conn, now, "FILTERS_OFF", str(t))
+        return [f"🔻 LEARNING · entry filters switched OFF: they removed {t['filtered']} of {t['published'] + t['filtered']} setups this week ({t['share']:.0%}). Too many vetoes starve the engine of trades. Frozen rules are back."]
+    return []
+
+
 def decide(conn, now, exits_json: Path = EXITS_JSON) -> list[str]:
     """Weekly scheduled review. Returns plain-English announcement lines (empty = nothing changed)."""
-    msgs = []
+    msgs = throughput_guard(conn, now)
     champ = DB.kv_get(conn, "champion_exit")
     since = DB.kv_get(conn, "champion_since")
     if champ:                                                     # --- rollback check on the champion's own forward trades

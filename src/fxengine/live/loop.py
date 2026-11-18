@@ -111,7 +111,9 @@ def publish(conn, env, send, cands, now):
         c["ctx"] = dict(c.get("ctx") or {}, **CTX.exposure(c["pair"], c["direction"], DB.active_setups(conn)))   # correlated setups lose together
         from ..learn import filters as FL
         flt = FL.load()                                                 # ops/filters.json: only filters that passed validation AND were switched on deliberately
-        if c["type"] in flt and not FL.passes(c.get("ctx"), flt[c["type"]]):
+        if flt and not DB.kv_get(conn, "filters_disabled") and c["type"] in flt and not FL.passes(c.get("ctx"), flt[c["type"]]):
+            k = f"filtered-{now.date()}"                                  # counted per day so the weekly review can measure how many setups the filters remove
+            DB.kv_set(conn, k, int(DB.kv_get(conn, k, 0)) + 1)
             DB.kv_set(conn, "filtered_out", int(DB.kv_get(conn, "filtered_out", 0)) + 1)
             continue
         champ = DB.kv_get(conn, "champion_exit")

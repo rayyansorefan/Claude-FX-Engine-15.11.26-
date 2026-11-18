@@ -11,3 +11,8 @@ Deterministic code only (zero Claude at runtime). Parameters stay frozen per ver
 5. **Roll back** automatically (announced) if the champion's own forward trades (>= 40) have a CI upper bound < 0 versus the frozen exit.
 6. Entries, filters, targets and sizing are NOT auto-changed: they need a pre-registered offline test and Rayyan's go-ahead.
 7. Every decision is logged (`learning_log`, docs/results/learning.md). Alerts: PROMOTED / ROLLED BACK / PROFIT PROTECTED (first stop move per trade).
+
+## No bottlenecks (lesson from the old engine: stacked vetoes meant it stopped trading)
+- Entry filters: at most 2 conditions per rule, each chosen filter must keep >= 40% of historical trades, and none is applied without passing validation AND a deliberate, announced switch (ops/filters.json).
+- Throughput guard (weekly review): if filters remove more than 50% of candidates over 7 days (>= 6 candidates seen), they are switched off automatically and Rayyan is told.
+- Setup frequency is measured, not assumed: the dashboard/Telegram weekly note reports published vs filtered counts.

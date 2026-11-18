@@ -88,3 +88,28 @@ def test_live_replay_applies_the_exit_rule_stored_in_the_setup_and_alerts_once(t
     assert frozen.outcome.net_r < -0.9 and ruled.outcome.net_r > frozen.outcome.net_r + 0.5
     adj = [e for e in ruled.events if e["to"] == "ADJUSTED"]
     assert adj and "stop moved" in M.protected(dict(rec, exit_rule="A2"), adj[0]["detail"]).lower()
+
+
+def test_throughput_guard_switches_filters_off_when_they_starve_the_engine_of_setups(tmp_path, monkeypatch):
+    from fxengine.learn import filters as FL
+    c = DB.connect(tmp_path / "e.db")
+    now = pd.Timestamp("2026-11-20 21:20", tz="UTC")
+    monkeypatch.setattr(FL, "load", lambda *a, **k: {"asia_breakout": ["htf_with"]})
+    DB.kv_set(c, "filtered-2026-11-19", 9)                                         # 9 candidates removed ...
+    for i in range(3):                                                             # ... only 3 published: 75% vetoed
+        c.execute("INSERT INTO setups VALUES(?,?,?,?,?,?,?,?)", (f"p{i}", "2026-11-19T09:00:00+00:00", "x", "EURUSD", "asia_breakout", "H1", "2026-11-19", "{}"))
+    c.commit()
+    msgs = LR.throughput_guard(c, now)
+    assert msgs and "switched OFF" in msgs[0] and DB.kv_get(c, "filters_disabled") == "1"
+    assert LR.throughput_guard(c, now) == []                                       # already off: no repeat
+
+
+def test_throughput_guard_leaves_healthy_filters_alone(tmp_path, monkeypatch):
+    from fxengine.learn import filters as FL
+    c = DB.connect(tmp_path / "e.db")
+    monkeypatch.setattr(FL, "load", lambda *a, **k: {"asia_breakout": ["htf_with"]})
+    DB.kv_set(c, "filtered-2026-11-19", 2)
+    for i in range(8):
+        c.execute("INSERT INTO setups VALUES(?,?,?,?,?,?,?,?)", (f"p{i}", "2026-11-19T09:00:00+00:00", "x", "EURUSD", "asia_breakout", "H1", "2026-11-19", "{}"))
+    c.commit()
+    assert LR.throughput_guard(c, pd.Timestamp("2026-11-20 21:20", tz="UTC")) == []
