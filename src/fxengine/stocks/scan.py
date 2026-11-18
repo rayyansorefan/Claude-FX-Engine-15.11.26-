@@ -31,8 +31,16 @@ def _levels(rule: str, d: pd.DataFrame, i: int) -> dict:
         s50, s200 = float(I.sma(c, 50).iloc[i]), float(I.sma(c, 200).iloc[i])
         return dict(strength=float(s50 / s200 - 1), invalidation=s50, exit_level=None, exit_text="sell the open after a close below the 50-day average; give up after 250 days",
                     why=[f"The 50-day average ({s50:.2f}) just crossed above the 200-day ({s200:.2f}).", "Price is above both: a fresh long-term uptrend."])
-    return dict(strength=0.0, invalidation=float("nan"), exit_level=None, exit_text="hold about a month, then sell the open",
-                why=["Top 20% of the universe by 12-month return (skipping the most recent month).", "Month-end momentum: buy the winners, review in a month."])
+    if rule == "MOM_12_1":
+        return dict(strength=0.0, invalidation=float("nan"), exit_level=None, exit_text="hold about a month, then sell the open",
+                    why=["Top 20% of the universe by 12-month return (skipping the most recent month).", "Month-end momentum: buy the winners, review in a month."])
+    from .strategies import INFO, MAX_HOLD
+    ll = float(I.prior_low(d["low"], 10).iloc[i]) if i >= 10 else float("nan")
+    s50 = float(I.sma(c, 50).iloc[i]) if i >= 50 else float("nan")
+    inv = ll if ll == ll and ll < float(c.iloc[i]) else s50 if s50 == s50 and s50 < float(c.iloc[i]) else float("nan")
+    name, desc = INFO.get(rule, (rule, ""))
+    return dict(strength=0.0, invalidation=inv, exit_level=None, exit_text=f"exit per the rule ({desc}); give up after {MAX_HOLD.get(rule, 20)} days",
+                why=[f"{name}: {desc}.", f"Price {float(c.iloc[i]):.2f}; the rule's own exit decides when to sell."])
 
 
 def _month_end(last: pd.Timestamp) -> bool:
@@ -49,16 +57,16 @@ def _already_in_position(d: pd.DataFrame, sig) -> bool:
 
 
 def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE, ctx=None) -> list[dict]:
-    mom = S.momentum_entries(panel) if _month_end(max(d.index.max() for d in panel.values())) else {}
+    me = _month_end(max(d.index.max() for d in panel.values()))
     out = []
-    for rule in ("RSI2_PULLBACK", "BREAKOUT_20", "TREND_50_200", "MOM_12_1"):
+    for rule in S.SWING_RULES:
+        if rule in S.MONTHLY_RULES and not me:
+            continue
         rows = []
+        sigs = S.rule_sigs(rule, panel)
         for s, d in panel.items():
             i = len(d) - 1
-            if rule == "MOM_12_1":
-                sg = S.Sig(mom[s], np.zeros(len(d), bool), 21) if s in mom else None
-            else:
-                sg = S.BAR_RULES[rule](d)
+            sg = sigs.get(s)
             fired = bool(sg is not None and sg.entry[i] and not _already_in_position(d, sg))
             if fired and d.index[i] >= max(x.index.max() for x in panel.values()) - pd.Timedelta(days=4):
                 lv = _levels(rule, d, i)
@@ -73,15 +81,15 @@ def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE, ctx=None) ->
     return out
 
 
-def closed_trade(setup: dict, panel, mom=None) -> dict | None:
+def closed_trade(setup: dict, panel, sigs=None) -> dict | None:
     """The finished trade for a tracked setup, produced by the SAME backtest code the research used; None while it is still open."""
     from . import backtest as B
     d = panel.get(setup["symbol"])
     if d is None:
         return None
     rule = setup["rule"]
-    sig = S.Sig(mom[setup["symbol"]], np.zeros(len(d), bool), 21) if rule == "MOM_12_1" and mom is not None else S.BAR_RULES.get(rule) and S.BAR_RULES[rule](d)
-    if not sig:
+    sig = (sigs or {}).get(rule, {}).get(setup["symbol"]) if sigs and rule in sigs else (S.BAR_RULES[rule](d) if rule in S.BAR_RULES else S.rule_sigs(rule, panel).get(setup["symbol"]))
+    if sig is None:
         return None
     sd = pd.Timestamp(setup["signal_date"])
     later = d.index[d.index > sd]
@@ -95,7 +103,7 @@ def closed_trade(setup: dict, panel, mom=None) -> dict | None:
     return dict(gross=round(float(r["gross"]), 5), entry_date=f"{pd.Timestamp(r['entry_date']):%Y-%m-%d}", exit_date=f"{pd.Timestamp(r['exit_date']):%Y-%m-%d}", bars=int(r["bars"]))
 
 
-def recheck(setup: dict, panel, mom=None) -> dict:
+def recheck(setup: dict, panel, sigs=None) -> dict:
     """Re-evaluate one stored setup against the newest prices (price-only). Returns the updated setup."""
     d = panel.get(setup["symbol"])
     if d is None:
@@ -112,14 +120,15 @@ def recheck(setup: dict, panel, mom=None) -> dict:
     o, c, last = float(d["open"].iloc[e]), d["close"], len(d) - 1
     held, ret = last - e + 1, float(c.iloc[last] / o - 1)
     s.update(entry_price=round(o, 4), held=held, unrealised=round(ret, 4), last_close=round(float(c.iloc[last]), 4))
-    ct = closed_trade(s, panel, mom)
+    ct = closed_trade(s, panel, sigs)
     if ct:
         s.update(status="CLOSED", detail=f"closed {ct['gross']:+.1%} in {ct['bars']} days", closed=ct)
         return s
     rule = s["rule"]
-    exit_now = bool(S.BAR_RULES[rule](d).exit[last]) if rule in S.BAR_RULES else False
+    sg = ((sigs or {}).get(rule) or {}).get(s["symbol"]) or (S.BAR_RULES[rule](d) if rule in S.BAR_RULES else None)
+    exit_now = bool(sg.exit[last]) if sg is not None else False
     inv = s.get("invalidation")
-    max_hold = {"RSI2_PULLBACK": 10, "BREAKOUT_20": 60, "TREND_50_200": 250, "MOM_12_1": 21}[rule]
+    max_hold = S.MAX_HOLD[rule]
     if inv is not None and rule != "RSI2_PULLBACK" and c.iloc[last] < inv:
         s["status"], s["detail"] = "INVALIDATED", f"closed below {inv:.2f}"
     elif inv is not None and rule == "RSI2_PULLBACK" and c.iloc[last] < inv:
@@ -139,15 +148,16 @@ def run(panel, passed: set[str], ledger: list[dict], ctx=None) -> list[dict]:
     """Update the ledger: re-check all known setups, then add today's new ones (never duplicated)."""
     have = {x["id"] for x in ledger}
     new = [s for s in todays_setups(panel, passed, ctx=ctx) if s["id"] not in have]
-    mom = S.momentum_entries(panel) if any(x["rule"] == "MOM_12_1" and x.get("status") != "CLOSED" for x in ledger) else None
-    rows = [recheck(x, panel, mom) for x in ledger] + new
+    need = {x["rule"] for x in ledger if x.get("status") != "CLOSED"}
+    sigs = {r: S.rule_sigs(r, panel) for r in need}
+    rows = [recheck(x, panel, sigs) for x in ledger] + new
     return rows
 
 
 def forward_summary(rows: list[dict], expected: dict[str, float]) -> dict:
     """Live out-of-sample scoreboard per rule from CLOSED tracked trades: count, mean price-only gain, hit rate, and a 95% range once there are 30+."""
     out = {}
-    for rule in ("RSI2_PULLBACK", "BREAKOUT_20", "TREND_50_200", "MOM_12_1"):
+    for rule in S.SWING_RULES:
         g = [x["closed"]["gross"] for x in rows if x["rule"] == rule and x.get("status") == "CLOSED"]
         if not g:
             continue

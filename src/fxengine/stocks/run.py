@@ -114,16 +114,15 @@ def main(path=Path("data/stocks/prices.parquet"), out=Path("docs/results"), reg=
     first = min(d.index.min() for d in panel.values())
     mid = first + (hold_start - first) / 2
     kinds = {s: kind_of(s) for s in panel}
-    mom = S.momentum_entries(panel)
     rng = np.random.default_rng(3)
     prior = {json.loads(l)["name"] for l in reg.open()} if reg.exists() else set()
     n_trials = len(prior | set(S.RULES))
     rules, nsym = [], len(panel)
     for rule in S.RULES:
         parts = []
+        sigs = S.rule_sigs(rule, panel)
         for s, d in panel.items():
-            sig = S.Sig(mom[s], np.zeros(len(d), bool), 21) if rule == "MOM_12_1" else S.BAR_RULES[rule](d)
-            t = B.trades_for(s, d, sig)
+            t = B.trades_for(s, d, sigs[s])
             if len(t):
                 parts.append(t)
         tr = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=["symbol", "entry_date", "exit_date", "gross", "bars"])
@@ -162,11 +161,10 @@ def open_holdout(rule: str, why: str, path=Path("data/stocks/prices.parquet"), r
     if Path(log).exists() and any(l.split("|")[1].strip() == rule for l in Path(log).read_text().splitlines() if "|" in l):
         raise SystemExit(f"{rule}: the sealed period was already opened once (see {log}). It cannot be opened again.")
     panel = load_panel(Path(path))
-    mom = S.momentum_entries(panel) if rule == "MOM_12_1" else None
+    sigs = S.rule_sigs(rule, panel)
     parts = []
     for sym, d in panel.items():
-        sig = S.Sig(mom[sym], np.zeros(len(d), bool), 21) if rule == "MOM_12_1" else S.BAR_RULES[rule](d)
-        t = B.trades_for(sym, d, sig)
+        t = B.trades_for(sym, d, sigs[sym])
         if len(t):
             parts.append(t)
     tr = B.add_net(pd.concat(parts, ignore_index=True), {s: kind_of(s) for s in panel}) if parts else pd.DataFrame()

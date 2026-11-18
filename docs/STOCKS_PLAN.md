@@ -102,3 +102,10 @@ Benchmark shown beside every result: buy-and-hold SPY and an equal-weight buy-an
 - C. Events layer (deterministic, point-in-time, free): SEC EDGAR filings (8-K item 2.02 earnings releases with acceptance timestamps, XBRL company facts for reported revenue/EPS/margins), FRED macro series, FOMC/CPI/NFP calendar; hypotheses written down first (post-earnings drift, pre-earnings run-up, macro-day behaviour, regime filters). Needs the SEC contact string for its User-Agent (owner decision).
 - D. Entry-filter study + exit shadow-replay (items 3-4 above) once enough closed forward trades exist.
 - E. Cross-engine: shared event calendar (earnings, macro) used by both engines' studies; one daily brief per engine (Telegram, owner's decision); per-setup "assessment" refreshed nightly. (Context feeds are already built: see above.)
+
+## Batch 2 of pre-registered technical rules (locked 2026-11-18, BEFORE any result; textbook parameters, no fitting). Now 15 trials -> alpha = 0.05/15.
+HIGH52_MOM (month-end, within 5% of the 52-week high and up over 126 days; George & Hwang), DONCHIAN_55 (55-day breakout, exit 20-day low), VOL_BREAKOUT (20-day high on 2x volume, above the 50-day),
+ADX_TREND (ADX crosses 25, +DI > -DI, above the 50-day; exit ADX < 20 or below the 50-day), BOLLINGER_REVERT (below the lower 20/2 band in an uptrend; exit at the middle band),
+IBS_REVERT (internal bar strength < 0.2 in an uptrend; exit above the prior high), STOCH_PULLBACK (%K(14) < 20 in an uptrend; exit %K > 70), MACD_CROSS (12/26/9 cross-up below zero in an uptrend; popular, tested honestly),
+RS_PULLBACK (beat the S&P over 126 days, RSI(5) < 30, in an uptrend; exit above the 5-day average). Gate unchanged. Measured gate false-pass rate on random markets: 1 false pass in 9 markets (~90 rule-runs), i.e. about the 5% family-wise design:
+no pass is trusted alone (sealed year + live forward test still required). The sealed year stays sealed for these rules until one passes the stress checks.
