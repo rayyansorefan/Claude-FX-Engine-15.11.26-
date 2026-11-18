@@ -2,6 +2,10 @@
 the owner must confirm availability before any trade. Known bias: today's survivors only (flatters long-only results)."""
 US_STOCKS = ("aapl msft nvda amzn googl meta tsla jpm v unh xom jnj wmt pg ma hd cvx mrk abbv ko pep cost avgo adbe crm nflx amd intc csco orcl qcom txn "
              "nke mcd dis ba cat gs ms bac wfc c t vz pfe lly tmo abt dhr ibm ge hon lmt ups sbux pypl low amgn").split()
+US_STOCKS += ("acn adi adp aep aig amat amt anet aon apd axp bdx bk bkng blk bmy bsx ci cl cmcsa cme cmg cnc cof cop csx cvs d de dhi dow duk ecl emr eog etn ew fcx fdx fis gd gild gm hca hum "
+              "ice intu isrg itw jci klac kmb lrcx mar mco mdlz mmc mmm mnst mo mpc nee nem nsc nxpi o orly oxy payx pgr pld pnc psa psx regn rost rtx schw shw slb so spg spgi syk tfc tgt tjx tmus trv "
+              "usb vlo vrtx wm wmb zts adsk amp a ba cat cb csco dis ge gs hd ibm jnj jpm ko lly lmt low ma mcd mrk ms msft nke orcl pep pfe pg qcom sbux t tmo txn unh ups v vz wfc wmt xom").split()
+US_STOCKS = list(dict.fromkeys(US_STOCKS))                 # de-duplicated, order kept
 US_ETFS = "spy qqq iwm dia xlk xlf xle xlv xly xlp xli xlu gld tlt".split()
 UK_STOCKS = ("azn shel hsba ulvr bp gsk rio bats dge lseg rel ng vod barc lloy nwg glen aal tsco rr iag stan pru lgen expn fltr abf sse rkt").split()
 UK_ETFS = "isf vusa cspx".split()

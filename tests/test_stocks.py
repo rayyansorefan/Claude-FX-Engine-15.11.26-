@@ -767,3 +767,26 @@ def test_context_carries_macro_and_earnings_timing_and_the_rule_is_registered():
     assert {"vix", "vix_z", "curve_10y2y"} <= set(ctx.columns) and np.isnan(ctx["vix"].iloc[0]) and ctx["vix"].iloc[300] < ctx["vix"].iloc[600]
     ev = pd.DataFrame([dict(symbol="s1.us", announce_date=idx[500], sue=1, eps_change=1, rev_yoy=1)])
     assert EV.days_since_earnings(ev, "s1.us", idx[510]) == (idx[510] - idx[500]).days and "PEAD_SUE" in S.RULES and "PEAD_SUE" in S.INFO and S.MAX_HOLD["PEAD_SUE"] == 40
+
+
+def test_account_holds_one_position_per_stock_and_prefers_the_better_evidenced_rule():
+    from fxengine.stocks import account as A
+    rates = pd.Series([1.25], index=[pd.Timestamp("2026-10-01")])
+    p = {"aaa.us": _acct_panel()}
+    rows = [_setup("aaa.us", "STOCH_PULLBACK", "2026-11-02", 95.0, strength=9.0), _setup("aaa.us", "RSI2_PULLBACK", "2026-11-02", 95.0, strength=1.0)]
+    r = A.simulate(rows, p, rates, {"RSI2_PULLBACK", "STOCH_PULLBACK"}, rank={"RSI2_PULLBACK": 0.0046, "STOCH_PULLBACK": 0.0066})
+    assert len(r["positions"]) == 1 and r["positions"][0]["rule"] == "STOCH_PULLBACK" and any("already held" in x["why"] for x in r["skipped"])       # the rule with the higher research gain wins the stock
+
+
+def test_macro_falls_back_to_yahoo_when_fred_does_not_answer(tmp_path):
+    from fxengine.stocks import events as EV
+    class Dead(Exception): pass
+    ys = _yahoo_json(400, "2023-01-02")
+    def get(u):
+        if "fred.stlouisfed.org" in u:
+            raise TimeoutError("slow")
+        return 200, ys.encode()
+    out = EV.fetch_fred(tmp_path, get=get)
+    assert "VIXCLS" in out and "T10Y2Y" in out and len(out["VIXCLS"]) > 300 and "BAMLH0A0HYM2" not in out                     # VIX + curve from Yahoo; the credit spread simply stays absent
+    m = EV.macro_context(out, pd.bdate_range("2023-01-02", periods=380))
+    assert "vix" in m.columns and "curve_10y2y" in m.columns

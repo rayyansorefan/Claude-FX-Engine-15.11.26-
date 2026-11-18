@@ -1,5 +1,5 @@
 """£2,500 PAPER account for the stock setups (hypothetical: nothing is ever ordered), run the way the FX engine runs its own.
-Policy, fixed in advance (docs/STOCKS_PLAN.md): the account takes every new setup of a rule that has PASSED the research gate, strongest first, while cash allows;
+Policy, fixed in advance (docs/STOCKS_PLAN.md): the account takes every new setup of a rule that has PASSED the research gate, best-evidenced rule first then strongest signal, ONE position per stock across rules, while cash allows;
 risk per trade £20 (1R) sized from the setup's own invalid-below level (no level -> 10% below entry); no position bigger than 25% of the account; no leverage.
 Entries and exits use the same dates and prices as the research (next open after the signal; exit at the open after the rule's exit). Deterministic: rebuilt from the
 setup ledger every night, so it can never drift. Balances are BEFORE fees (like FX's 'before commission/swap'); the normal-cost estimate is shown separately.
@@ -64,7 +64,7 @@ def _stop(row: dict, entry: float) -> tuple[float, bool]:
     return entry * (1 - NO_STOP_PCT), True
 
 
-def simulate(rows: list[dict], panel: dict, rates: pd.Series, passed: set[str], start: float = START, today=None) -> dict:
+def simulate(rows: list[dict], panel: dict, rates, passed: set[str], start: float = START, today=None, rank: dict | None = None) -> dict:
     """Run the paper account over the ledger. `rows`: all tracked setups (open and closed). Returns balance, curve, positions, trades, skips and FX-style tiles."""
     money = Money(rates)
     cand = []
@@ -82,7 +82,8 @@ def simulate(rows: list[dict], panel: dict, rates: pd.Series, passed: set[str], 
         cand.append(dict(row=r, sym=r["symbol"], entry_date=e, entry_px=float(d.loc[e, "open"]), exit=ex, strength=r.get("strength", 0.0)))
     if not cand:
         return dict(balance=start, start=start, curve=[], positions=[], closed=[], skipped=[], tiles=_tiles([], [], start, start, today), fallback_rate=False)
-    cand.sort(key=lambda c: (c["entry_date"], -c["strength"]))
+    rank = rank or {}
+    cand.sort(key=lambda c: (c["entry_date"], -rank.get(c["row"]["rule"], 0.0), -c["strength"]))        # same day: the rule with the best research record first, then the strongest signal
     days = sorted({c["entry_date"] for c in cand} | {c["exit"][0] for c in cand if c["exit"]} | set().union(*[set(panel[c["sym"]].index[panel[c["sym"]].index >= cand[0]["entry_date"]]) for c in cand]))
     cash, pos, closed, skipped, curve = start, {}, [], [], []
     by_entry: dict = {}
@@ -99,6 +100,9 @@ def simulate(rows: list[dict], panel: dict, rates: pd.Series, passed: set[str], 
                 del pos[pid]
         equity_open = cash + sum(q["shares"] * money.gbp(q["sym"], float(panel[q["sym"]]["close"].asof(day)) if day in panel[q["sym"]].index else q["last"], day) for q in pos.values())
         for c in by_entry.get(day, []):                        # entries at the open, strongest first
+            if any(q["sym"] == c["sym"] for q in pos.values()):          # one position per stock, however many rules flag it (no hidden double exposure)
+                skipped.append(dict(id=c["row"]["id"], symbol=c["sym"], why="already held through another setup"))
+                continue
             ep = c["entry_px"]
             ep_gbp = money.gbp(c["sym"], ep, day)
             stop, nostop = _stop(c["row"], ep)

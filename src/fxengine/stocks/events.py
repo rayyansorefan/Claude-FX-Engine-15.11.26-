@@ -191,23 +191,56 @@ def fetch_all(symbols: list[str], root: Path = Path("."), get=None, pause: float
     return df
 
 
+YAHOO_MACRO = {"VIXCLS": "%5EVIX", "TNX": "%5ETNX", "IRX": "%5EIRX"}       # fallback when FRED does not answer: VIX, 10-year yield, 13-week bill yield
+
+
+def _yahoo_close(get, symbol: str) -> pd.Series:
+    from .data import YAHOO, parse_yahoo
+    st, b = get(YAHOO.format(t=symbol, now=int(time.time())))
+    csv_ = parse_yahoo((b.decode("utf-8", "replace") if isinstance(b, bytes) else str(b))) if st == 200 else ""
+    if not csv_:
+        return pd.Series(dtype=float)
+    return pd.Series({pd.Timestamp(r["Date"]): float(r["Close"]) for r in csv.DictReader(csv_.splitlines()) if r.get("Close") not in (None, "", "nan")}).sort_index()
+
+
+def _write_fred_format(path: Path, series: pd.Series, name: str) -> None:
+    path.write_text("observation_date," + name + "\n" + "".join(f"{d:%Y-%m-%d},{v}\n" for d, v in series.items()))
+
+
 def fetch_fred(root: Path = Path("."), get=None) -> dict[str, pd.Series]:
     import urllib.request
-    get = get or (lambda u: (lambda r: (r.status, r.read()))(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "research-script"}), timeout=60)))
+
+    def default(u):
+        req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0 (research-script)"})
+        with urllib.request.urlopen(req, timeout=40) as r:
+            return r.status, r.read()
+    get = get or default
     d = root / FRED_DIR
     d.mkdir(parents=True, exist_ok=True)
-    out = {}
     for sid in FRED_SERIES:
         f = d / f"{sid}.csv"
-        try:
-            st, b = get(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}")
-            if st == 200 and len(b) > 100:
-                f.write_bytes(b)
-        except Exception as e:
-            print(f"FRED {sid} not refreshed:", type(e).__name__, flush=True)
-        if f.exists():
-            out[sid] = parse_fred(f.read_text(), sid)
-    return out
+        for attempt in (1, 2):                                       # one retry: FRED is sometimes slow
+            try:
+                st, b = get(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}")
+                if st == 200 and len(b) > 100:
+                    f.write_bytes(b)
+                    break
+            except Exception as e:
+                print(f"FRED {sid} attempt {attempt}: {type(e).__name__}", flush=True)
+    try:                                                              # Yahoo fallback for whatever FRED did not give us (credit spread has none)
+        if not (d / "VIXCLS.csv").exists():
+            v = _yahoo_close(get, YAHOO_MACRO["VIXCLS"])
+            if len(v):
+                _write_fred_format(d / "VIXCLS.csv", v, "VIXCLS")
+                print("VIX from Yahoo (FRED unavailable)", flush=True)
+        if not (d / "T10Y2Y.csv").exists():
+            t10, t3 = _yahoo_close(get, YAHOO_MACRO["TNX"]), _yahoo_close(get, YAHOO_MACRO["IRX"])
+            if len(t10) and len(t3):
+                _write_fred_format(d / "T10Y2Y.csv", (t10 - t3.reindex(t10.index, method="ffill")).dropna(), "T10Y2Y")
+                print("yield-curve slope (10y minus 13-week) from Yahoo (FRED unavailable)", flush=True)
+    except Exception as e:
+        print("Yahoo macro fallback failed:", type(e).__name__, flush=True)
+    return load_fred(root)
 
 
 def load_fred(root: Path = Path(".")) -> dict[str, pd.Series]:

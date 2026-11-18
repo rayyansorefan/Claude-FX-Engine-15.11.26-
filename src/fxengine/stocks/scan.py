@@ -170,11 +170,11 @@ def forward_summary(rows: list[dict], expected: dict[str, float]) -> dict:
     return out
 
 
-def account_payload(rows: list[dict], panel, passed: set[str], rates) -> dict:
+def account_payload(rows: list[dict], panel, passed: set[str], rates, rank: dict | None = None) -> dict:
     """The £2,500 paper account as plain JSON for the dashboard (never raises: a problem here must not stop the scan)."""
     from . import account
     try:
-        a = account.simulate(rows, panel, rates, passed)
+        a = account.simulate(rows, panel, rates, passed, rank=rank)
     except Exception as e:
         return dict(error=type(e).__name__)
     a["curve"] = [list(x) for x in a["curve"]]
@@ -203,7 +203,7 @@ def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.j
     shown = [r for r in rows if r.get("shown", True) or r["status"] == "CLOSED"]
     closed = [dict(rule=r["rule"], symbol=r["symbol"], market=r["market"], signal_date=r["signal_date"], **r["closed"]) for r in rows if r["status"] == "CLOSED"][-300:]
     from . import account
-    acct = account_payload(rows, panel, passed, account.load_rates())
+    acct = account_payload(rows, panel, passed, account.load_rates(), expected)
     out.write_text(json.dumps(dict(asof=f"{asof:%Y-%m-%d}", setups=[r for r in rows if r.get("shown", True) and r["status"] != "CLOSED"], forward=forward_summary(rows, expected), closed=closed, account=acct), indent=1))
     try:
         from . import dashboard, tab, market
