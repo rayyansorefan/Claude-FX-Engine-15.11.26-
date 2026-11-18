@@ -1,0 +1,219 @@
+{
+ "n_tests": 5,
+ "rules": {
+  "asia_breakout": {
+   "n": 3283,
+   "cut": "2025-04-04 08:00:00+00:00",
+   "base_all": {
+    "stressed": -0.13169537549044577,
+    "measured": -0.0976667771038694
+   },
+   "filter": [
+    "vol_not_high",
+    "htf_with"
+   ],
+   "discovery_mean": -0.114,
+   "discovery_keep": 0.403,
+   "validation": {
+    "stressed": {
+     "n": 1305,
+     "kept": 604,
+     "all_mean": -0.1233,
+     "kept_mean": -0.1074,
+     "delta": 0.0158,
+     "ci_lo": -0.0787,
+     "ci_hi": 0.1152,
+     "random_p95": -0.0523,
+     "beats_random": false,
+     "profitable": false,
+     "candidate": false
+    },
+    "measured": {
+     "n": 1306,
+     "kept": 604,
+     "all_mean": -0.0947,
+     "kept_mean": -0.0737,
+     "delta": 0.0209,
+     "ci_lo": -0.0712,
+     "ci_hi": 0.1145,
+     "random_p95": -0.025,
+     "beats_random": false,
+     "profitable": false,
+     "candidate": false
+    }
+   },
+   "passes": false
+  },
+  "range_reversion": {
+   "n": 2162,
+   "cut": "2025-05-12 08:00:00+00:00",
+   "base_all": {
+    "stressed": -0.16537212474366575,
+    "measured": -0.1500884597155569
+   },
+   "filter": [
+    "vol_not_low",
+    "htf_with"
+   ],
+   "discovery_mean": -0.1033,
+   "discovery_keep": 0.51,
+   "validation": {
+    "stressed": {
+     "n": 841,
+     "kept": 402,
+     "all_mean": -0.1941,
+     "kept_mean": -0.0375,
+     "delta": 0.1566,
+     "ci_lo": 0.0556,
+     "ci_hi": 0.266,
+     "random_p95": -0.125,
+     "beats_random": true,
+     "profitable": false,
+     "candidate": true
+    },
+    "measured": {
+     "n": 828,
+     "kept": 396,
+     "all_mean": -0.1876,
+     "kept_mean": -0.028,
+     "delta": 0.1596,
+     "ci_lo": 0.0617,
+     "ci_hi": 0.267,
+     "random_p95": -0.1204,
+     "beats_random": true,
+     "profitable": false,
+     "candidate": true
+    }
+   },
+   "passes": true
+  },
+  "trend_pullback": {
+   "n": 3050,
+   "cut": "2025-04-08 15:00:00+00:00",
+   "base_all": {
+    "stressed": -0.15107159025902234,
+    "measured": -0.13888391772505287
+   },
+   "filter": [
+    "vol_mid",
+    "london_ny_hours"
+   ],
+   "discovery_mean": -0.0808,
+   "discovery_keep": 0.408,
+   "validation": {
+    "stressed": {
+     "n": 1033,
+     "kept": 443,
+     "all_mean": -0.1379,
+     "kept_mean": -0.1011,
+     "delta": 0.0368,
+     "ci_lo": -0.0817,
+     "ci_hi": 0.1523,
+     "random_p95": -0.0556,
+     "beats_random": false,
+     "profitable": false,
+     "candidate": false
+    },
+    "measured": {
+     "n": 1048,
+     "kept": 454,
+     "all_mean": -0.1361,
+     "kept_mean": -0.0891,
+     "delta": 0.0469,
+     "ci_lo": -0.0684,
+     "ci_hi": 0.1632,
+     "random_p95": -0.0565,
+     "beats_random": false,
+     "profitable": false,
+     "candidate": false
+    }
+   },
+   "passes": false
+  },
+  "E1_strength": {
+   "n": 647,
+   "cut": "2025-04-10 08:00:00+00:00",
+   "base_all": {
+    "stressed": -0.055115840101354896,
+    "measured": -0.046307469374916255
+   },
+   "filter": [
+    "trend_with_pos",
+    "london_ny_hours"
+   ],
+   "discovery_mean": 0.1001,
+   "discovery_keep": 0.424,
+   "validation": {
+    "stressed": {
+     "n": 253,
+     "kept": 88,
+     "all_mean": -0.1691,
+     "kept_mean": 0.0045,
+     "delta": 0.1736,
+     "ci_lo": -0.0154,
+     "ci_hi": 0.3757,
+     "random_p95": -0.0293,
+     "beats_random": true,
+     "profitable": true,
+     "candidate": false
+    },
+    "measured": {
+     "n": 253,
+     "kept": 88,
+     "all_mean": -0.1648,
+     "kept_mean": 0.0009,
+     "delta": 0.1657,
+     "ci_lo": -0.0226,
+     "ci_hi": 0.3675,
+     "random_p95": -0.0291,
+     "beats_random": true,
+     "profitable": true,
+     "candidate": false
+    }
+   },
+   "passes": false
+  },
+  "E2_donchian": {
+   "n": 501,
+   "cut": "2025-04-15 08:00:00+00:00",
+   "base_all": {
+    "stressed": -0.11838229637890305,
+    "measured": -0.10861018344620481
+   },
+   "filter": [
+    "vol_not_high"
+   ],
+   "discovery_mean": 0.0594,
+   "discovery_keep": 0.639,
+   "validation": {
+    "stressed": {
+     "n": 200,
+     "kept": 142,
+     "all_mean": -0.3099,
+     "kept_mean": -0.3615,
+     "delta": -0.0516,
+     "ci_lo": -0.1613,
+     "ci_hi": 0.062,
+     "random_p95": -0.2327,
+     "beats_random": false,
+     "profitable": false,
+     "candidate": false
+    },
+    "measured": {
+     "n": 200,
+     "kept": 142,
+     "all_mean": -0.3018,
+     "kept_mean": -0.3526,
+     "delta": -0.0509,
+     "ci_lo": -0.1604,
+     "ci_hi": 0.063,
+     "random_p95": -0.2252,
+     "beats_random": false,
+     "profitable": false,
+     "candidate": false
+    }
+   },
+   "passes": false
+  }
+ }
+}

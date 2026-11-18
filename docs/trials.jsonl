@@ -19,3 +19,8 @@
 {"name": "C1_keep_40pc_of_peak", "note": "exit-rule test, pre-registered in docs/EXPERIMENTS.md", "params": {"grid": 9}}
 {"name": "C2_keep_50pc_of_peak", "note": "exit-rule test, pre-registered in docs/EXPERIMENTS.md", "params": {"grid": 9}}
 {"name": "C3_keep_60pc_of_peak", "note": "exit-rule test, pre-registered in docs/EXPERIMENTS.md", "params": {"grid": 9}}
+{"name": "entry_filter_asia_breakout", "note": "entry-filter study, pre-registered in docs/EXPERIMENTS.md", "params": {"family": "12 single + 66 pairs", "split": 0.6}}
+{"name": "entry_filter_range_reversion", "note": "entry-filter study, pre-registered in docs/EXPERIMENTS.md", "params": {"family": "12 single + 66 pairs", "split": 0.6}}
+{"name": "entry_filter_trend_pullback", "note": "entry-filter study, pre-registered in docs/EXPERIMENTS.md", "params": {"family": "12 single + 66 pairs", "split": 0.6}}
+{"name": "entry_filter_E1_strength", "note": "entry-filter study, pre-registered in docs/EXPERIMENTS.md", "params": {"family": "12 single + 66 pairs", "split": 0.6}}
+{"name": "entry_filter_E2_donchian", "note": "entry-filter study, pre-registered in docs/EXPERIMENTS.md", "params": {"family": "12 single + 66 pairs", "split": 0.6}}

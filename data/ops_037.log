@@ -1,0 +1,25 @@
+asia_breakout ['vol_not_high', 'htf_with'] False
+range_reversion ['vol_not_low', 'htf_with'] True
+trend_pullback ['vol_mid', 'london_ny_hours'] False
+E1_strength ['trend_with_pos', 'london_ny_hours'] False
+E2_donchian ['vol_not_high'] False
+# Entry-filter study (pre-registered): do conditions at signal time separate better setups from worse ones?
+
+Fixed family: 12 single + 66 paired conditions (learn/filters.py). Chosen on the earlier 60% of each rule's trades, tested ONCE on the later 40%. Tests counted for the penalty: 5.
+
+| rule | trades | all trades (stressed / measured) | chosen filter | kept in validation | kept result | delta vs all | 95% range | beats random? | profitable? | candidate |
+|---|---|---|---|---|---|---|---|---|---|---|
+| asia_breakout (stressed) | 1305 | -0.132 / -0.098 | vol_not_high + htf_with | 604 | -0.107 | +0.016 | [-0.079, +0.115] | no | no | no |
+| asia_breakout (measured) | 1306 | -0.132 / -0.098 | vol_not_high + htf_with | 604 | -0.074 | +0.021 | [-0.071, +0.115] | no | no | no |
+| range_reversion (stressed) | 841 | -0.165 / -0.150 | vol_not_low + htf_with | 402 | -0.037 | +0.157 | [+0.056, +0.266] | yes | no | YES |
+| range_reversion (measured) | 828 | -0.165 / -0.150 | vol_not_low + htf_with | 396 | -0.028 | +0.160 | [+0.062, +0.267] | yes | no | YES |
+| trend_pullback (stressed) | 1033 | -0.151 / -0.139 | vol_mid + london_ny_hours | 443 | -0.101 | +0.037 | [-0.082, +0.152] | no | no | no |
+| trend_pullback (measured) | 1048 | -0.151 / -0.139 | vol_mid + london_ny_hours | 454 | -0.089 | +0.047 | [-0.068, +0.163] | no | no | no |
+| E1_strength (stressed) | 253 | -0.055 / -0.046 | trend_with_pos + london_ny_hours | 88 | +0.004 | +0.174 | [-0.015, +0.376] | yes | yes | no |
+| E1_strength (measured) | 253 | -0.055 / -0.046 | trend_with_pos + london_ny_hours | 88 | +0.001 | +0.166 | [-0.023, +0.367] | yes | yes | no |
+| E2_donchian (stressed) | 200 | -0.118 / -0.109 | vol_not_high | 142 | -0.361 | -0.052 | [-0.161, +0.062] | no | no | no |
+| E2_donchian (measured) | 200 | -0.118 / -0.109 | vol_not_high | 142 | -0.353 | -0.051 | [-0.160, +0.063] | no | no | no |
+
+Verdict: candidate filters for range_reversion: they beat the unfiltered rule and random skipping on unseen data under both cost models. A candidate still has to be applied deliberately (ops/filters.json) and then tracked live.
+Note: 'profitable? no' with 'candidate YES' means the filter makes a losing rule LESS bad, not profitable.
+
