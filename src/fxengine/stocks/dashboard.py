@@ -3,7 +3,7 @@ docs/results/stocks_setups.json. Only numbers that are in those files are shown.
 Usage: PYTHONPATH=src python -m fxengine.stocks.dashboard   -> docs/results/stocks.html"""
 from __future__ import annotations
 import html, json, math, sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from ..bets.dashboard import CSS as BASE_CSS, JS as _JS
 from .strategies import INFO
@@ -80,7 +80,9 @@ def _home_name(r: dict) -> str:
     return COUNTRY.get(r["home"], r["home"].upper())
 
 
-def _trade_card(r: dict, held: dict | None = None) -> str:
+def _trade_card(r: dict, held: dict | None = None, live: dict | None = None) -> str:
+    if live and live.get('price'):
+        r = dict(r, last_close=live['price'], _live_t=live.get('t'))
     st = r["status"]
     un = r.get("unrealised")
     cls = {"PENDING": "pending", "VALID": "open", "WEAKENING": "open", "INVALIDATED": "loss", "TIME STOP": "dead"}.get(st, "dead")
@@ -99,6 +101,8 @@ def _trade_card(r: dict, held: dict | None = None) -> str:
     nh = "".join(f"<div><small>{E(a)}</small><b>{E(str(b))}</b><span>{E(str(c2))}</span></div>" for a, b, c2 in nums)
     why = "".join(f"<div>{E(x)}</div>" for x in (r.get("why") or [r["exit_text"]])[:2])
     chips = [f"signal {r['signal_date']}"] + ([f"entered {r['entry_price']:,.2f}"] if r.get("entry_price") else ["enters next open"]) + ([r["detail"]] if r.get("detail") else [])
+    if r.get("_live_t"):
+        chips = [f"live price · {datetime.fromtimestamp(r['_live_t'], timezone.utc):%H:%M} UTC · the rules still decide at the close"] + chips
     if r.get("cand_ok") is True:
         chips = ["FILTER ✓ (candidate, unproven): " + r["cand_filter"]] + chips
     if held:
@@ -241,7 +245,8 @@ def _setups_tab(sp: dict | None, res: dict | None = None) -> str:
     top = _account_card(ac, n, chips)
     charts = ""
     held = {p_['id']: p_ for p_ in ((sp.get('account') or {}).get('positions') or [])}
-    cards = "".join(_trade_card(r, held.get(r['id'])) for r in att + pend + live) or "<div class='empty'><b>No setups right now.</b><br><span class='muted'>The rules flag a setup only when their conditions are met. Nothing is a valid outcome.</span></div>"
+    lp = (sp.get('live') or {}).get('prices') or {}
+    cards = "".join(_trade_card(r, held.get(r['id']), lp.get(r['symbol'])) for r in att + pend + live) or "<div class='empty'><b>No setups right now.</b><br><span class='muted'>The rules flag a setup only when their conditions are met. Nothing is a valid outcome.</span></div>"
     hist = ""
     if closed:
         hr = "".join(f'<tr><td><b>{E(c["symbol"].split(".")[0].upper())}</b> <span class="muted">{E(c["market"])}</span></td><td>{E(INFO.get(c["rule"], (c["rule"],))[0])}</td><td>{E(c["entry_date"])}</td><td>{E(c["exit_date"])}</td>'

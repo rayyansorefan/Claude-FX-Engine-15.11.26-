@@ -166,7 +166,7 @@ def test_stocks_server_renders_and_refreshes_itself(tmp_path, monkeypatch):
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     h = urllib.request.urlopen(f"http://127.0.0.1:{srv.server_address[1]}/").read().decode()
     srv.shutdown()
-    assert "STOCKS ENGINE" in h and "http-equiv='refresh' content='60'" in h and "No results yet" in h and "FX dashboard not reachable" in h
+    assert "STOCKS ENGINE" in h and "60*1000" in h and "No results yet" in h and "FX dashboard not reachable" in h
 
 
 def _yahoo_json(n=300, start="2020-01-02"):
@@ -391,7 +391,7 @@ def test_combined_page_is_served_from_the_fx_dashboard_when_it_is_reachable(tmp_
     srv = serve.ThreadingHTTPServer(("127.0.0.1", 0), serve.H); threading.Thread(target=srv.serve_forever, daemon=True).start()
     h = urllib.request.urlopen(f"http://127.0.0.1:{srv.server_address[1]}/").read().decode()
     srv.shutdown(); up.shutdown()
-    assert "fx trades" in h and "<button data-t='stocks'>Stocks</button>" in h and "FX dashboard not reachable" not in h and "http-equiv='refresh' content='60'" in h
+    assert "fx trades" in h and "<button data-t='stocks'>Stocks</button>" in h and "FX dashboard not reachable" not in h and "60*1000" in h
 
 
 def _market_panel():

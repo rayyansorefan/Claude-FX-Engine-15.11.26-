@@ -12,10 +12,7 @@ import pandas as pd
 from . import costs
 from .universe import kind as kind_of, currency
 
-START = 2500.0
-RISK = 20.0
-MAX_POS = 0.25
-NO_STOP_PCT = 0.10
+from .sizing import START, RISK, MAX_POS, NO_STOP_PCT, MIN_POSITION, stop_for, shares as size_shares
 FALLBACK_RATE = 1.30                         # USD per GBP, used (and flagged) only if no rate file is available
 
 
@@ -58,10 +55,7 @@ class Money:
 
 
 def _stop(row: dict, entry: float) -> tuple[float, bool]:
-    inv = row.get("invalidation")
-    if inv and 0 < inv < entry:
-        return float(inv), False
-    return entry * (1 - NO_STOP_PCT), True
+    return stop_for(row.get("invalidation"), entry)
 
 
 def simulate(rows: list[dict], panel: dict, rates, passed: set[str], start: float = START, today=None, rank: dict | None = None) -> dict:
@@ -106,13 +100,9 @@ def simulate(rows: list[dict], panel: dict, rates, passed: set[str], start: floa
             ep = c["entry_px"]
             ep_gbp = money.gbp(c["sym"], ep, day)
             stop, nostop = _stop(c["row"], ep)
-            dist = ep_gbp - money.gbp(c["sym"], stop, day)
-            if dist <= 0:
-                skipped.append(dict(id=c["row"]["id"], symbol=c["sym"], why="invalid-below level is above the entry price"))
-                continue
-            sh = min(RISK / dist, MAX_POS * equity_open / ep_gbp, cash / ep_gbp)
-            if sh * ep_gbp < 25.0:
-                skipped.append(dict(id=c["row"]["id"], symbol=c["sym"], why="not enough free cash for a meaningful position"))
+            sh, why_skip = size_shares(ep_gbp, money.gbp(c["sym"], stop, day), equity_open, cash)
+            if why_skip:
+                skipped.append(dict(id=c["row"]["id"], symbol=c["sym"], why=why_skip))
                 continue
             cost = sh * ep_gbp
             cash -= cost

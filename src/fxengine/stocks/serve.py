@@ -39,13 +39,18 @@ def page() -> str:
         p = RES / n
         return json.loads(p.read_text()) if p.exists() else None
     res, sp, mk, fl = rd("stocks.json"), rd("stocks_setups.json"), rd("stocks_market.json"), rd("stocks_filters.json")
+    if sp is not None:
+        sp["live"] = rd("stocks_live.json")
     jr = tab.load_journal()
     fx = fx_page()
     h = inject(fx, tab.CSS, tab.fragment(res, sp, mk, jr, fl)) if fx else None
     if h is None:                                           # FX dashboard unreachable or unexpected: show the stand-alone stocks page, say so
         h = dashboard.render(res, sp, mk, jr, fl).replace("<div class=\"wrap\">", "<div class=\"wrap\"><div class=\"verdict\"><b>FX dashboard not reachable right now</b> <span class=\"muted\">(showing Stocks only; it will combine again by itself).</span></div>", 1)
     if AUTO[0]:
-        h = h.replace("<head>", f"<head><meta http-equiv='refresh' content='{AUTO[0]}'>", 1)
+        js = ("<script>(function(){var K='sttab',N=%d*1000;try{var t=sessionStorage.getItem(K);if(t){var b=document.querySelector(\"button[data-t='\"+t+\"']\");if(b)b.click()}}catch(e){}"
+              "document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('button[data-t]');if(b)try{sessionStorage.setItem(K,b.getAttribute('data-t'))}catch(x){}});"
+              "setInterval(function(){var a=document.activeElement;if(document.hidden||(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)))return;location.reload()},N)})()</script>") % AUTO[0]
+        h = h.replace("</body>", js + "</body>", 1) if "</body>" in h else h + js
     return h
 
 
