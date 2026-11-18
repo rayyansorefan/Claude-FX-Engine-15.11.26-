@@ -275,6 +275,6 @@ def test_fx_tab_fragment_is_scoped_and_does_not_collide_with_the_fx_tab_script(t
     p = tab.write(tmp_path / "stocks.json")
     h, css = p.read_text(), (tmp_path / "stocks_tab.css").read_text()
     assert h.startswith("<div class='tab' id='stocks'>") and h.count("class='tab'") == 1                       # exactly ONE element the FX page's tab script will manage
-    assert "class=\\"tab\\"" not in h and "<style" not in h and "<link" not in h and "http" not in h
+    assert 'class="tab"' not in h and "<style" not in h and "<link" not in h and "http" not in h
     assert all(line.startswith("#stocks") for line in css.strip().splitlines() if line.strip())             # every style rule is scoped to the Stocks tab
     assert tab.write(tmp_path / "missing.json").exists()                                                      # no results yet -> still a valid, honest "No results yet" tab
