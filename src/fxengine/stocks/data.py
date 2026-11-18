@@ -32,9 +32,8 @@ def parse(text: str) -> pd.DataFrame:
 
 
 def yahoo_ticker(sym: str) -> str:
-    """'aapl.us' -> 'AAPL'; 'vod.uk' -> 'VOD.L' (London)."""
-    t, mk = sym.rsplit(".", 1)
-    return t.upper().replace(".", "-") if mk == "us" else t.upper() + ".L"
+    from .universe import yahoo_symbol
+    return yahoo_symbol(sym)
 
 
 def parse_yahoo(text: str) -> str:
@@ -110,13 +109,19 @@ def download(out=Path("data/stocks"), symbols=SYMBOLS, get=None, pause=0.6, refr
             print(f"[{k}/{len(symbols)}] {sym} {len(d)} rows to {report[-1]['last']}", flush=True)
         except Exception as e:                                   # one bad symbol never stops the run
             gaps.append(f"{sym}: {type(e).__name__}"); print(f"[{k}/{len(symbols)}] {sym} FAILED {type(e).__name__}", flush=True)
-    try:                                                           # GBPUSD daily rate, for converting US prices into pounds in the paper account
-        r = get(YAHOO.format(t="GBPUSD=X", now=int(time.time())))
-        fxcsv = parse_yahoo(r.content.decode("utf-8", "replace")) if r.status_code == 200 else ""
-        if fxcsv:
-            (raw / "gbpusd.csv").write_text(fxcsv)
-    except Exception as e:
-        print("GBPUSD rate not refreshed:", type(e).__name__, flush=True)
+    from .universe import INTL
+    for cur in ["USD"] + sorted({v[2] for v in INTL.values()} - {"USD"}):           # GBP -> each currency, so the paper account can convert any market into pounds
+        f = raw / ("gbpusd.csv" if cur == "USD" else f"gbp_{cur}.csv")
+        try:
+            if f.exists() and (time.time() - f.stat().st_mtime) < refresh_hours * 3600:
+                continue
+            r = get(YAHOO.format(t=f"GBP{cur}=X", now=int(time.time())))
+            fxcsv = parse_yahoo(r.content.decode("utf-8", "replace")) if r.status_code == 200 else ""
+            if fxcsv:
+                f.write_text(fxcsv)
+            time.sleep(pause)
+        except Exception as e:
+            print(f"GBP{cur} rate not refreshed:", type(e).__name__, flush=True)
     for pair in ("EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "AUDJPY"):     # daily FX for the cross-engine context (cached, never fatal)
         f = raw / f"fx_{pair}.csv"
         try:

@@ -626,3 +626,36 @@ def test_panel_rules_use_only_the_past_and_every_rule_has_a_name_and_hold_limit(
     for r in base:
         assert all((base[r][s].entry[:470] == chg[r][s].entry[:470]).all() and (base[r][s].exit[:470] == chg[r][s].exit[:470]).all() for s in p)
     assert all(r in S.INFO and r in S.MAX_HOLD for r in S.SWING_RULES) and set(S.RULES) == set(S.SWING_RULES) | {"GAP_CONT_DAY", "GAP_FADE_DAY"}
+
+
+def test_international_symbols_map_to_yahoo_currencies_and_countries():
+    assert U.yahoo_symbol("aapl.us") == "AAPL" and U.yahoo_symbol("vod.uk") == "VOD.L" and U.yahoo_symbol("sap.de") == "SAP.DE" and U.yahoo_symbol("volv-b.se") == "VOLV-B.ST" and U.yahoo_symbol("7203.jp") == "7203.T"
+    assert U.currency("vod.uk") == ("GBP", 100.0) and U.currency("sap.de") == ("EUR", 1.0) and U.currency("cspx.uk") == ("USD", 1.0) and U.currency("npn.za") == ("ZAR", 100.0) and U.currency("7203.jp") == ("JPY", 1.0)
+    assert U.market("sap.de") == "DE" and U.kind("sap.de") == "intl" and len(set(U.SYMBOLS)) == len(U.SYMBOLS) and len(U.COUNTRY) >= 28
+
+
+def test_paper_account_converts_every_currency_into_pounds(tmp_path):
+    from fxengine.stocks import account as A
+    rates = {"USD": pd.Series([1.25], index=[pd.Timestamp("2026-10-01")]), "EUR": pd.Series([1.15], index=[pd.Timestamp("2026-10-01")]), "JPY": pd.Series([190.0], index=[pd.Timestamp("2026-10-01")])}
+    m = A.Money(rates)
+    d = pd.Timestamp("2026-11-02")
+    assert abs(m.gbp("aapl.us", 125.0, d) - 100.0) < 1e-9 and abs(m.gbp("sap.de", 115.0, d) - 100.0) < 1e-9 and abs(m.gbp("7203.jp", 19000.0, d) - 100.0) < 1e-9 and abs(m.gbp("vod.uk", 8000.0, d) - 80.0) < 1e-9
+    assert not m.used_fallback and A.Money({}).gbp("sap.de", 10.0, d) == 10.0                                              # a missing rate falls back (and is flagged) instead of crashing
+    p = {"sap.de": _acct_panel(entry_open=115.0, path=np.full(40, 115.0))}
+    r = A.simulate([_setup("sap.de", "RSI2_PULLBACK", "2026-11-02", 109.25)], p, rates, {"RSI2_PULLBACK"})            # EUR 115 = £100; stop 5% below = £5 risk per share -> 4 shares = £400
+    assert abs(r["positions"][0]["cost"] - 400.0) < 0.5
+    (tmp_path / "gbpusd.csv").write_text("Date,Open,High,Low,Close,Volume\n2026-10-01,1,1,1,1.25,0\n")
+    (tmp_path / "gbp_EUR.csv").write_text("Date,Open,High,Low,Close,Volume\n2026-10-01,1,1,1,1.15,0\n")
+    assert set(A.load_rates(tmp_path)) == {"USD", "EUR"}
+
+
+def test_downloader_also_fetches_the_gbp_rates_for_the_countries_in_the_universe(tmp_path):
+    class R:
+        def __init__(s, c, t=""): s.status_code, s.content = c, t.encode()
+    urls = []
+
+    def get(u):
+        urls.append(u)
+        return R(200, "") if "stooq" in u else R(200, _yahoo_json())
+    D.download(tmp_path, symbols=["sap.de"], get=get, pause=0)
+    assert any("SAP.DE" in u for u in urls) and (tmp_path / "raw" / "gbp_EUR.csv").exists() and (tmp_path / "raw" / "gbp_JPY.csv").exists() and (tmp_path / "raw" / "gbpusd.csv").exists()

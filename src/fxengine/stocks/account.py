@@ -3,51 +3,58 @@ Policy, fixed in advance (docs/STOCKS_PLAN.md): the account takes every new setu
 risk per trade £20 (1R) sized from the setup's own invalid-below level (no level -> 10% below entry); no position bigger than 25% of the account; no leverage.
 Entries and exits use the same dates and prices as the research (next open after the signal; exit at the open after the rule's exit). Deterministic: rebuilt from the
 setup ledger every night, so it can never drift. Balances are BEFORE fees (like FX's 'before commission/swap'); the normal-cost estimate is shown separately.
-US prices are converted at the GBPUSD rate of the day; UK prices are in pence."""
+Every market is converted into pounds at that currency's GBP rate of the day; London quotes pence, Johannesburg cents, Tel Aviv agorot."""
 from __future__ import annotations
 import csv
 from pathlib import Path
 import numpy as np
 import pandas as pd
 from . import costs
-from .universe import kind as kind_of
+from .universe import kind as kind_of, currency
 
 START = 2500.0
 RISK = 20.0
 MAX_POS = 0.25
 NO_STOP_PCT = 0.10
-USD_OVERRIDE = {"cspx.uk"}                  # London-listed but quoted in USD
 FALLBACK_RATE = 1.30                         # USD per GBP, used (and flagged) only if no rate file is available
 
 
-def load_rates(path: Path = Path("data/stocks/raw/gbpusd.csv")) -> pd.Series:
-    """USD per 1 GBP by date from the Yahoo GBPUSD=X file (Stooq/Yahoo-style CSV). Empty Series if absent."""
+def _read_rate_file(path: Path) -> pd.Series:
     if not path.exists():
         return pd.Series(dtype=float)
     r = list(csv.DictReader(path.open()))
     if not r or "Close" not in r[0]:
         return pd.Series(dtype=float)
-    s = pd.Series({pd.Timestamp(x["Date"]): float(x["Close"]) for x in r if x.get("Close") not in (None, "", "nan")})
-    return s.sort_index()
+    return pd.Series({pd.Timestamp(x["Date"]): float(x["Close"]) for x in r if x.get("Close") not in (None, "", "nan")}).sort_index()
+
+
+def load_rates(raw: Path = Path("data/stocks/raw")) -> dict[str, pd.Series]:
+    """Units of each currency per 1 GBP, by date (Yahoo GBP<CUR>=X): {'USD': Series, 'EUR': Series, ...}."""
+    out = {"USD": _read_rate_file(raw / "gbpusd.csv")}
+    for f in raw.glob("gbp_*.csv"):
+        out[f.stem.split("_")[1].upper()] = _read_rate_file(f)
+    return {k: v for k, v in out.items() if len(v)}
 
 
 class Money:
-    """Price (in the stock's own units) -> pounds."""
-    def __init__(self, rates: pd.Series):
-        self.rates, self.used_fallback = rates, False
+    """Price (in the stock's own quoted units) -> pounds, using the market's currency and the day's GBP rate."""
+    def __init__(self, rates):
+        self.rates = rates if isinstance(rates, dict) else {"USD": rates}            # a bare Series means USD per GBP
+        self.used_fallback = False
 
-    def usd_per_gbp(self, d) -> float:
-        if len(self.rates):
-            i = self.rates.index.searchsorted(pd.Timestamp(d), side="right") - 1
+    def per_gbp(self, cur: str, d) -> float:
+        s = self.rates.get(cur)
+        if s is not None and len(s):
+            i = s.index.searchsorted(pd.Timestamp(d), side="right") - 1
             if i >= 0:
-                return float(self.rates.iloc[i])
+                return float(s.iloc[i])
         self.used_fallback = True
-        return FALLBACK_RATE
+        return FALLBACK_RATE if cur == "USD" else 1.0
 
     def gbp(self, sym: str, price: float, d) -> float:
-        if sym.endswith(".uk") and sym not in USD_OVERRIDE:
-            return price / 100.0
-        return price / self.usd_per_gbp(d)
+        cur, div = currency(sym)
+        major = price / div
+        return major if cur == "GBP" else major / self.per_gbp(cur, d)
 
 
 def _stop(row: dict, entry: float) -> tuple[float, bool]:
