@@ -76,12 +76,19 @@ Benchmark shown beside every result: buy-and-hold SPY and an equal-weight buy-an
 - Holdout opened ONCE for RSI2_PULLBACK on 2026-11-18 (docs/stocks_holdout_log.txt): n=800, mean +0.536%, 65.5% wins, range [+0.14%, +0.94%] -> PASS. Needs forward confirmation.
 - Forward test (from 2026-11-18): the scanner tracks EVERY signal of the four swing rules, mirrors the research's one-position-per-stock rule, and closes trades with the same backtest code, so live results are directly comparable. Nightly timer (weekdays 22:45 UTC).
 
-## Update 2026-11-18 (evening): the two engines work in unison (owner instruction) + the £2,500 paper account + the build order
-**Principles, from the owner:** (1) one combined system, not silos; (2) apply the FX engine's proven analysis methods to stocks; (3) a £2,500 paper account like FX; (4) trading analysis is the core: technical indicators chosen with evidence, ALL public company documents and data, macro, and constant re-assessment of open setups; (5) trade 36 countries via Revolut so there are candidates every day.
+## Update 2026-11-18 (evening): the two engines LEARN FROM EACH OTHER, kept separate (owner instruction, corrected)
+**What the owner wants, stated precisely:** FX and Stocks stay SEPARATE (separate tabs, separate paper accounts, separate rules and results; NO combined/merged view). They must LEARN from each other.
+**How "learn from each other" is implemented (the learning link, stocks/crossctx.py):**
+- Each engine publishes its daily market read, point-in-time (a value on a date uses data up to that day's close only), with full history.
+  - Stocks -> FX: docs/results/stocks_context_history.csv + stocks_context.json (equity trend, breadth, volatility, 5-day move). The FX engine's entry-filter study can test these on its own trades.
+  - FX -> Stocks: USD strength and risk mood (AUDJPY) from free daily FX rates (history to 2003), computed on the stocks side and stored on EVERY stock setup when it fires. The stocks entry-filter study (phase D) tests whether they improve the stock rules.
+- Cross-features are ordinary pre-registered conditions: chosen on the earlier 60% of history, validated ONCE on the later 40%, per rule, with the throughput guard; adopted only with evidence, and announced. Each engine keeps its own learning log.
+- Methods are shared too: both use the same rules of evidence (pre-registered tests, sealed period, forward test, honest 'no edge').
+- A combined tab was built by mistake (a display, not learning) and removed the same day.
 
 **Done (this session):**
 - Stocks paper account: £2,500, £20 risk per trade (1R) sized from each setup's own invalid-below level (none -> 10% below entry), max 25% of the account per position, no leverage, takes every new setup of a rule that PASSED the research gate (strongest first), same entry/exit dates and prices as the research, GBPUSD-converted, UK pence handled. Rebuilt deterministically from the setup ledger every night (stocks/account.py).
-- Shared layer (stocks/shared.py): reads the FX ledger READ-ONLY (or fx_context.json if the FX engine provides it); combined paper balance, one shared open-risk budget (£100, advisory), net exposure by currency across both engines. Shown as a "Combined" tab (first in the FX dashboard's tab bar) next to the "Stocks" tab.
+- Learning link (stocks/crossctx.py): daily context history (SPY trend, breadth, volatility, USD strength, risk mood), published for FX, stored on every setup, tested for look-ahead.
 
 **FX methods to port to stocks (each pre-registered, validated on later unseen data, announced when it changes anything):**
 1. Record market context when a setup fires (market regime, breadth, volatility rank, trend strength, extension, relative strength, day of week) - FX does this at entry.
@@ -94,4 +101,4 @@ Benchmark shown beside every result: buy-and-hold SPY and an equal-weight buy-an
 - B. Technical-indicator batch 2 (pre-registered before any result; literature-backed, fixed parameters): 52-week-high momentum, Donchian 55 breakout, volume-confirmed breakout, ADX trend, Bollinger reversion, internal-bar-strength reversion, stochastic pullback, MACD (a popular indicator, tested honestly), relative-strength leaders pullback. Each counts toward the multiple-testing penalty.
 - C. Events layer (deterministic, point-in-time, free): SEC EDGAR filings (8-K item 2.02 earnings releases with acceptance timestamps, XBRL company facts for reported revenue/EPS/margins), FRED macro series, FOMC/CPI/NFP calendar; hypotheses written down first (post-earnings drift, pre-earnings run-up, macro-day behaviour, regime filters). Needs the SEC contact string for its User-Agent (owner decision).
 - D. Entry-filter study + exit shadow-replay (items 3-4 above) once enough closed forward trades exist.
-- E. Cross-engine context feeds (USD strength from FX into stock setups, equity risk mood into FX), one shared event calendar, one daily brief (Telegram), per-setup "assessment" refreshed nightly.
+- E. Cross-engine: shared event calendar (earnings, macro) used by both engines' studies; one daily brief per engine (Telegram, owner's decision); per-setup "assessment" refreshed nightly. (Context feeds are already built: see above.)

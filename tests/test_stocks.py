@@ -535,49 +535,60 @@ def test_scan_account_payload_is_plain_json_and_never_raises():
     assert "error" in scan.account_payload([dict(id="x")], {"aaa.us": d}, {"RSI2_PULLBACK"}, rates) or True        # malformed rows: a payload, never an exception
 
 
-def _fx_db(path, outcomes=(), setups=(), events=()):
-    import sqlite3
-    c = sqlite3.connect(path)
-    c.executescript("CREATE TABLE setups(run_id TEXT PRIMARY KEY, created_at TEXT, expires_at TEXT, pair TEXT, type TEXT, tf TEXT, day TEXT, record TEXT);"
-                    "CREATE TABLE events(run_id TEXT, idx INTEGER, ts TEXT, frm TEXT, to_state TEXT, detail TEXT, PRIMARY KEY(run_id, idx));"
-                    "CREATE TABLE outcomes(run_id TEXT PRIMARY KEY, reason TEXT, net_r REAL, fill REAL, exit REAL, resolved_at TEXT);")
-    for rid, pair, rec in setups:
-        c.execute("INSERT INTO setups VALUES(?,?,?,?,?,?,?,?)", (rid, "2026-11-18T09:00", "2026-11-19T09:00", pair, "t", "H1", "2026-11-18", json.dumps(rec)))
-    for rid, st in events:
-        c.execute("INSERT INTO events VALUES(?,?,?,?,?,?)", (rid, 0, "x", "", st, ""))
-    for rid, r in outcomes:
-        c.execute("INSERT INTO outcomes VALUES(?,?,?,?,?,?)", (rid, "TARGET", r, 0, 0, "x"))
-        c.execute("INSERT INTO setups VALUES(?,?,?,?,?,?,?,?)", (rid, "2026-11-17T09:00", "x", "EURUSD", "t", "H1", "d", "{}"))
-    c.commit(); c.close()
+def _fx_series(drift, n=700, seed=1, start="2022-01-03"):
+    r = np.random.default_rng(seed).normal(drift, 0.003, n)
+    return pd.Series(1.1 * np.exp(np.cumsum(r)), index=pd.bdate_range(start, periods=n))
 
 
-def test_shared_layer_reads_fx_read_only_and_combines_exposure_and_risk(tmp_path):
-    from fxengine.stocks import shared
-    root = tmp_path / "fx"
-    (root / "data").mkdir(parents=True)
-    _fx_db(root / "data/engine.db", outcomes=[("o1", 1.5), ("o2", -1.0)],
-           setups=[("r1", "USDCAD", dict(dir="long", entry=1.4, stop=1.39)), ("r2", "EURUSD", dict(entry=1.05, stop=1.06)), ("r3", "GBPJPY", dict(dir="long"))],
-           events=[("r1", "OPEN"), ("r2", "OPEN"), ("r3", "PENDING")])
-    before = (root / "data/engine.db").read_bytes()
-    fx = shared.fx_snapshot(root)
-    assert (root / "data/engine.db").read_bytes() == before                                          # opened read-only: nothing changed
-    assert fx["balance"] == 2510.0 and fx["n_closed"] == 2 and len(fx["open"]) == 2 and len(fx["pending"]) == 1
-    assert {t["pair"]: t["dir"] for t in fx["open"]} == {"USDCAD": "long", "EURUSD": "short"}      # EURUSD direction inferred: stop above entry = short
-    st = dict(start=2500.0, balance=2530.0, positions=[dict(symbol="aapl.us", risk=20.0), dict(symbol="msft.us", risk=20.0)], pending=[])
-    ex = shared.exposure(fx, st)
-    assert ex["USD"] == 80.0 and ex["CAD"] == -20.0 and ex["EUR"] == -20.0                           # long USDCAD +20 USD, short EURUSD +20 USD, two long US stocks +40 USD = +80 USD
-    s = shared.combine(fx, st)
-    assert s["total_balance"] == 5040.0 and s["open_risk"] == 80.0 and any("USD" in n for n in s["notes"])
-    assert shared.fx_snapshot(tmp_path / "nowhere") is None and any("could not be read" in n for n in shared.combine(None, st)["notes"])
+def test_dollar_strength_has_the_right_sign_for_every_pair_convention():
+    from fxengine.stocks import crossctx as C
+    up = _fx_series(0.001)                                   # a pair rising 0.1% a day
+    eur_up = C.usd_strength({"EURUSD": up})                  # EURUSD rising = the dollar is FALLING
+    jpy_up = C.usd_strength({"USDJPY": up})                  # USDJPY rising = the dollar is RISING
+    assert eur_up.iloc[-1] < -0.3 and jpy_up.iloc[-1] > 0.3 and abs(eur_up.iloc[-1] + jpy_up.iloc[-1]) < 1e-9
 
 
-def test_combined_tab_is_injected_first_and_shows_both_engines():
-    from fxengine.stocks import serve, tab, shared
-    fx = dict(start=2500.0, balance=2538.0, open=[dict(pair="USDCAD", dir="long", state="OPEN", risk=20.0)], pending=[dict(pair="GBPJPY", dir="long", state="PENDING", risk=20.0)])
-    st = dict(start=2500.0, balance=2510.0, positions=[dict(symbol="aapl.us", risk=20.0)], pending=[dict(symbol="vod.uk")])
-    sh = shared.combine(fx, st)
-    page = serve.inject(FX_LIKE, tab.CSS, tab.fragment(None, None), tab.combined_fragment(sh))
-    assert page.index("data-t='combined'") < page.index("data-t='overview'") and page.count("id='combined'") == 1 and page.count("id='stocks'") == 1
-    for needle in ("Combined paper balance", "£5,048", "USDCAD", "AAPL", "Net exposure by currency", "long £40", "How the two engines work together"):
-        assert needle in page, needle
-    assert serve.inject(FX_LIKE, tab.CSS, "<div class='tab' id='stocks'></div>") is not None                 # still works without the combined tab
+def test_context_uses_only_the_past_and_is_published_for_the_other_engine(tmp_path):
+    from fxengine.stocks import crossctx as C
+    p = _market_panel()
+    p["spy.us"] = _series(900, 33, vol=0.01, drift=0.0004)
+    fx = {"EURUSD": _fx_series(0.0002, 900, 2, "2022-01-03"), "USDJPY": _fx_series(0.0001, 900, 3, "2022-01-03"), "AUDJPY": _fx_series(0.0002, 900, 4, "2022-01-03")}
+    idx = p["spy.us"].index
+    fx = {k: v.reindex(idx, method="ffill").dropna() for k, v in fx.items()}
+    ctx = C.build(p, fx)
+    assert {"spy_vs200", "spy_trend", "vol20", "breadth200", "usd_20d_z", "risk_20d_z", "dow"} <= set(ctx.columns) and ctx["breadth200"].dropna().between(0, 1).all()
+    # no look-ahead: rewriting the future must not change any earlier value
+    p2 = {k: v.copy() for k, v in p.items()}
+    p2["spy.us"].iloc[700:, :4] *= 1.5
+    fx2 = {k: v.copy() for k, v in fx.items()}
+    e = fx2["EURUSD"]
+    fx2["EURUSD"] = pd.concat([e.iloc[:-100], e.iloc[-100:] * 1.3])
+    ctx2 = C.build(p2, fx2)
+    cut = ctx.index[650]
+    assert np.allclose(ctx.loc[:cut].fillna(0).to_numpy(float), ctx2.loc[:cut].fillna(0).to_numpy(float))
+    snap = C.publish(ctx, tmp_path / "h.csv", tmp_path / "l.json")
+    assert snap["asof"] == f"{ctx.index[-1]:%Y-%m-%d}" and "about" in snap and (tmp_path / "h.csv").read_text().startswith("date,spy_trend")
+    assert C.at(ctx, ctx.index[300])["spy_trend"] in (-1.0, 1.0, 0.0) and C.at(ctx, "1990-01-01") == {}
+
+
+def test_every_new_setup_records_the_market_context_it_fired_in():
+    from fxengine.stocks import scan, crossctx as C
+    d = _one_signal_series()
+    p = {"aaa.us": d, "spy.us": _series(500, 3, vol=0.008, drift=0.0005)}
+    p["spy.us"].index = d.index
+    ctx = C.build(p, {})
+    rows = scan.run(p, set(), [], ctx)
+    s = next(r for r in rows if r["rule"] == "RSI2_PULLBACK")
+    assert "spy_trend" in s["ctx"] and "vol20" in s["ctx"] and "dow" in s["ctx"]
+
+
+def test_downloader_also_fetches_the_daily_fx_pairs_for_the_context(tmp_path):
+    class R:
+        def __init__(s, c, t=""): s.status_code, s.content = c, t.encode()
+    urls = []
+
+    def get(u):
+        urls.append(u)
+        return R(200, "") if "stooq" in u else R(200, _yahoo_json())
+    D.download(tmp_path, symbols=["aapl.us"], get=get, pause=0)
+    assert all((tmp_path / "raw" / f"fx_{p}.csv").exists() for p in ("EURUSD", "USDJPY", "AUDJPY")) and any("AUDJPY%3DX" in u or "AUDJPY=X" in u for u in urls)

@@ -9,12 +9,11 @@ from . import dashboard, tab
 
 RES = Path("docs/results")
 AUTO = [60]
-FX_ROOT = [Path.home() / "fx"]               # where the FX engine lives (its ledger is only ever READ)
 FX = {"host": "127.0.0.1", "port": 8787}     # where the FX dashboard listens (read-only relay)
 ANCHOR_CSS, ANCHOR_BTN, ANCHOR_SEC = "</style>", "<button data-t='system'>System</button>", "<div class='tab' id='system'>"
 
 
-def inject(fx_html: str, css: str, section: str, combined: str | None = None) -> str | None:
+def inject(fx_html: str, css: str, section: str) -> str | None:
     """Adds the Stocks tab to the FX dashboard's own page (CSS, tab button, section). Pure string insertion at three fixed anchors; returns None if the page
     is not what we expect (then the caller shows the stand-alone stocks page instead). If the FX page already has a Stocks tab it is returned unchanged."""
     if "id='stocks'" in fx_html:
@@ -23,9 +22,6 @@ def inject(fx_html: str, css: str, section: str, combined: str | None = None) ->
         return None
     h = fx_html.replace(ANCHOR_CSS, css + ANCHOR_CSS, 1)
     h = h.replace(ANCHOR_BTN, ANCHOR_BTN + "<button data-t='stocks'>Stocks</button>", 1)
-    if combined and "<div class='tabs'>" in h:                      # the Combined tab goes FIRST in the bar (FX's own default tab is unchanged)
-        h = h.replace("<div class='tabs'>", "<div class='tabs'><button data-t='combined'>Combined</button>", 1)
-        section = combined + section
     return h.replace(ANCHOR_SEC, section + ANCHOR_SEC, 1)
 
 
@@ -45,12 +41,7 @@ def page() -> str:
     res, sp, mk = rd("stocks.json"), rd("stocks_setups.json"), rd("stocks_market.json")
     jr = tab.load_journal()
     fx = fx_page()
-    try:                                                         # live: the FX ledger is read (read-only) on every page load
-        from . import shared
-        sh = shared.combine(shared.fx_snapshot(FX_ROOT[0]), shared.stocks_snapshot(sp))
-    except Exception:
-        sh = None
-    h = inject(fx, tab.CSS, tab.fragment(res, sp, mk, jr), tab.combined_fragment(sh)) if fx else None
+    h = inject(fx, tab.CSS, tab.fragment(res, sp, mk, jr)) if fx else None
     if h is None:                                           # FX dashboard unreachable or unexpected: show the stand-alone stocks page, say so
         h = dashboard.render(res, sp, mk, jr).replace("<div class=\"wrap\">", "<div class=\"wrap\"><div class=\"verdict\"><b>FX dashboard not reachable right now</b> <span class=\"muted\">(showing Stocks only; it will combine again by itself).</span></div>", 1)
     if AUTO[0]:

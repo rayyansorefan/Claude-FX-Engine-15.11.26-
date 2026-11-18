@@ -44,39 +44,6 @@ def fragment(res: dict | None, sp: dict | None = None, mk: dict | None = None, j
             f"<span class='chip'>research only · never places an order</span></div><div class='stnav'>{nav}</div>{secs}{JS}</div>")
 
 
-def combined_fragment(sh: dict | None) -> str:
-    """The Combined tab: both engines on one page (their paper accounts, shared risk budget, net exposure by currency). Reads only; see stocks/shared.py."""
-    E = DB.E
-    if not sh:
-        return "<div class='tab' id='combined'><div class='card'><h3>Combined</h3><p class='muted'>No shared data yet.</p></div></div>"
-    fx, st = sh.get("fx"), sh.get("stocks")
-    pnl = lambda v: "up" if v > 0.5 else "dn" if v < -0.5 else "muted"
-    tot = sh["total_balance"] - sh["total_start"]
-    over = sh["open_risk"] > sh["risk_budget"]
-    tiles = [("Combined paper balance", f"£{sh['total_balance']:,.0f}", f"start £{sh['total_start']:,.0f} · both engines · before costs", pnl(tot)),
-             ("FX engine", f"£{fx['balance']:,.0f}" if fx else "—", f"{_gb(fx['balance'] - fx['start']) if fx else 'ledger not readable'} · {len((fx or {}).get('open', []))} open", pnl((fx or {}).get("balance", 0) - (fx or {}).get("start", 0))),
-             ("Stocks engine", f"£{st['balance']:,.0f}" if st else "—", f"{_gb(st['balance'] - st['start']) if st else 'no data yet'} · {len((st or {}).get('positions', []))} open", pnl((st or {}).get("balance", 0) - (st or {}).get("start", 0))),
-             ("Open risk (both engines)", f"£{sh['open_risk']:,.0f}", f"shared budget £{sh['risk_budget']:,.0f} · {'OVER' if over else 'within'}", "dn" if over else "up"),
-             ("Open positions", f"{sh['n_fx'] + sh['n_st']}", f"{sh['n_fx']} FX · {sh['n_st']} stocks", "")]
-    kp = "<div class='kpis'>" + "".join(f"<div class='kpi'><small>{E(a)}</small><b class='{k}'>{E(b)}</b><span>{E(c)}</span></div>" for a, b, c, k in tiles) + "</div>"
-    ex = "".join(f"<tr><td><b>{E(c)}</b></td><td class='num r'><b class='{'up' if v > 0 else 'dn'}'>{'long' if v > 0 else 'short'} £{abs(v):,.0f}</b></td></tr>" for c, v in sh["exposure"].items()) or "<tr><td class='muted'>No open positions.</td></tr>"
-    notes = "".join(f"<div style='margin:4px 0'>{E(n)}</div>" for n in sh["notes"]) or "<div class='muted'>Nothing unusual: open risk is within budget and no currency is crowded.</div>"
-    fxo = "".join(f"<tr><td><b>{E(t['pair'])}</b></td><td>{E(t['dir'].upper())}</td><td>{E(t['state'])}</td><td class='num r'>£{t.get('risk', 20):,.0f}</td></tr>" for t in (fx or {}).get("open", []) + (fx or {}).get("pending", [])) or "<tr><td class='muted' colspan='4'>None.</td></tr>"
-    sto = "".join(f"<tr><td><b>{E(q['symbol'].split('.')[0].upper())}</b></td><td>LONG</td><td>OPEN</td><td class='num r'>£{q.get('risk', 20):,.0f}</td></tr>" for q in (st or {}).get("positions", [])) + \
-          "".join(f"<tr><td><b>{E(q['symbol'].split('.')[0].upper())}</b></td><td>LONG</td><td>NEW</td><td class='num r muted'>—</td></tr>" for q in (st or {}).get("pending", [])[:8]) or "<tr><td class='muted' colspan='4'>None.</td></tr>"
-    how = ("<div class='card' style='margin-top:12px'><h3>How the two engines work together</h3><ul class='lim'>"
-           "<li><b>Live now:</b> one view of both paper accounts; one shared risk budget; net exposure by currency across both (a long US stock and a short USDCAD trade are both a bet on USD).</li>"
-           "<li><b>Same method:</b> both engines use the same rules of evidence: pre-registered tests, a sealed final period, honest 'no edge' results, and a forward test on live prices.</li>"
-           "<li><b>Next:</b> each engine's market read feeds the other (USD strength into stock setups, equity risk mood into FX), one shared calendar of earnings and macro events, one daily brief.</li></ul></div>")
-    return (f"<div class='tab' id='combined'>{kp}<div class='grid'><div class='card c6'><h3>Net exposure by currency · risk-weighted, both engines</h3><table class='tbl'>{ex}</table>"
-            f"<div style='margin-top:10px'>{notes}</div></div><div class='card c6'><h3>Open now</h3><table class='tbl'><tr><th>Position</th><th>Side</th><th>State</th><th class='r'>Risk</th></tr>"
-            f"<tr><td colspan='4' class='muted' style='font-size:11px'>FX ENGINE</td></tr>{fxo}<tr><td colspan='4' class='muted' style='font-size:11px'>STOCKS ENGINE</td></tr>{sto}</table></div></div>{how}</div>")
-
-
-def _gb(v: float) -> str:
-    return f"{'+' if v > 0 else '-' if v < 0 else ''}£{abs(v):,.0f}"
-
-
 def load_journal() -> dict:
     from . import journal as J
     rows = J.load()

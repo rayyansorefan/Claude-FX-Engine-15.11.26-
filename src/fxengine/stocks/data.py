@@ -117,6 +117,18 @@ def download(out=Path("data/stocks"), symbols=SYMBOLS, get=None, pause=0.6, refr
             (raw / "gbpusd.csv").write_text(fxcsv)
     except Exception as e:
         print("GBPUSD rate not refreshed:", type(e).__name__, flush=True)
+    for pair in ("EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "AUDJPY"):     # daily FX for the cross-engine context (cached, never fatal)
+        f = raw / f"fx_{pair}.csv"
+        try:
+            if f.exists() and (time.time() - f.stat().st_mtime) < refresh_hours * 3600:
+                continue
+            r = get(YAHOO.format(t=pair + "=X", now=int(time.time())))
+            csv_ = parse_yahoo(r.content.decode("utf-8", "replace")) if r.status_code == 200 else ""
+            if csv_:
+                f.write_text(csv_)
+            time.sleep(pause)
+        except Exception as e:
+            print(f"FX {pair} not refreshed:", type(e).__name__, flush=True)
     if not frames:
         sys.exit("no stock data downloaded: " + "; ".join(gaps[:5]))
     df = pd.concat(frames, ignore_index=True)

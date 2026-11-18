@@ -10,6 +10,7 @@ import pandas as pd
 from . import indicators as I, strategies as S
 from .run import load_panel
 from .universe import market as market_of
+from . import crossctx as CX
 
 MAX_PER_RULE = 5
 WEAK_AT = -0.02                    # unrealised -2% (price only) while the rule has not invalidated it: flagged WEAKENING
@@ -47,7 +48,7 @@ def _already_in_position(d: pd.DataFrame, sig) -> bool:
     return open_i is not None and open_i < len(d) - 1
 
 
-def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE) -> list[dict]:
+def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE, ctx=None) -> list[dict]:
     mom = S.momentum_entries(panel) if _month_end(max(d.index.max() for d in panel.values())) else {}
     out = []
     for rule in ("RSI2_PULLBACK", "BREAKOUT_20", "TREND_50_200", "MOM_12_1"):
@@ -64,7 +65,7 @@ def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE) -> list[dict
                 rows.append(dict(id=f"{rule}|{s}|{d.index[i]:%Y-%m-%d}", rule=rule, symbol=s, market=market_of(s), signal_date=f"{d.index[i]:%Y-%m-%d}", close=round(float(d['close'].iloc[i]), 4),
                                  invalidation=None if np.isnan(lv["invalidation"]) else round(lv["invalidation"], 4), strength=round(lv["strength"], 4), exit_text=lv["exit_text"],
                                  exit_level=None if lv["exit_level"] is None else round(lv["exit_level"], 4), why=lv["why"],
-                                 proven=rule in passed, status="PENDING"))
+                                 proven=rule in passed, status="PENDING", ctx=(CX.at(ctx, d.index[i]) if ctx is not None else {})))
         rows.sort(key=lambda r: -r["strength"])
         for k, r in enumerate(rows):              # EVERY signal is tracked (the research traded every signal); only the strongest few are shown to the owner
             r["shown"] = k < top
@@ -134,10 +135,10 @@ def recheck(setup: dict, panel, mom=None) -> dict:
     return s
 
 
-def run(panel, passed: set[str], ledger: list[dict]) -> list[dict]:
+def run(panel, passed: set[str], ledger: list[dict], ctx=None) -> list[dict]:
     """Update the ledger: re-check all known setups, then add today's new ones (never duplicated)."""
     have = {x["id"] for x in ledger}
-    new = [s for s in todays_setups(panel, passed) if s["id"] not in have]
+    new = [s for s in todays_setups(panel, passed, ctx=ctx) if s["id"] not in have]
     mom = S.momentum_entries(panel) if any(x["rule"] == "MOM_12_1" and x.get("status") != "CLOSED" for x in ledger) else None
     rows = [recheck(x, panel, mom) for x in ledger] + new
     return rows
@@ -175,7 +176,12 @@ def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.j
     panel = load_panel(path)
     passed = {r["rule"] for r in json.loads(res.read_text())["rules"] if r.get("passes")} if res.exists() else set()
     ledger = json.loads(led.read_text()) if led.exists() else []
-    rows = run(panel, passed, ledger)
+    ctx = CX.build(panel, CX.load_fx())
+    try:
+        CX.publish(ctx, out.with_name("stocks_context_history.csv"), out.with_name("stocks_context.json"))          # what the FX engine can read
+    except Exception as e:
+        print("context not published:", type(e).__name__)
+    rows = run(panel, passed, ledger, ctx)
     cut = (pd.Timestamp.today() - pd.Timedelta(days=45)).strftime("%Y-%m-%d")
     rows = [r for r in rows if r["status"] in ("PENDING", "VALID", "WEAKENING", "EXIT SIGNAL", "CLOSED") or r["signal_date"] >= cut]       # closed trades are kept: they are the forward test
     led.parent.mkdir(parents=True, exist_ok=True)
