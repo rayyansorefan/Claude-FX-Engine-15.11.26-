@@ -8,7 +8,7 @@ import pandas as pd
 from .universe import SYMBOLS
 
 URL = "https://stooq.com/q/d/l/?s={s}&i=d"
-YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart/{t}?range=max&interval=1d&includeAdjustedClose=false"
+YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart/{t}?period1=946684800&period2={now}&interval=1d&events=history"     # explicit dates: without them Yahoo may return MONTHLY bars
 BAD_MOVE = 0.45                    # |daily close-to-close move| above this is treated as a probable data error (unadjusted split etc.)
 
 
@@ -50,6 +50,11 @@ def parse_yahoo(text: str) -> str:
     return d.to_csv(index=False) if len(d) else ""
 
 
+def is_daily(d: pd.DataFrame) -> bool:
+    """True if the bars really are daily (median gap of at most 4 calendar days). Monthly/weekly data must never be mistaken for daily."""
+    return len(d) > 30 and float(d.index.to_series().diff().dt.days.median()) <= 4
+
+
 def quality(sym: str, d: pd.DataFrame) -> dict:
     ret = d["close"].pct_change().abs()
     gaps = d.index.to_series().diff().dt.days
@@ -75,20 +80,20 @@ def download(out=Path("data/stocks"), symbols=SYMBOLS, get=None, pause=0.6, refr
         if source == "stooq":
             r = get(URL.format(s=sym))
             return r.status_code, (r.content.decode("latin-1") if r.status_code == 200 else "")
-        r = get(YAHOO.format(t=yahoo_ticker(sym)))
+        r = get(YAHOO.format(t=yahoo_ticker(sym), now=int(time.time())))
         return r.status_code, (parse_yahoo(r.content.decode("utf-8", "replace")) if r.status_code == 200 else "")
 
     for k, sym in enumerate(symbols, 1):
         f, miss = raw / f"{sym}.csv", raw / f"{sym}.{source}.missing"
         try:
-            fresh = f.exists() and (time.time() - f.stat().st_mtime) < refresh_hours * 3600
+            fresh = f.exists() and (time.time() - f.stat().st_mtime) < refresh_hours * 3600 and is_daily(parse(f.read_text()))   # a cached non-daily file is refetched
             if not fresh and not quota and not (miss.exists() and (time.time() - miss.stat().st_mtime) < 7 * 86400):
                 status, body = fetch(sym)
                 time.sleep(pause)
                 if "exceeded the daily hits limit" in body.lower():
                     quota = True
                     print("Stooq daily hit limit reached: rerun tomorrow; everything fetched so far is cached.", flush=True)
-                elif status == 200 and parse(body).shape[0] >= min_rows:
+                elif status == 200 and parse(body).shape[0] >= min_rows and is_daily(parse(body)):
                     f.write_text(body)
                     if miss.exists():
                         miss.unlink()
@@ -97,8 +102,8 @@ def download(out=Path("data/stocks"), symbols=SYMBOLS, get=None, pause=0.6, refr
             if not f.exists():
                 gaps.append(f"{sym}: no data"); print(f"[{k}/{len(symbols)}] {sym} no data", flush=True); continue
             d = parse(f.read_text())
-            if len(d) < min_rows:
-                gaps.append(f"{sym}: only {len(d)} rows"); continue
+            if len(d) < min_rows or not is_daily(d):
+                gaps.append(f"{sym}: only {len(d)} rows or not daily bars"); continue
             d = d.assign(symbol=sym)
             frames.append(d.reset_index())
             report.append(quality(sym, d))

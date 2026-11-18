@@ -196,3 +196,37 @@ def test_downloader_falls_back_to_yahoo_when_stooq_returns_nothing(tmp_path):
     n = len(calls)
     D.download(tmp_path, symbols=["aapl.us", "vod.uk"], get=get, pause=0)             # second run: cached files are reused, only the probe goes out
     assert len(calls) <= n + 1
+
+
+def _yahoo_json_freq(freq, n):
+    idx = pd.date_range("1990-01-01", periods=n, freq=freq)
+    ts = [int(x.timestamp()) for x in idx]
+    px = [100 + i * 0.1 for i in range(n)]
+    return json.dumps({"chart": {"result": [{"timestamp": ts, "indicators": {"quote": [{"open": px, "high": px, "low": px, "close": px, "volume": [1000] * n}]}}], "error": None}})
+
+
+def test_monthly_bars_are_rejected_and_a_cached_monthly_file_is_refetched(tmp_path):
+    monthly, daily = _yahoo_json_freq("MS", 400), _yahoo_json()
+    assert not D.is_daily(D.parse(D.parse_yahoo(monthly))) and D.is_daily(D.parse(D.parse_yahoo(daily)))
+
+    class R:
+        def __init__(s, c, t=""): s.status_code, s.content = c, t.encode()
+    state = {"bad": True}
+
+    def get(u):
+        if "stooq" in u:
+            return R(200, "")
+        return R(200, monthly if state["bad"] else daily)
+    with pytest.raises(SystemExit):                                        # only monthly data on offer -> nothing is accepted
+        D.download(tmp_path, symbols=["aapl.us"], get=get, pause=0)
+    (tmp_path / "raw").mkdir(exist_ok=True)
+    (tmp_path / "raw" / "aapl.us.csv").write_text(D.parse_yahoo(monthly))  # a monthly file left in the cache by the old code
+    for m in (tmp_path / "raw").glob("*.missing"):
+        m.unlink()
+    state["bad"] = False
+    df = D.download(tmp_path, symbols=["aapl.us"], get=get, pause=0)       # the cached monthly file is not trusted; a daily one replaces it
+    assert D.is_daily(df.set_index("date"))
+
+
+def test_yahoo_request_uses_explicit_dates():
+    assert "period1=" in D.YAHOO and "period2={now}" in D.YAHOO and "range=max" not in D.YAHOO
