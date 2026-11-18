@@ -135,3 +135,8 @@ Decision (written, per the plan): NOT adopted. Both are CANDIDATES (ops/stocks_f
 ## Revolut's actual market (found 2026-11-18, Revolut help page "Products available to trade"): US, EEA and UK listings (4,000+ stocks) plus ADRs
 The owner's "36 countries" are company home countries (the app's country filter), reached through US-listed ADRs; direct Tokyo/Hong Kong/Sydney/Toronto/etc. listings are probably NOT tradable. Universe now: 435 symbols incl. 80 ADRs covering many home countries.
 ops/stocks_countries.txt (committed, editable) limits which venues show setups / paper trades: US, UK and EEA venues. The research still uses every market. Owner to confirm in the app; unverified: Revolut changes its list.
+
+## Change log: live 5-minute job + Telegram (2026-11-18)
+- `stocks/live.py` every 5 min Mon-Fri 06:00-21:55 UTC (`stockslive.timer`): plans the paper account intraday. ENTERS last night's proven setups at the real open (same sizing as the nightly account via `sizing.py`), EXITS rule sell signals at the real open, marks floating P&L, writes `stocks_live.json`. Provisional: the nightly scan stays the official record. No rule or gate changed.
+- `stocks/alerts.py`: Telegram (3 lines max, once each): new setups, sell/invalidated, paper buy/sell at the open, intraday level warning, Friday summary. Needs TELEGRAM_TOKEN / TELEGRAM_CHAT_ID in ~/stocks/.env.
+- Dashboard: "Live today" strip; page reload keeps the open tab.

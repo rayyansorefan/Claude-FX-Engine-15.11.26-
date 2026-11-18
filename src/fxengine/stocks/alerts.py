@@ -75,6 +75,16 @@ def closed_trade(c: dict) -> str:
     return _lines(f"{sign} CLOSED · {_t(c['symbol'])} · {c['pnl']:+.0f} GBP ({c['r']:+.1f}R) · {c['pct'] * 100:+.1f}%", f"{_name(c['rule'])}; in {c['entry_date']}, out {c['exit_date']}.", "Hypothetical, before costs.")
 
 
+def entered(e: dict) -> str:
+    stop = "no fixed level (default 10% stop)" if e.get("nostop") else f"invalid below {e['stop']:,.2f}"
+    return _lines(f"🟢 PAPER BUY · {_t(e['symbol'])} at the open {e['price']:,.2f} · {_name(e['rule'])}", f"~{e['shares']:g} shares, £{e['cost']:,.0f} (£20 risk); {stop}.", "Hypothetical. Check it is on Revolut; the rules still decide at the close.")
+
+
+def sold(x: dict) -> str:
+    sign = "✅" if x["pnl"] > 0 else "❌"
+    return _lines(f"{sign} PAPER SELL · {_t(x['symbol'])} at the open {x['price']:,.2f} · {x['pnl']:+.0f} GBP ({x['r']:+.1f}R)", f"{_name(x['rule'])}: {x['status'].lower()}; in {x['entry_date']}.", "Hypothetical, before costs. Final figures follow tonight.")
+
+
 def intraday_warning(sym: str, price: float, level: float, kind: str) -> str:
     return _lines(f"⚠️ {_t(sym)} is trading below its invalid-below level ({kind})", f"Now {price:,.2f}, level {level:,.2f}. The rules decide at the CLOSE, so nothing has changed yet.", "Early warning only.")
 

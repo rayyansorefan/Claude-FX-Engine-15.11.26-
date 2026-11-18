@@ -3,6 +3,7 @@ docs/results/stocks_setups.json. Only numbers that are in those files are shown.
 Usage: PYTHONPATH=src python -m fxengine.stocks.dashboard   -> docs/results/stocks.html"""
 from __future__ import annotations
 import html, json, math, sys
+from html import escape as html_escape
 from datetime import datetime, timezone
 from pathlib import Path
 from ..bets.dashboard import CSS as BASE_CSS, JS as _JS
@@ -78,6 +79,24 @@ def _is_adr(r: dict) -> bool:
 def _home_name(r: dict) -> str:
     from .universe import COUNTRY
     return COUNTRY.get(r["home"], r["home"].upper())
+
+
+def _live_strip(sp: dict) -> str:
+    """Today's live paper account (updated every 5 minutes): entries at the real open, exits, live balance. Shown only if the plan is about today's session."""
+    lv = (sp.get("live") or {})
+    pl = lv.get("plan")
+    if not pl or not pl.get("day_ok"):
+        return ""
+    E_ = lambda t: html_escape(str(t))
+    t = lambda x: x["symbol"].split(".")[0].upper()
+    ent = "".join(f"<span class='chip'>BOUGHT {E_(t(e))} at {e['price']:,.2f} · {e['shares']:g} sh · £{e['cost']:,.0f}</span> " for e in pl["entries"])
+    ext = "".join(f"<span class='chip'>SOLD {E_(t(x))} at {x['price']:,.2f} · <b class='{'pos' if x['pnl'] > 0 else 'neg'}'>{x['pnl']:+,.0f}</b></span> " for x in pl["exits"])
+    d = pl["balance"] - pl["nightly_balance"]
+    return (f'<div class="card" style="margin-bottom:12px"><h3>Live today · paper account · {E_(lv.get("asof", ""))} UTC</h3>'
+            f'<div class="nums"><div><small>Live balance</small><b>£{pl["balance"]:,.2f}</b></div><div><small>Floating now</small><b>{pl["floating"]:+,.2f}</b></div><div><small>Free cash</small><b>£{pl["cash"]:,.2f}</b></div>'
+            f'<div><small>Since last night</small><b>{d:+,.2f}</b></div></div>{ent or ""}{ext or ""}'
+            f'{"" if ent or ext else "<p class=muted style=margin:0>No paper entries or exits yet today.</p>"}'
+            '<p class="muted" style="font-size:12px;margin:8px 0 0">Provisional: entries use the real open, exits follow the rules\' sell signals from last night. The nightly scan writes the final record.</p></div>')
 
 
 def _trade_card(r: dict, held: dict | None = None, live: dict | None = None) -> str:
@@ -242,7 +261,7 @@ def _setups_tab(sp: dict | None, res: dict | None = None) -> str:
         fwt = ('<div class="scroll" style="overflow-x:auto;margin-top:10px"><table class="tbl" style="min-width:560px"><tr><th>Setup</th><th class="r">Closed</th><th class="r">Win rate</th><th class="r">Avg gain</th><th class="r">95% range</th><th class="r">Research said</th></tr>'
                + body + '</table></div><p class="muted" style="font-size:12px;margin:6px 0 0">Fewer than 30 closed trades is mostly luck either way; trust it only once the range is narrow.</p>')
     ac = sp.get("account") or {}
-    top = _account_card(ac, n, chips)
+    top = _live_strip(sp) + _account_card(ac, n, chips)
     charts = ""
     held = {p_['id']: p_ for p_ in ((sp.get('account') or {}).get('positions') or [])}
     lp = (sp.get('live') or {}).get('prices') or {}

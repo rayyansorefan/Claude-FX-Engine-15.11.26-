@@ -911,3 +911,72 @@ def test_adrs_give_tradable_exposure_to_other_countries_and_the_default_list_mat
     assert allowed == {"us", "uk", "de", "fr", "nl", "it", "es", "be", "pt", "at", "fi", "se", "dk", "no"}                # US + UK + EEA venues; Tokyo/Hong Kong/Sydney etc. are research-only
     r = dict(id="a", rule="RSI2_PULLBACK", symbol="tsm.us", market="US", home="tw", signal_date="2026-11-18", close=100.0, invalidation=90.0, strength=1, exit_text="x", proven=True, status="PENDING")
     assert "Taiwan company (US-listed ADR)" in DB._trade_card(r) and "ADR" not in DB._trade_card(dict(r, symbol="aapl.us", home="us"))
+
+
+# ---- live 5-minute job ----
+def _chart(open_, last, day="2026-11-18", off=-18000, t0=None):
+    import json as j, datetime as dt
+    t0 = t0 or int(dt.datetime.fromisoformat(day + "T14:30:00+00:00").timestamp())
+    return j.dumps(dict(chart=dict(result=[dict(meta=dict(regularMarketPrice=last, regularMarketTime=t0 + 300, gmtoffset=off, chartPreviousClose=99.0, currency="USD"),
+                                               timestamp=[t0, t0 + 300], indicators=dict(quote=[dict(open=[open_, open_ + 1], close=[open_ + 1, last])]))])))
+
+
+def test_live_parse_quote_first_open_and_local_date():
+    from fxengine.stocks import live
+    q = live.parse_quote(_chart(100.0, 103.0))
+    assert q["open"] == 100.0 and q["price"] == 103.0 and q["open_date"] == "2026-11-18"
+    assert live.parse_quote("garbage") is None
+
+
+def _sp(status="PENDING", held=False):
+    row = dict(id="a1", symbol="AAPL.US", rule="RSI2_PULLBACK", status=status, proven=True, signal_date="2026-11-17", invalidation=90.0, strength=1.0)
+    acct = dict(balance=2500.0, positions=[], tiles={})
+    if held:
+        row.update(signal_date="2026-11-10")
+        acct["positions"] = [dict(id="a1", symbol="AAPL.US", rule="RSI2_PULLBACK", entry_date="2026-11-11", shares=2.0, cost=200.0, value=210.0, floating=10.0)]
+    return dict(setups=[row], account=acct)
+
+
+def test_live_enters_at_real_open_with_account_sizing():
+    from fxengine.stocks import live
+    q = live.parse_quote(_chart(100.0, 102.0))
+    p = live.plan_live(_sp(), {"AAPL.US": q}, {"USD": (["2020-01-01"], [1.25])})
+    e = p["entries"][0]
+    assert e["price"] == 100.0 and e["shares"] > 0 and e["cost"] <= 625.01          # 25% cap
+    assert abs(e["shares"] * (100 - 90) / 1.25 - 20.0) < 0.5 or e["cost"] >= 624         # £20 risk or capped
+    assert p["balance"] > 2499 and p["cash"] < 2500
+
+
+def test_live_no_entry_before_open_or_on_signal_day():
+    from fxengine.stocks import live
+    q = live.parse_quote(_chart(100.0, 102.0, day="2026-11-17"))                 # session is the signal day itself
+    assert live.plan_live(_sp(), {"AAPL.US": q}, {})["entries"] == []
+
+
+def test_live_exits_at_open_when_rules_say_sell():
+    from fxengine.stocks import live
+    q = live.parse_quote(_chart(110.0, 111.0))
+    p = live.plan_live(_sp("EXIT SIGNAL", held=True), {"AAPL.US": q}, {"USD": (["2020-01-01"], [1.25])})
+    x = p["exits"][0]
+    assert x["price"] == 110.0 and x["pnl"] == round(2 * 110 / 1.25 - 200, 2) and p["positions"] == []
+    assert len(live.messages(p)[0][1].splitlines()) <= 3
+
+
+def test_live_run_sends_once_and_writes_json(tmp_path):
+    import json as j
+    from fxengine.stocks import live
+    from datetime import datetime, timezone
+    sp = tmp_path / "sp.json"; sp.write_text(j.dumps(_sp()))
+    sent = []
+    kw = dict(sp_path=sp, out=tmp_path / "live.json", get=lambda u: (200, _chart(100.0, 101.0)), env={"TELEGRAM_TOKEN": "t", "TELEGRAM_CHAT_ID": "c"},
+              post=lambda u, d: sent.append(d) or True, sent_path=tmp_path / "sent.json", now=datetime(2026, 11, 18, 15, 0, tzinfo=timezone.utc), pause=0, raw=tmp_path, res_path=tmp_path / "none.json")
+    r1 = live.run(**kw); r2 = live.run(**kw)
+    assert r1["entries"] == 1 and len(sent) == 1 and r2["sent"] == 0
+    assert j.loads((tmp_path / "live.json").read_text())["plan"]["day_ok"] is True
+
+
+def test_dashboard_shows_live_strip_only_for_today():
+    from fxengine.stocks import dashboard
+    pl = dict(entries=[dict(symbol="AAPL.US", price=100.0, shares=2, cost=160.0)], exits=[], balance=2510.0, nightly_balance=2500.0, floating=10.0, cash=2300.0, day_ok=True)
+    assert "Live today" in dashboard._live_strip(dict(live=dict(plan=pl, asof="2026-11-18 15:00")))
+    assert dashboard._live_strip(dict(live=dict(plan=dict(pl, day_ok=False)))) == ""

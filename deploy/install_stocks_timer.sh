@@ -31,7 +31,34 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 UNIT
+sudo tee /etc/systemd/system/stockslive.service >/dev/null <<UNIT
+[Unit]
+Description=Stocks live paper account check (5 minutes, research only)
+
+[Service]
+Type=oneshot
+User=$U
+WorkingDirectory=$D
+Environment=PYTHONPATH=$D/src
+ExecStart=/usr/bin/flock -n /tmp/stockslive.lock $D/.venv/bin/python -m fxengine.stocks.live
+MemoryMax=120M
+OOMScoreAdjust=1000
+Nice=15
+TimeoutStartSec=240
+UNIT
+sudo tee /etc/systemd/system/stockslive.timer >/dev/null <<UNIT
+[Unit]
+Description=Stocks live check every 5 minutes on weekdays
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 06..21:00/5:00 UTC
+AccuracySec=20s
+
+[Install]
+WantedBy=timers.target
+UNIT
 sudo systemctl daemon-reload
+sudo systemctl enable --now stockslive.timer
 sudo systemctl enable --now stocksnightly.timer
 echo "timer: $(systemctl is-active stocksnightly.timer)   enabled: $(systemctl is-enabled stocksnightly.timer)"
 systemctl list-timers stocksnightly.timer --no-pager | head -3 | cut -c1-110
