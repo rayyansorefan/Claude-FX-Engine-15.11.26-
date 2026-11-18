@@ -1030,3 +1030,31 @@ def test_next_earnings_estimate_from_filing_rhythm():
     sub = {"filings": {"recent": {"form": ["8-K"] * 4, "items": ["2.02"] * 4, "filingDate": ["2025-02-20", "2025-05-22", "2025-08-27", "2025-11-19"], "acceptanceDateTime": [""] * 4}}}
     n = F.next_earnings(sub, today="2026-02-01")
     assert n["next_earnings"] == "2026-02-19" and n["days_to_next"] == 18 and n["estimated"]
+
+
+def test_filingtext_reads_tone_guidance_flags_and_picks_exhibit():
+    from fxengine.stocks import filingtext as T
+    good = ("<html><body>" + "Record revenue, strong growth and solid momentum; we delivered excellent results. " * 20 + "We are raising our full-year outlook to $5.00 per share, higher than before. </body></html>")
+    a = T.analyse(T.clean(good))
+    assert a["ok"] and a["tone"] > 0 and a["guidance"] == "RAISED" and a["flags"] == []
+    bad = "Revenue declined and losses widened amid headwinds and uncertainty; impairment charge. " * 20 + "We are lowering our full-year guidance to $2.00 per share and there is substantial doubt about going concern."
+    b = T.analyse(bad)
+    assert b["tone"] < 0 and b["guidance"] == "LOWERED" and "going concern" in b["flags"]
+    assert T.analyse("too short")["ok"] is False
+    idx = {"directory": {"item": [{"name": "a8k.htm"}, {"name": "ex99-1.htm"}]}}
+    assert T.exhibit_url(idx, "0000320193", "0000320193-26-000010").endswith("/000032019326000010/ex99-1.htm")
+
+
+def test_company_check_shows_report_wording_and_flags():
+    from fxengine.stocks import dashboard, fundamentals as F
+    sc = F.scorecard("nvda.us", _facts_json())
+    t = dict(tone=0.8, tone_change=0.2, guidance="RAISED", flags=["going concern"])
+    h = dashboard._fund_card(dict(fund=dict(companies={"nvda.us": sc}), ftxt=dict(companies={"nvda.us": t}), setups=[], account=dict(positions=[])))
+    assert "RAISED" in h and "RED FLAGS" in h and "going concern" in h
+
+
+def test_company_check_warns_when_earnings_are_close():
+    from fxengine.stocks import dashboard, fundamentals as F
+    sc = dict(F.scorecard("nvda.us", _facts_json()), next_earnings="2026-11-25", last_earnings="2026-08-27", days_to_next=7, estimated=True)
+    h = dashboard._fund_card(dict(fund=dict(companies={"nvda.us": sc}), setups=[], account=dict(positions=[])))
+    assert "Earnings within 10 days" in h and "NVDA in ~7d" in h
