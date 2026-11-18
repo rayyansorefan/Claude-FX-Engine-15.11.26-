@@ -60,6 +60,7 @@ def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE, ctx=None, ev
     me = _month_end(max(d.index.max() for d in panel.values()))
     cands = FL.load_candidates() if cands is None else cands
     allowed = U.allowed_countries()
+    allowed_h = U.allowed_home()
     sfeat: dict = {}
     out = []
     for rule in S.SWING_RULES:
@@ -70,6 +71,8 @@ def todays_setups(panel, passed: set[str], top: int = MAX_PER_RULE, ctx=None, ev
         for s, d in panel.items():
             if allowed is not None and U.country_code(s) not in allowed:
                 continue                                   # a market the owner cannot trade: researched, but never shown or traded
+            if allowed_h is not None and U.home_country(s) not in allowed_h:
+                continue                                   # company from a country missing from Revolut's own filter (e.g. Japan, China, India)
             i = len(d) - 1
             sg = sigs.get(s)
             fired = bool(sg is not None and sg.entry[i] and not _already_in_position(d, sg))

@@ -1,0 +1,39 @@
+# Company home countries in Revolut's own country filter (read from the app screenshot, 2026-11-18). A setup is shown/paper-traded only if the company's home country is here
+# AND its listing market is in ops/stocks_countries.txt. Companies from China, Japan, Korea, Hong Kong, India, Brazil, Taiwan, NZ, South Africa etc. are NOT in the app list, so they are hidden.
+us
+ca
+uk
+de
+se
+fr
+ch
+nl
+it
+es
+ie
+dk
+be
+fi
+at
+lu
+no   # partly hidden in the screenshot; kept (Oslo is an EEA market)
+pt
+je
+gg
+im
+gi
+cy
+mh
+sg
+au
+il
+ky   # Cayman Islands
+bm
+vg
+pr
+pa
+cw
+bs
+mx
+lr
+mu

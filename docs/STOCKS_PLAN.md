@@ -140,3 +140,7 @@ ops/stocks_countries.txt (committed, editable) limits which venues show setups /
 - `stocks/live.py` every 5 min Mon-Fri 06:00-21:55 UTC (`stockslive.timer`): plans the paper account intraday. ENTERS last night's proven setups at the real open (same sizing as the nightly account via `sizing.py`), EXITS rule sell signals at the real open, marks floating P&L, writes `stocks_live.json`. Provisional: the nightly scan stays the official record. No rule or gate changed.
 - `stocks/alerts.py`: Telegram (3 lines max, once each): new setups, sell/invalidated, paper buy/sell at the open, intraday level warning, Friday summary. Needs TELEGRAM_TOKEN / TELEGRAM_CHAT_ID in ~/stocks/.env.
 - Dashboard: "Live today" strip; page reload keeps the open tab.
+
+## Revolut country filter confirmed from the app (2026-11-18)
+Owner's screenshots show the app's company-country filter (about 36 entries: US, Canada, UK, Germany, Sweden, France, Switzerland, NL, Italy, Spain, Ireland, Denmark, Belgium, Finland, Austria, Luxembourg, Norway(partly hidden), Jersey, Portugal, Guernsey, Isle of Man, Gibraltar, Cyprus, Marshall Is., Singapore, Australia, Israel, Cayman, Bermuda, BVI, Puerto Rico, Panama, Curacao, Bahamas, Mexico, Liberia, Mauritius).
+New `ops/stocks_home_countries.txt`: setups are shown/paper-traded only if the company's HOME country is on it AND its venue is allowed. Hides ADRs from China, Japan, Korea, HK, India, Brazil, Taiwan, NZ, South Africa. Research unchanged (still uses every market); no rule or gate changed.

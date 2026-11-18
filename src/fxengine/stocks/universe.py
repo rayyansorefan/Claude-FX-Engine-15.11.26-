@@ -117,6 +117,11 @@ def allowed_countries(path: str = ALLOWED_FILE) -> set[str] | None:
     return codes or None
 
 
+def allowed_home(path: str = "ops/stocks_home_countries.txt") -> set[str] | None:
+    """Company home countries in Revolut's app filter. None = no file = no home-country limit."""
+    return allowed_countries(path)
+
+
 def resolve_country(name: str) -> str | None:
     """'Germany' / 'germany' / 'de' -> 'de' (None if unknown)."""
     n = name.strip().lower()

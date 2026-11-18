@@ -980,3 +980,10 @@ def test_dashboard_shows_live_strip_only_for_today():
     pl = dict(entries=[dict(symbol="AAPL.US", price=100.0, shares=2, cost=160.0)], exits=[], balance=2510.0, nightly_balance=2500.0, floating=10.0, cash=2300.0, day_ok=True)
     assert "Live today" in dashboard._live_strip(dict(live=dict(plan=pl, asof="2026-11-18 15:00")))
     assert dashboard._live_strip(dict(live=dict(plan=dict(pl, day_ok=False)))) == ""
+
+
+def test_home_country_filter_hides_countries_missing_from_revolut_app():
+    from fxengine.stocks import universe as U
+    h = U.allowed_home()
+    assert h and {"us", "uk", "de", "ch", "ca", "il", "sg"} <= h
+    assert U.home_country("tsm.us") not in h and "jp" not in h and "cn" not in h and "in" not in h
