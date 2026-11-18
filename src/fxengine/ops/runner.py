@@ -32,10 +32,11 @@ JOBS = {
     "full_research": "bash deploy/research_once.sh",
     "report": ".venv/bin/python -m fxengine.ops.report",
     "exits": ".venv/bin/python -m fxengine.backtest.run_exits",
+    "entries": ".venv/bin/python -m fxengine.backtest.run_entry_study",
     "diagnose": ".venv/bin/python -m fxengine.research.diagnose",
 }
 SAFE_DURING_JOB = ("src/fxengine/dashboard/", "src/fxengine/live/", "src/fxengine/alerts/", "tests/", "docs/", "STATUS.md", "CLAUDE.md", "ops/")
-JOB_MEM = {"exits": "600M", "history": "450M", "r0": "600M", "batch3": "600M", "full_research": "600M", "tests": "500M"}   # default 300M
+JOB_MEM = {"exits": "600M", "entries": "600M", "history": "450M", "r0": "600M", "batch3": "600M", "full_research": "600M", "tests": "500M"}   # default 300M
 RESULT_GLOBS = ["docs/results/*.md", "docs/results/*.json", "docs/trials.jsonl", "data/ops_*.log", "data/ops_report.txt", "data/ops_heartbeat.txt", "docs/hypotheses.jsonl"]
 STATE = REPO / "data" / "ops_state.json"
 RESULTS_DIR = REPO.parent / "fx-results"

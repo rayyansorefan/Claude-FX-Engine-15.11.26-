@@ -109,6 +109,11 @@ def publish(conn, env, send, cands, now):
         c = dict(c, run_id=f"live-{c['type']}-{c['pair']}-{pd.Timestamp(c['created']):%Y%m%d%H%M}")
         from ..features import context as CTX
         c["ctx"] = dict(c.get("ctx") or {}, **CTX.exposure(c["pair"], c["direction"], DB.active_setups(conn)))   # correlated setups lose together
+        from ..learn import filters as FL
+        flt = FL.load()                                                 # ops/filters.json: only filters that passed validation AND were switched on deliberately
+        if c["type"] in flt and not FL.passes(c.get("ctx"), flt[c["type"]]):
+            DB.kv_set(conn, "filtered_out", int(DB.kv_get(conn, "filtered_out", 0)) + 1)
+            continue
         champ = DB.kv_get(conn, "champion_exit")
         if champ:                                                       # stored in the immutable record: this setup keeps its exit rule for life
             c["exit_rule"] = champ

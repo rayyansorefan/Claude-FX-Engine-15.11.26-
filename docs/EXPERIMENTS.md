@@ -85,3 +85,13 @@ Data: v1_H1 rules at M5 resolution, research window only (holdout sealed). Costs
 Selection: pick the best rule on the EARLIER half of the trades (stressed delta), then test ONLY that rule on the LATER half: one test, paired per-trade difference vs the frozen exit, cluster bootstrap by pair-day.
 Pass (candidate only): lower CI bound > 0 under BOTH cost models on the later half. A pass = CANDIDATE for a new frozen version, then a forward test; nothing changes in the live loop.
 Registry: the 9 rules are logged as trials (raises the bar for later tests). Report winners cut short vs losers saved.
+
+## Entry-filter study (pre-registered 2026-11-17/18 BEFORE any result; requested by Rayyan: improve accuracy with more than one rule)
+Question: do conditions recorded at signal time separate better setups from worse ones, per rule, on unseen data?
+Context (features/context.py, closed bars only): volatility rank (ATR percentile over 100 bars), trend strength with the trade (EMA50-EMA200 in ATRs), stretch from EMA20 (ATRs),
+4h trend agreement, hour, weekday. Fixed family (learn/filters.py): 12 single conditions + all 66 pairs. No other conditions will be tried.
+Data: R0 per-trade results (v1_H1 split into asia_breakout / trend_pullback / range_reversion, E1_strength, E2_donchian), research window only, holdout sealed.
+Per rule: earlier 60% = discovery (best mean net R keeping >= 40% of trades and >= 150 trades, stressed costs); later 40% = validation (ONE filter, ONE test per cost model).
+Pass (candidate): clustered lower bound of (kept mean - all mean) > 0 at alpha 0.05 / 5 under BOTH stressed and measured costs AND kept mean above the 95th percentile of random subsets of equal size.
+Reported honestly: a candidate may only make a losing rule LESS bad. A candidate is applied only by a deliberate, version-controlled switch (ops/filters.json) and announced; the live loop counts filtered setups.
+Registry: 5 trials (entry_filter_<rule>).

@@ -30,3 +30,4 @@
 034 diagnose
 035 exits
 036 diagnose
+037 entries
