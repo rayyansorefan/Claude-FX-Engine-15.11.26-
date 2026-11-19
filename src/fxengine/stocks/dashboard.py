@@ -220,7 +220,7 @@ def _hist_card(sp: dict | None, limit: int = 15, empty: str | None = None) -> st
         else:
             text = "Closed" + (" (hypothetical at £20 risk, not held by the paper account)." if s_.get("hyp") else ".")
         rows += (f"<tr><td class='mono'><b>{t:%d %b %H:%M}</b><br><span class='muted'>{E(s_['filled'])}</span><br>{closed_line}</td>" if t else "<tr><td></td>") + (
-            f"<td>{E(r['symbol'].split('.')[0].upper())} BUY</td><td>{E(INFO.get(r['rule'], (r['rule'],))[0])}</td><td>{E(res)}</td><td class='num {cls}'>{E(pnl)}</td></tr>"
+            f"<td>{E(r['symbol'].split('.')[0].upper())} BUY</td><td>{E(INFO.get(r['rule'], (r['rule'],))[0])}</td><td>{E(res)}</td><td class='r num {cls}'>{E(pnl)}</td></tr>"
             f"<tr><td colspan='5' class='muted' style='font-size:12px'><b>Review</b> \u00b7 {E(text)}</td></tr>")
     return (f"<p class='muted'>Published {len(h)} · resolved {len(done)} · won {wins} · lost {lost} · success rate {'n/a' if not done else f'{wins / len(done) * 100:.0f}%'}</p>"
             "<p class='muted'>Tap a finished trade (\u25b8) to see its chart.</p>"
