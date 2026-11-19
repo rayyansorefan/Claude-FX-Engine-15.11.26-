@@ -91,11 +91,11 @@ def test_tally_rolls_reviews_up_per_rule_and_says_how_many_more_trades_are_neede
     assert "trend_pullback: 1 closed" in out[1] and "wrong way" in out[1]
 
 
-def test_history_row_shows_publish_fill_and_close_times(tmp_path):
-    import os, re
+def test_history_row_shows_publish_fill_and_close_times(tmp_path, monkeypatch):
+    import re
     from pathlib import Path
     from fxengine.dashboard import build as B
-    os.chdir(tmp_path)
+    monkeypatch.chdir(tmp_path)
     c = DB.connect("data/engine.db")
     rec = dict(pair="EURJPY", direction="short", type="asia_breakout", tf="H1", created="2026-11-17T09:00:00+00:00", expires="2026-11-17T20:00:00+00:00",
                entry=175.015, stop=175.27, target=174.50, run_id="r1", entry_kind="stop", score=1)

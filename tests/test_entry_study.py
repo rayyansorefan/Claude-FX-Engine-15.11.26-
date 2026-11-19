@@ -56,7 +56,9 @@ def test_live_publisher_applies_only_switched_on_filters(tmp_path, monkeypatch):
 
 
 def test_the_deployed_filter_file_is_valid_and_only_uses_known_conditions():
-    raw = json.loads(open("ops/filters.json").read())
+    from pathlib import Path
+    f = Path(__file__).resolve().parent.parent / "ops" / "filters.json"
+    raw = json.loads(f.read_text())
     for rule, spec in raw.items():
         assert set(spec["atoms"]) <= set(FL.ATOMS) and len(spec["atoms"]) <= 2           # max two conditions: no stacked vetoes
-    assert FL.load("ops/filters.json") == {k: v["atoms"] for k, v in raw.items() if v.get("active")}
+    assert FL.load(f) == {k: v["atoms"] for k, v in raw.items() if v.get("active")}
