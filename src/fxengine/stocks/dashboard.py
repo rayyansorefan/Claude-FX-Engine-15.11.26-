@@ -170,7 +170,7 @@ def _hist_card(sp: dict | None, limit: int = 15, empty: str | None = None) -> st
     live_in = {e["id"]: e for e in plan.get("entries", [])}
     live_pos = {p["id"]: p for p in plan.get("positions", []) if p.get("live")}
     ca, ch = U.allowed_countries(), U.allowed_home()
-    h = [r for r in h if r.get("proven") and (ca is None or U.country_code(r["symbol"]) in ca) and (ch is None or U.home_country(r["symbol"]) in ch)]
+    h = [r for r in h if r.get("proven") and (r.get("shown") or r.get("paper") or r["id"] in live_in or r["id"] in live_pos) and (ca is None or U.country_code(r["symbol"]) in ca) and (ch is None or U.home_country(r["symbol"]) in ch)]
     if not h:
         return '<p class="muted">No setups recorded yet. This fills in the night the first proven setup is flagged.</p>'
 
@@ -180,6 +180,9 @@ def _hist_card(sp: dict | None, limit: int = 15, empty: str | None = None) -> st
         except Exception:
             return None
     day = lambda d: f"{_dt.strptime(d, '%Y-%m-%d'):%d %b}" if d else ""
+
+    def pub(d):                                           # the nightly scan publishes at 22:45 UTC on the signal day, shown in UK time like the FX engine
+        return f"{_dt.strptime(d, '%Y-%m-%d').replace(hour=22, minute=45, tzinfo=timezone.utc).astimezone(ZoneInfo('Europe/London')):%d %b %H:%M}"
 
     def state(r):
         pp, c = r.get("paper"), r.get("closed")
@@ -203,7 +206,7 @@ def _hist_card(sp: dict | None, limit: int = 15, empty: str | None = None) -> st
     lost = len(done) - wins
     rows = ""
     for r, s_ in rows_all[:limit]:
-        t, review = uk(r["created_at"]), rv.get(r["id"])
+        t, review = True, rv.get(r["id"])
         ser = review.get("series") if review else None
         res = {"open": "OPEN (live)" if s_.get("live") else "OPEN", "pending": "PENDING"}.get(s_["kind"])
         if s_["kind"] == "closed":
@@ -219,7 +222,7 @@ def _hist_card(sp: dict | None, limit: int = 15, empty: str | None = None) -> st
             text = "Published for the next open. The paper account buys it at the real opening price if cash allows."
         else:
             text = "Closed" + (" (hypothetical at £20 risk, not held by the paper account)." if s_.get("hyp") else ".")
-        rows += (f"<tr><td class='mono'><b>{t:%d %b %H:%M}</b><br><span class='muted'>{E(s_['filled'])}</span><br>{closed_line}</td>" if t else "<tr><td></td>") + (
+        rows += (f"<tr><td class='mono'><b>{pub(r['signal_date'])}</b><br><span class='muted'>{E(s_['filled'])}</span><br>{closed_line}</td>" if t else "<tr><td></td>") + (
             f"<td>{E(r['symbol'].split('.')[0].upper())} BUY</td><td>{E(INFO.get(r['rule'], (r['rule'],))[0])}</td><td>{E(res)}</td><td class='r num {cls}'>{E(pnl)}</td></tr>"
             f"<tr><td colspan='5' class='muted' style='font-size:12px'><b>Review</b> \u00b7 {E(text)}</td></tr>")
     return (f"<p class='muted'>Published {len(h)} · resolved {len(done)} · won {wins} · lost {lost} · success rate {'n/a' if not done else f'{wins / len(done) * 100:.0f}%'}</p>"

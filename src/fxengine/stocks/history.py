@@ -28,16 +28,20 @@ def update(rows: list[dict], log: Path = LOG, now: datetime | None = None) -> in
     now = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%d %H:%M")
     seen: dict[str, dict] = {}
     for e in _read(log):
-        s = seen.setdefault(e["id"], dict(created=False, status=None, closed=False))
+        s = seen.setdefault(e["id"], dict(created=False, status=None, closed=False, shown=False))
         if e["event"] == "created":
             s["created"] = True
+        elif e["event"] == "published":
+            s["shown"] = True
         elif e["event"] == "status":
             s["status"] = e["status"]
         elif e["event"] == "closed":
             s["closed"] = True
     new = []
     for r in rows:
-        s = seen.get(r["id"], dict(created=False, status=None, closed=False))
+        s = seen.get(r["id"], dict(created=False, status=None, closed=False, shown=False))
+        if r.get("shown") and not s["shown"]:                       # the strongest few per rule are the ones PUBLISHED to the owner (like the FX engine's <=5 a day); the rest are only tracked
+            new.append(dict(event="published", at=now, id=r["id"]))
         if not s["created"]:
             new.append(dict(event="created", at=now, **{k: r.get(k) for k in CREATED_KEYS}))
             s["status"] = "PENDING"
@@ -58,6 +62,8 @@ def merged(log: Path = LOG, paper_closed: list[dict] | None = None, paper_open: 
     for e in _read(log):
         if e["event"] == "created":
             recs[e["id"]] = dict({k: e.get(k) for k in CREATED_KEYS if k not in ("ctx", "cand_filter")}, created_at=e["at"], status="PENDING", cand_ok=e.get("cand_ok"))
+        elif e["event"] == "published" and e["id"] in recs:
+            recs[e["id"]]["shown"] = True
         elif e["id"] in recs:
             if e["event"] == "status":
                 recs[e["id"]].update(status=e["status"], detail=e.get("detail"), unrealised=e.get("unrealised"))
@@ -70,7 +76,7 @@ def merged(log: Path = LOG, paper_closed: list[dict] | None = None, paper_open: 
             r["paper"] = dict(state="closed", pnl=pc[i]["pnl"], r=pc[i]["r"], cost=pc[i]["cost"], entry_date=pc[i]["entry_date"], exit_date=pc[i]["exit_date"])
         elif i in po:
             r["paper"] = dict(state="open", pnl=po[i]["floating"], cost=po[i]["cost"], entry_date=po[i]["entry_date"])
-    return sorted(recs.values(), key=lambda r: (r["created_at"], r["signal_date"]), reverse=True)[:limit]
+    return sorted(recs.values(), key=lambda r: (r["signal_date"], r["created_at"]), reverse=True)[:limit]
 
 
 def publish(log: Path = LOG, out: Path = OUT, paper_closed=None, paper_open=None) -> int:
