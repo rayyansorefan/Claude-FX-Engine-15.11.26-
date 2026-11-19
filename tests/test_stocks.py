@@ -1092,3 +1092,10 @@ def test_history_is_permanent_idempotent_and_shows_in_dashboard(tmp_path):
     h = dashboard._history_tab(dict(history=dict(setups=m)))
     assert "History" in h and "AAPL" in h and "£+12" in h and "Win rate" in h
     assert "No" in dashboard._history_tab(dict()) or "Nothing recorded" in dashboard._history_tab(dict())
+
+
+def test_inject_replaces_a_stale_stocks_tab_already_in_the_fx_page():
+    from fxengine.stocks import serve
+    fx = "<style>x</style><button data-t='system'>System</button><button data-t='stocks'>Stocks</button><div class='tab' id='stocks'>OLD TAB</div><div class='tab' id='system'>fx system</div>"
+    h = serve.inject(fx, "#stocks .stnav{}", "<div class='tab' id='stocks'>NEW TAB History</div>")
+    assert "NEW TAB History" in h and "OLD TAB" not in h and h.count("id='stocks'") == 1 and "fx system" in h and h.count("data-t='stocks'") == 1

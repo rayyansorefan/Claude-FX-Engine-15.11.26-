@@ -16,8 +16,15 @@ ANCHOR_CSS, ANCHOR_BTN, ANCHOR_SEC = "</style>", "<button data-t='system'>System
 def inject(fx_html: str, css: str, section: str) -> str | None:
     """Adds the Stocks tab to the FX dashboard's own page (CSS, tab button, section). Pure string insertion at three fixed anchors; returns None if the page
     is not what we expect (then the caller shows the stand-alone stocks page instead). If the FX page already has a Stocks tab it is returned unchanged."""
-    if "id='stocks'" in fx_html:
-        return fx_html
+    if "id='stocks'" in fx_html:                          # the FX page carries its own (older, frozen) Stocks tab: swap in the live one so new sections (History...) appear
+        a = fx_html.find("<div class='tab' id='stocks'>")
+        if a < 0:
+            return fx_html
+        b = fx_html.find("<div class='tab' id=", a + 10)
+        if b < 0:
+            return fx_html
+        h = fx_html[:a] + section + fx_html[b:]
+        return h.replace(ANCHOR_CSS, css + ANCHOR_CSS, 1) if "#stocks .stnav" not in h else h
     if not all(a in fx_html for a in (ANCHOR_CSS, ANCHOR_BTN, ANCHOR_SEC)):
         return None
     h = fx_html.replace(ANCHOR_CSS, css + ANCHOR_CSS, 1)
