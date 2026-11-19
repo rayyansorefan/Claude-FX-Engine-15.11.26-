@@ -1,17 +1,17 @@
-# Live positions (written 2026-11-19 11:55 UTC)
+# Live positions (written 2026-11-19 12:05 UTC)
 
 Unfinished setups: 5
 
 - EURUSD SHORT E1_strength [TRIGGERED] created 2026-11-18 04:00
-  FILLED at 1.09900. entry 1.09907 stop 1.10335 target 1.09052. Unrealised -0.11R, best so far +0.86R, worst -0.47R. Target is 2.09R away. Held 382 of 576 five-minute bars (16h until the time limit).
+  FILLED at 1.09900. entry 1.09907 stop 1.10335 target 1.09052. Unrealised +0.01R, best so far +0.86R, worst -0.47R. Target is 1.97R away. Held 384 of 576 five-minute bars (16h until the time limit).
 - USDCAD LONG E2_donchian [TRIGGERED] created 2026-11-19 04:00
-  FILLED at 1.43546. entry 1.43527 stop 1.42906 target 1.44769. Unrealised -0.79R, best so far +0.00R, worst -0.90R. Target is 2.76R away. Held 94 of 1920 five-minute bars (152h until the time limit).
+  FILLED at 1.43546. entry 1.43527 stop 1.42906 target 1.44769. Unrealised -0.75R, best so far +0.00R, worst -0.90R. Target is 2.72R away. Held 96 of 1920 five-minute bars (152h until the time limit).
 - USDJPY LONG asia_breakout [TRIGGERED] created 2026-11-19 08:00
-  FILLED at 159.70800. entry 159.69300 stop 159.48378 target 160.11145. Unrealised +0.88R, best so far +1.10R, worst -0.10R. Target is 1.04R away. Held 46 of 384 five-minute bars (28h until the time limit).
+  FILLED at 159.70800. entry 159.69300 stop 159.48378 target 160.11145. Unrealised +1.10R, best so far +1.13R, worst -0.10R. Target is 0.82R away. Held 48 of 384 five-minute bars (28h until the time limit).
 - AUDUSD SHORT E1_strength [TRIGGERED] created 2026-11-19 08:00
-  FILLED at 0.67049. entry 0.67057 stop 0.67483 target 0.66204. Unrealised -0.14R, best so far +0.16R, worst -0.27R. Target is 2.13R away. Held 46 of 576 five-minute bars (44h until the time limit).
+  FILLED at 0.67049. entry 0.67057 stop 0.67483 target 0.66204. Unrealised -0.03R, best so far +0.16R, worst -0.27R. Target is 2.01R away. Held 48 of 576 five-minute bars (44h until the time limit).
 - EURGBP LONG asia_breakout [TRIGGERED] created 2026-11-19 09:00
-  FILLED at 0.83541. entry 0.83521 stop 0.83452 target 0.83660. Unrealised +0.23R, best so far +1.65R, worst -0.28R. Target is 1.49R away. Held 34 of 384 five-minute bars (29h until the time limit).
+  FILLED at 0.83541. entry 0.83521 stop 0.83452 target 0.83660. Unrealised +0.14R, best so far +1.65R, worst -0.28R. Target is 1.58R away. Held 36 of 384 five-minute bars (29h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
