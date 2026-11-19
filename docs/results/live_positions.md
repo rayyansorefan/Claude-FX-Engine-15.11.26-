@@ -1,22 +1,21 @@
-# Live positions (written 2026-11-19 08:00 UTC)
+# Live positions (written 2026-11-19 08:10 UTC)
 
-Unfinished setups: 6
+Unfinished setups: 5
 
-- AUDUSD SHORT E1_strength [TRIGGERED] created 2026-11-17 08:00
-  FILLED at 0.67310. entry 0.67316 stop 0.67676 target 0.66596. Unrealised +0.70R, best so far +1.91R, worst -0.47R. Target is 1.28R away. Held 575 of 576 five-minute bars (0h until the time limit).
 - EURUSD SHORT E1_strength [TRIGGERED] created 2026-11-18 04:00
-  FILLED at 1.09900. entry 1.09907 stop 1.10335 target 1.09052. Unrealised +0.19R, best so far +0.86R, worst -0.04R. Target is 1.79R away. Held 335 of 576 five-minute bars (20h until the time limit).
+  FILLED at 1.09900. entry 1.09907 stop 1.10335 target 1.09052. Unrealised +0.19R, best so far +0.86R, worst -0.04R. Target is 1.79R away. Held 337 of 576 five-minute bars (20h until the time limit).
 - NZDUSD SHORT E1_strength [TRIGGERED] created 2026-11-18 04:00
-  FILLED at 0.54941. entry 0.54948 stop 0.55231 target 0.54382. Unrealised -0.38R, best so far +0.36R, worst -0.47R. Target is 2.35R away. Held 335 of 576 five-minute bars (20h until the time limit).
+  FILLED at 0.54941. entry 0.54948 stop 0.55231 target 0.54382. Unrealised -0.31R, best so far +0.36R, worst -0.47R. Target is 2.29R away. Held 337 of 576 five-minute bars (20h until the time limit).
 - GBPUSD SHORT E1_strength [TRIGGERED] created 2026-11-19 04:00
-  FILLED at 1.31251. entry 1.31258 stop 1.31730 target 1.30314. Unrealised -0.63R, best so far +0.00R, worst -0.71R. Target is 2.61R away. Held 47 of 576 five-minute bars (44h until the time limit).
+  FILLED at 1.31251. entry 1.31258 stop 1.31730 target 1.30314. Unrealised -0.55R, best so far +0.00R, worst -0.71R. Target is 2.54R away. Held 49 of 576 five-minute bars (44h until the time limit).
 - USDCAD LONG E2_donchian [TRIGGERED] created 2026-11-19 04:00
-  FILLED at 1.43546. entry 1.43527 stop 1.42906 target 1.44769. Unrealised -0.46R, best so far +0.00R, worst -0.48R. Target is 2.43R away. Held 47 of 1920 five-minute bars (156h until the time limit).
-- USDJPY LONG asia_breakout [PUBLISHED] created 2026-11-19 08:00
-  not filled yet. entry 159.69300 stop 159.48378 target 160.11145. Expires in 4.0h. Price is +0.00R from entry (positive = entry still ahead).
+  FILLED at 1.43546. entry 1.43527 stop 1.42906 target 1.44769. Unrealised -0.49R, best so far +0.00R, worst -0.49R. Target is 2.46R away. Held 49 of 1920 five-minute bars (156h until the time limit).
+- USDJPY LONG asia_breakout [TRIGGERED] created 2026-11-19 08:00
+  FILLED at 159.70800. entry 159.69300 stop 159.48378 target 160.11145. Unrealised +0.08R, best so far +0.19R, worst -0.10R. Target is 1.85R away. Held 1 of 384 five-minute bars (32h until the time limit).
 
-Last 12 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
+Last 13 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
+- AUDUSD E1_strength: TIMEOUT +0.76R at 2026-11-19 08:05 · best +1.91R, worst -0.47R
 - GBPJPY asia_breakout: TARGET +1.96R at 2026-11-18 16:25 · best +2.25R, worst -0.20R
 - GBPUSD asia_breakout: TARGET +1.92R at 2026-11-18 16:25 · best +2.11R, worst -0.30R
 - USDCAD asia_breakout: STOP -1.23R at 2026-11-18 11:00 · best +0.39R, worst -1.21R · WRONG_WAY
