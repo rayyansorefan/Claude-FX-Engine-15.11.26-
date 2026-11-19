@@ -89,7 +89,7 @@ def _live_strip(sp: dict) -> str:
         return ""
     E_ = lambda t: html_escape(str(t))
     t = lambda x: x["symbol"].split(".")[0].upper()
-    ent = "".join(f"<span class='chip'>BOUGHT {E_(t(e))} at {e['price']:,.2f} · {e['shares']:g} sh · £{e['cost']:,.0f}</span> " for e in pl["entries"])
+    ent = "".join(f"<span class='chip'>BOUGHT {E_(t(e))} at {e['price']:,.2f} · {e['shares']:g} sh · £{e['cost']:,.0f}{(' ($' + format(e['cost_usd'], ',.0f') + ')') if e.get('cost_usd') else ''}</span> " for e in pl["entries"])
     ext = "".join(f"<span class='chip'>SOLD {E_(t(x))} at {x['price']:,.2f} · <b class='{'pos' if x['pnl'] > 0 else 'neg'}'>{x['pnl']:+,.0f}</b></span> " for x in pl["exits"])
     d = pl["balance"] - pl["nightly_balance"]
     return (f'<div class="card" style="margin-bottom:12px"><h3>Live today · paper account · {E_(lv.get("asof", ""))} UTC</h3>'
@@ -243,6 +243,21 @@ def _history_tab(sp: dict | None) -> str:
     return f'<div class="card"><h3>History · every flagged setup, scored as a hypothetical</h3>{_hist_card(sp, 400)}</div>'
 
 
+def _held_map(sp: dict | None) -> dict:
+    """Open paper positions by setup id: the nightly account's, plus today's live buys (not in the nightly account until tonight)."""
+    sp = sp or {}
+    out = {p_["id"]: p_ for p_ in ((sp.get("account") or {}).get("positions") or [])}
+    pl = ((sp.get("live") or {}).get("plan") or {})
+    if pl.get("day_ok"):
+        for e in pl.get("entries", []):
+            out.setdefault(e["id"], dict(e, risk=20.0, entry_px=e.get("price")))
+    return out
+
+
+def _usd(x: dict | None) -> str:
+    return f"${x['cost_usd']:,.0f}" if x and x.get("cost_usd") else ""
+
+
 def _trade_card(r: dict, held: dict | None = None, live: dict | None = None) -> str:
     if live and live.get('price'):
         r = dict(r, last_close=live['price'], _live_t=live.get('t'))
@@ -260,7 +275,8 @@ def _trade_card(r: dict, held: dict | None = None, live: dict | None = None) -> 
     entry = f"{r['entry_price']:,.2f}" if r.get("entry_price") else "next open"
     nums = [("Last close", f"{(r.get('last_close') or r['close']):,.2f}", "latest bar"), ("Entry", entry, "at the open" if not r.get("entry_price") else "filled (open)"),
             ("Invalid below", "—" if r.get("invalidation") is None else f"{r['invalidation']:,.2f}", "rule's own level"), ("Held", f"{r.get('held', 0)} days", "so far"),
-            ("Rule", name, r["market"]), ("Signal", r["signal_date"], "close of")]
+            ("Rule", name, r["market"]),
+            (("Size", f"{held['shares']:g} shares", f"£{held['cost']:,.0f}" + (f" · {_usd(held)}" if _usd(held) else "") + f" · risk £{held['risk']:.0f}") if held else ("Size", "set at the open", "£20 risk · max 25% of account"))]
     nh = "".join(f"<div><small>{E(a)}</small><b>{E(str(b))}</b><span>{E(str(c2))}</span></div>" for a, b, c2 in nums)
     why = "".join(f"<div>{E(x)}</div>" for x in (r.get("why") or [r["exit_text"]])[:2])
     chips = [f"signal {r['signal_date']}"] + ([f"entered {r['entry_price']:,.2f}"] if r.get("entry_price") else ["enters next open"]) + ([r["detail"]] if r.get("detail") else [])
@@ -269,7 +285,7 @@ def _trade_card(r: dict, held: dict | None = None, live: dict | None = None) -> 
     if r.get("cand_ok") is True:
         chips = ["FILTER ✓ (candidate, unproven): " + r["cand_filter"]] + chips
     if held:
-        chips = [f"IN PAPER ACCOUNT · {held['shares']:g} shares · £{held['cost']:,.0f} · risk £{held['risk']:.0f}"] + chips
+        chips = [f"IN PAPER ACCOUNT · {held['shares']:g} shares · £{held['cost']:,.0f}" + (f" ({_usd(held)})" if _usd(held) else "") + f" · risk £{held['risk']:.0f}"] + chips
     tl = "".join(f"<span class='chip'>{E(x[:70])}</span>" for x in chips)
     return (f"<div class='trade {cls}'><div class='th'><div><span class='pair'>{E(r['symbol'].split('.')[0].upper())}</span><span class='dir long'>LONG</span><span class='state'>{E(st)}</span></div>"
             f"<div class='pl'><b class='{c}'>{big}</b><small>{sub}</small></div></div><div class='rule'>{E(name)} · {E(r['market'])}{(' · ' + E(_home_name(r)) + ' company (US-listed ADR)') if _is_adr(r) else ''} · {proven}</div>{_bar(r)}"
@@ -368,7 +384,7 @@ def _account_card(ac: dict, n_fwd: int, chips: str) -> str:
              ("All time", _gbp(t["alltime"]), "realised, before costs", c(t["alltime"])), ("Open now (floating)", _gbp(t["floating"]), f"{t['n_open']} open · before costs", c(t["floating"])),
              ("Wins · losses", f"{t['wins']} · {t['losses']}", (f"{t['wins'] / (t['wins'] + t['losses']) * 100:.0f}% win rate" if t["wins"] + t["losses"] else "no closed trades yet"), "")]
     kp = '<div class="kpis">' + "".join(f'<div class="kpi"><small>{E(a)}</small><b class="{k}">{E(b)}</b><span>{E(s_)}</span></div>' for a, b, s_, k in tiles) + "</div>"
-    chips_ = "".join(f"<span class='chip'>{E(p_['symbol'].split('.')[0].upper())} <b class='{c(p_['floating'])}'>{_gbp(p_['floating'])}</b></span> " for p_ in ac.get("positions", []))
+    chips_ = "".join(f"<span class='chip'>{E(p_['symbol'].split('.')[0].upper())} £{p_['cost']:,.0f}" + (f" ({_usd(p_)})" if _usd(p_) else "") + f" <b class='{c(p_['floating'])}'>{_gbp(p_['floating'])}</b></span> " for p_ in ac.get("positions", []))
     warn = '<p class="warnt" style="margin:6px 0 0">GBPUSD rate file missing: US prices are converted at an estimate of 1.30.</p>' if ac.get("fallback_rate") else ""
     ch = _equity_chart(ac.get("curve", []), t["start"])
     nsk = len(ac.get("skipped", []))
@@ -407,7 +423,7 @@ def _setups_tab(sp: dict | None, res: dict | None = None) -> str:
     ac = sp.get("account") or {}
     top = _live_strip(sp) + _account_card(ac, n, chips)
     charts = ""
-    held = {p_['id']: p_ for p_ in ((sp.get('account') or {}).get('positions') or [])}
+    held = _held_map(sp)
     lp = (sp.get('live') or {}).get('prices') or {}
     cards = "".join(_trade_card(r, held.get(r['id']), lp.get(r['symbol'])) for r in att + pend + live) or "<div class='empty'><b>No setups right now.</b><br><span class='muted'>The rules flag a setup only when their conditions are met. Nothing is a valid outcome.</span></div>"
     hist = ""
