@@ -1,17 +1,17 @@
-# Live positions (written 2026-11-19 13:13 UTC)
+# Live positions (written 2026-11-19 13:25 UTC)
 
 Unfinished setups: 5
 
 - EURUSD SHORT E1_strength [TRIGGERED] created 2026-11-18 04:00
-  FILLED at 1.09900. entry 1.09907 stop 1.10335 target 1.09052. Unrealised -0.02R, best so far +0.86R, worst -0.47R. Target is 2.00R away. Held 397 of 576 five-minute bars (15h until the time limit).
+  FILLED at 1.09900. entry 1.09907 stop 1.10335 target 1.09052. Unrealised -0.03R, best so far +0.86R, worst -0.47R. Target is 2.01R away. Held 400 of 576 five-minute bars (15h until the time limit).
 - USDCAD LONG E2_donchian [TRIGGERED] created 2026-11-19 04:00
-  FILLED at 1.43546. entry 1.43527 stop 1.42906 target 1.44769. Unrealised -0.89R, best so far +0.00R, worst -0.95R. Target is 2.86R away. Held 109 of 1920 five-minute bars (151h until the time limit).
+  FILLED at 1.43546. entry 1.43527 stop 1.42906 target 1.44769. Unrealised -0.94R, best so far +0.00R, worst -1.01R. Target is 2.91R away. Held 112 of 1920 five-minute bars (151h until the time limit).
 - USDJPY LONG asia_breakout [TRIGGERED] created 2026-11-19 08:00
-  FILLED at 159.70800. entry 159.69300 stop 159.48378 target 160.11145. Unrealised +1.19R, best so far +1.22R, worst -0.10R. Target is 0.74R away. Held 61 of 384 five-minute bars (27h until the time limit).
+  FILLED at 159.70800. entry 159.69300 stop 159.48378 target 160.11145. Unrealised +1.20R, best so far +1.22R, worst -0.10R. Target is 0.73R away. Held 64 of 384 five-minute bars (27h until the time limit).
 - AUDUSD SHORT E1_strength [TRIGGERED] created 2026-11-19 08:00
-  FILLED at 0.67049. entry 0.67057 stop 0.67483 target 0.66204. Unrealised -0.14R, best so far +0.16R, worst -0.27R. Target is 2.12R away. Held 61 of 576 five-minute bars (43h until the time limit).
+  FILLED at 0.67049. entry 0.67057 stop 0.67483 target 0.66204. Unrealised -0.13R, best so far +0.16R, worst -0.27R. Target is 2.11R away. Held 64 of 576 five-minute bars (43h until the time limit).
 - EURGBP LONG asia_breakout [TRIGGERED] created 2026-11-19 09:00
-  FILLED at 0.83541. entry 0.83521 stop 0.83452 target 0.83660. Unrealised +0.46R, best so far +1.65R, worst -0.81R. Target is 1.26R away. Held 49 of 384 five-minute bars (28h until the time limit).
+  FILLED at 0.83541. entry 0.83521 stop 0.83452 target 0.83660. Unrealised +1.03R, best so far +1.65R, worst -0.81R. Target is 0.70R away. Held 52 of 384 five-minute bars (28h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
