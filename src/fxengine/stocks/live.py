@@ -112,7 +112,7 @@ def plan_live(sp: dict, quotes: dict, rates: dict, rank: dict | None = None, tod
         cost = sh * ep
         cash -= cost
         val = sh * R.gbp(rates, r["symbol"], q["price"], day)
-        entries.append(dict(id=r["id"], symbol=r["symbol"], rule=r["rule"], date=day, price=q["open"], shares=round(sh, 4), cost=round(cost, 2), value=round(val, 2), floating=round(val - cost, 2),
+        entries.append(dict(id=r["id"], symbol=r["symbol"], rule=r["rule"], date=day, price=q["open"], shares=round(sh, 4), cost=round(cost, 2), cost_usd=round(cost * R.per_gbp(rates, 'USD', day), 2), value=round(val, 2), floating=round(val - cost, 2),
                             stop=round(stop, 4), nostop=nostop))
     mv = sum(p.get("value", 0) for p in live_pos) + sum(e["value"] for e in entries)
     live_balance = round(cash + mv, 2)

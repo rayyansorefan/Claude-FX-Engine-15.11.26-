@@ -189,7 +189,8 @@ def _hist_card(sp: dict | None, limit: int = 15, empty: str | None = None) -> st
             return f"£{x['cost']:,.0f}" if x and x.get("cost") else ""
         px = x.get("entry_px") if x.get("entry_px") is not None else x.get("price")
         st = f", stop {x['stop']:,.2f}" if x.get("stop") else ""
-        return f"{x['shares']:g} sh at {px:,.2f} = £{x['cost']:,.0f} (risk £20{st})"
+        usd = f" (${x['cost_usd']:,.0f})" if x.get("cost_usd") else ""
+        return f"{x['shares']:g} sh at {px:,.2f} = £{x['cost']:,.0f}{usd} · risk £20{st}"
 
     def state(r):
         pp, c = r.get("paper"), r.get("closed")

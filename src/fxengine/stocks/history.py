@@ -74,9 +74,9 @@ def merged(log: Path = LOG, paper_closed: list[dict] | None = None, paper_open: 
     for i, r in recs.items():
         if i in pc:
             r["paper"] = dict(state="closed", pnl=pc[i]["pnl"], r=pc[i]["r"], cost=pc[i]["cost"], entry_date=pc[i]["entry_date"], exit_date=pc[i]["exit_date"],
-                              shares=pc[i].get("shares"), entry_px=pc[i].get("entry_px"), exit_px=pc[i].get("exit_px"), stop=pc[i].get("stop"))
+                              shares=pc[i].get("shares"), cost_usd=pc[i].get("cost_usd"), entry_px=pc[i].get("entry_px"), exit_px=pc[i].get("exit_px"), stop=pc[i].get("stop"))
         elif i in po:
-            r["paper"] = dict(state="open", pnl=po[i]["floating"], cost=po[i]["cost"], entry_date=po[i]["entry_date"], shares=po[i].get("shares"), entry_px=po[i].get("entry_px"), stop=po[i].get("stop"))
+            r["paper"] = dict(state="open", pnl=po[i]["floating"], cost=po[i]["cost"], entry_date=po[i]["entry_date"], shares=po[i].get("shares"), cost_usd=po[i].get("cost_usd"), entry_px=po[i].get("entry_px"), stop=po[i].get("stop"))
     return sorted(recs.values(), key=lambda r: (r["signal_date"], r["created_at"]), reverse=True)[:limit]
 
 
