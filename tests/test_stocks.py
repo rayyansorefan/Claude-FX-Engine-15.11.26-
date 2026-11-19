@@ -1074,3 +1074,21 @@ def test_scan_drops_open_setups_from_excluded_markets_but_keeps_closed():
     finally:
         scan.todays_setups, scan.recheck = orig_t, orig_r
     assert [x["id"] for x in out] == ["b"]
+
+
+def test_history_is_permanent_idempotent_and_shows_in_dashboard(tmp_path):
+    import json as j
+    from fxengine.stocks import history as HI, dashboard
+    log = tmp_path / "h.jsonl"
+    row = dict(id="R|AAPL.US|2026-11-17", rule="RSI2_PULLBACK", symbol="aapl.us", market="US", home="us", signal_date="2026-11-17", close=100.0, invalidation=90.0, exit_text="x", why=["w"], proven=True, strength=1.0, ctx={}, cand_filter=None, cand_ok=None, status="PENDING")
+    assert HI.update([row], log) == 1 and HI.update([row], log) == 0                      # idempotent
+    row2 = dict(row, status="VALID", detail="ok", unrealised=0.02)
+    assert HI.update([row2], log) == 1
+    row3 = dict(row, status="CLOSED", closed=dict(entry_date="2026-11-18", exit_date="2026-11-20", gross=0.031, bars=2))
+    assert HI.update([row3], log) == 2                                                  # status + closed
+    HI.update([], log)                                                                  # a trimmed ledger never deletes history
+    m = HI.merged(log, [dict(id=row["id"], pnl=12.0, r=0.6, cost=300.0, entry_date="2026-11-18", exit_date="2026-11-20")])
+    assert len(m) == 1 and m[0]["status"] == "CLOSED" and m[0]["paper"]["pnl"] == 12.0
+    h = dashboard._history_tab(dict(history=dict(setups=m)))
+    assert "History" in h and "AAPL" in h and "£+12" in h and "Win rate" in h
+    assert "No" in dashboard._history_tab(dict()) or "Nothing recorded" in dashboard._history_tab(dict())

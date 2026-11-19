@@ -218,6 +218,11 @@ def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.j
     rows = [r for r in rows if r["status"] in ("PENDING", "VALID", "WEAKENING", "EXIT SIGNAL", "CLOSED") or r["signal_date"] >= cut]       # closed trades are kept: they are the forward test
     led.parent.mkdir(parents=True, exist_ok=True)
     led.write_text(json.dumps(rows, indent=1))
+    from . import history as HI
+    try:
+        HI.update(rows, led.parent / "history.jsonl")
+    except Exception as e:
+        print("history not updated:", type(e).__name__)
     out.parent.mkdir(parents=True, exist_ok=True)
     asof = max(d.index.max() for d in panel.values())
     expected = {r["rule"]: r["roi"] for r in json.loads(res.read_text())["rules"] if "roi" in r} if res.exists() else {}
@@ -225,6 +230,10 @@ def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.j
     closed = [dict(rule=r["rule"], symbol=r["symbol"], market=r["market"], signal_date=r["signal_date"], **r["closed"]) for r in rows if r["status"] == "CLOSED"][-300:]
     from . import account
     acct = account_payload(rows, panel, passed, account.load_rates(), expected)
+    try:
+        HI.publish(led.parent / "history.jsonl", out.with_name("stocks_history.json"), acct.get("closed"), acct.get("positions"))
+    except Exception as e:
+        print("history not published:", type(e).__name__)
     cov = {}
     for sym in panel:
         c = cov.setdefault(U.country_code(sym), dict(symbols=0, setups=0))
