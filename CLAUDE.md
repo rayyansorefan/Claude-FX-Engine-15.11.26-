@@ -55,3 +55,4 @@ No code reused from the old ChatGPT engine.
 - Work on branch `engine`; commit often with tests passing.
 - Update STATUS.md at the end of every session and at every checkpoint.
 - Python 3.11+, pandas, numpy, pyarrow, requests, sqlite3, pytest. Keep deps minimal.
+- Before telling Rayyan anything is done: do the groundwork first. Compare against the FX engine's real output (code AND rendered page: screenshot it and look), run the real data path, list what was verified and what was NOT, and own mistakes plainly. Tests passing is not "done". Never send him a half-checked build.
