@@ -138,38 +138,47 @@ def _fund_card(sp: dict) -> str:
 colr = lambda x: "up" if (x or 0) > 0 else "dn" if (x or 0) < 0 else "muted"
 
 
-def _history_tab(sp: dict | None) -> str:
-    """Every setup the engine ever flagged, newest first, with its outcome and paper P&L: the Stocks twin of the FX engine's History table. Kept forever in data/stocks/history.jsonl."""
+def _hist_card(sp: dict | None, limit: int = 15, empty: str | None = None) -> str:
+    """Same layout as the FX engine's History card: one summary line, then Created (UK) | Setup | Rule | Outcome | P&L. Every setup ever flagged, kept in data/stocks/history.jsonl."""
+    from datetime import datetime as _dt
+    from zoneinfo import ZoneInfo
     h = ((sp or {}).get("history") or {}).get("setups") or []
     if not h:
-        return '<div class="card"><h3>History · every flagged setup, scored as a hypothetical</h3><p class="muted">Nothing recorded yet. Every setup is added here the night it is flagged and stays for good.</p></div>'
+        return '<p class="muted">No setups recorded yet. This fills in the night the first setup is flagged.</p>'
+
+    def uk(t):
+        try:
+            return _dt.strptime(t, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc).astimezone(ZoneInfo("Europe/London"))
+        except Exception:
+            return None
+
+    def gbp(r):                                           # paper-account P&L where it held the setup, else the hypothetical at £20 risk (gain / distance to the invalid-below level)
+        if r.get("paper"):
+            return r["paper"]["pnl"]
+        c = r.get("closed")
+        if not c:
+            return None
+        inv, cl = r.get("invalidation"), r.get("close") or 0
+        risk = (cl - inv) / cl if inv and cl and 0 < inv < cl else 0.10
+        return c["gross"] / risk * 20.0
     done = [r for r in h if r["status"] == "CLOSED" and r.get("closed")]
     wins = sum(r["closed"]["gross"] > 0 for r in done)
-    opn = [r for r in h if r["status"] in ("PENDING", "VALID", "WEAKENING", "EXIT SIGNAL")]
-    inv = [r for r in h if r["status"] in ("INVALIDATED", "TIME STOP")]
-    paper = [r["paper"]["pnl"] for r in h if r.get("paper") and r["paper"]["state"] == "closed"]
-    avg = sum(r["closed"]["gross"] for r in done) / len(done) if done else None
-    kp = (f'<div class="kpis"><div class="kpi"><small>Flagged</small><b>{len(h)}</b><span>every one kept</span></div><div class="kpi"><small>Closed</small><b>{len(done)}</b><span>{wins} won · {len(done) - wins} lost</span></div>'
-          f'<div class="kpi"><small>Win rate</small><b>{pct(wins / len(done), False, 0) if done else "n/a"}</b><span>price only, before costs</span></div>'
-          f'<div class="kpi"><small>Average gain</small><b class="{colr(avg)}">{pct(avg, d=2) if avg is not None else "n/a"}</b><span>per closed trade</span></div>'
-          f'<div class="kpi"><small>Open / waiting</small><b>{len(opn)}</b><span>{len(inv)} stopped or timed out, awaiting close</span></div>'
-          f'<div class="kpi"><small>Paper P&amp;L (closed)</small><b class="{colr(sum(paper) if paper else None)}">{"£%+.0f" % sum(paper) if paper else "n/a"}</b><span>{len(paper)} paper trades</span></div></div>')
-    rules = sorted({r["rule"] for r in h})
-    sel = ('<select id="hfrule" style="background:var(--card);color:var(--ink);border:1px solid var(--line);padding:5px;border-radius:6px"><option value="">all setups</option>' + "".join(f'<option value="{E(k)}">{E(INFO.get(k, (k,))[0])}</option>' for k in rules) +
-           '</select> <select id="hfst" style="background:var(--card);color:var(--ink);border:1px solid var(--line);padding:5px;border-radius:6px"><option value="">all outcomes</option><option>CLOSED</option><option>open</option><option>INVALIDATED</option></select>')
+    lost = len(done) - wins
     rows = ""
-    for r in h[:400]:
-        c, pp = r.get("closed"), r.get("paper")
-        outc = (f'<b class="{colr(c["gross"])}">{pct(c["gross"], d=2)}</b> · {c["bars"]}d' if c else E(r["status"].title()) + (f' <span class="muted">{pct(r["unrealised"], d=1)}</span>' if r.get("unrealised") is not None else ""))
-        pl = (f'<b class="{colr(pp["pnl"])}">£{pp["pnl"]:+,.0f}</b>' + (' <span class="muted">open</span>' if pp["state"] == "open" else "")) if pp else '<span class="muted">not traded</span>'
-        grp = "CLOSED" if c else "INVALIDATED" if r["status"] in ("INVALIDATED", "TIME STOP") else "open"
-        rows += (f'<tr data-r="{E(r["rule"])}" data-s="{grp}"><td class="num">{E(r["created_at"])}</td><td><b>{E(r["symbol"].split(".")[0].upper())}</b> <span class="muted">{E(r["market"])}</span></td><td>{E(INFO.get(r["rule"], (r["rule"],))[0])}</td>'
-                 f'<td>{"PASSED" if r.get("proven") else "UNPROVEN"}</td><td class="r num">{r["close"]:,.2f}</td><td>{outc}</td><td class="r num">{pl}</td><td class="muted" style="font-size:11px">{E(r["id"])}</td></tr>')
-    js = ("<script>(function(){var a=document.getElementById('hfrule'),b=document.getElementById('hfst');function f(){document.querySelectorAll('#histtbl tr[data-r]').forEach(function(t){"
-          "t.style.display=((!a.value||t.dataset.r===a.value)&&(!b.value||t.dataset.s===b.value))?'':'none'})}a.onchange=f;b.onchange=f})()</script>")
-    return (f'{kp}<div class="card"><h3>History · every flagged setup, scored as a hypothetical</h3><p style="margin:0 0 8px">{sel}</p><div class="scroll" style="overflow-x:auto"><table class="tbl" id="histtbl" style="min-width:820px">'
-            '<tr><th>Flagged (UTC)</th><th>Stock</th><th>Setup</th><th>Label</th><th class="r">Close</th><th>Outcome</th><th class="r">Paper P&amp;L</th><th>Run ID</th></tr>' + rows + '</table></div>'
-            f'<p class="muted" style="font-size:12px;margin:8px 0 0">Newest 400 of {len(h)} shown; the full record is kept in data/stocks/history.jsonl and never trimmed. Outcomes are the rules\' own hypothetical trades, price only. "Paper P&amp;L" is the £2,500 account\'s result where it held the setup.</p></div>{js}')
+    for r in h[:limit]:
+        t = uk(r["created_at"])
+        c, pv = r.get("closed"), gbp(r)
+        outc = (f"CLOSED {pct(c['gross'], d=1)}" if c else r["status"])
+        why = ((sp or {}).get("lessons") or {}).get("reviews", {}).get(r["id"])
+        rows += (f"<tr><td class='mono'>{t:%d %b %H:%M}</td>" if t else "<tr><td></td>") + (f"<td>{E(r['symbol'].split('.')[0].upper())} BUY</td><td>{E(INFO.get(r['rule'], (r['rule'],))[0])}</td><td>{E(outc)}" + (f"<div class='muted' style='font-size:12px;max-width:520px;white-space:normal'><b>Why:</b> {E(why['text'])}</div>" if why else "") + "</td>"
+                 f"<td class='num {'up' if (pv or 0) > 0 else 'dn' if (pv or 0) < 0 else ''}'>{'' if pv is None else f'{pv:+.0f} GBP'}</td></tr>")
+    return (f"<p class='muted'>Flagged {len(h)} · resolved {len(done)} · won {wins} · lost {lost} · success rate {'n/a' if not done else f'{wins / len(done) * 100:.0f}%'}</p>"
+            f"<table class='tbl'><tr><th>Created (UK)</th><th>Setup</th><th>Rule</th><th>Outcome</th><th class='r'>P&amp;L</th></tr>{rows}</table>"
+            + ("<p class='muted' style='font-size:12px;margin:8px 0 0'>P&amp;L = the £2,500 paper account's result where it held the setup; otherwise the hypothetical at £20 risk, price only, before costs. Every setup is kept for good.</p>"))
+
+
+def _history_tab(sp: dict | None) -> str:
+    return f'<div class="card"><h3>History · every flagged setup, scored as a hypothetical</h3>{_hist_card(sp, 400)}</div>'
 
 
 def _trade_card(r: dict, held: dict | None = None, live: dict | None = None) -> str:
@@ -340,7 +349,9 @@ def _setups_tab(sp: dict | None, res: dict | None = None) -> str:
     lp = (sp.get('live') or {}).get('prices') or {}
     cards = "".join(_trade_card(r, held.get(r['id']), lp.get(r['symbol'])) for r in att + pend + live) or "<div class='empty'><b>No setups right now.</b><br><span class='muted'>The rules flag a setup only when their conditions are met. Nothing is a valid outcome.</span></div>"
     hist = ""
-    if closed:
+    if ((sp.get("history") or {}).get("setups")):
+        hist = f'<div class="card" style="margin-top:16px"><h3>History · every flagged setup, scored as a hypothetical</h3>{_hist_card(sp, 15)}</div>'
+    elif closed:
         hr = "".join(f'<tr><td><b>{E(c["symbol"].split(".")[0].upper())}</b> <span class="muted">{E(c["market"])}</span></td><td>{E(INFO.get(c["rule"], (c["rule"],))[0])}</td><td>{E(c["entry_date"])}</td><td>{E(c["exit_date"])}</td>'
                      f'<td class="r num"><b class="{colr(c["gross"])}">{pct(c["gross"], d=2)}</b></td><td class="r num">{c["bars"]}</td></tr>' for c in sorted(closed, key=lambda c: c["exit_date"], reverse=True)[:25])
         hist = ('<div class="card" style="margin-top:16px"><h3>History · every closed forward trade, price only</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:560px">'
@@ -485,6 +496,26 @@ def _research_tab(res: dict | None, mk: dict | None, base: str, fl: dict | None 
     return base + table + st + _filters_card(fl) + hl + how
 
 
+def _lessons_card(sp: dict | None) -> str:
+    """What the engine is learning from its own closed trades. Per rule, after 30+ closed trades: which backdrop conditions go with better or worse results. FORWARD evidence; nothing changes automatically."""
+    ls = ((sp or {}).get("lessons") or {}).get("lessons") or {}
+    if not ls:
+        return ('<div class="card" style="margin-top:12px"><h3>What the engine is learning from its closed trades</h3><p class="muted" style="margin:0">Every closed trade gets a written explanation of why it won or lost (History tab). '
+                'Once a setup has 30 closed trades, this card shows which market conditions went with its winners and its losers. None yet: the forward test only started on 18 Nov.</p></div>')
+    body = ""
+    for rule, e in ls.items():
+        why = ", ".join(f"{E(k)} {v['n']} (avg {pct(v['mean'], d=1)}, {v['win'] * 100:.0f}% won)" for k, v in sorted(e["why"].items(), key=lambda kv: -kv[1]["n"]))
+        if not e["enough"]:
+            body += f'<tr><td>{E(INFO.get(rule, (rule,))[0])}</td><td class="r num">{e["n"]}</td><td colspan=2 class="muted">needs 30 closed trades before conditions are compared · so far: {why or "n/a"}</td></tr>'
+            continue
+        for c in sorted(e["conditions"], key=lambda c: -abs(c["edge"])):
+            body += (f'<tr><td>{E(INFO.get(rule, (rule,))[0])}</td><td class="r num">{e["n"]}</td><td>{E(c["name"])}</td><td class="num">with: {pct(c["with_mean"], d=1)} ({c["with_n"]}) · without: {pct(c["without_mean"], d=1)} ({c["without_n"]}) · '
+                     f'<b class="{colr(c["edge"])}">{pct(c["edge"], d=1)}</b></td></tr>')
+    return ('<div class="card" style="margin-top:12px"><h3>What the engine is learning from its closed trades</h3><div class="scroll" style="overflow-x:auto"><table class="tbl" style="min-width:640px">'
+            '<tr><th>Setup</th><th class="r">Closed</th><th>Condition</th><th>Average gain with vs without</th></tr>' + body + '</table></div>'
+            '<p class="muted" style="font-size:12px;margin:8px 0 0">Forward evidence only. A condition becomes a rule change only through the written filter process (candidate, live evidence, your decision): it never changes a setup by itself.</p></div>')
+
+
 def _performance_tab(sp: dict | None, res: dict | None) -> str:
     sp = sp or {}
     fw, closed = sp.get("forward") or {}, sp.get("closed") or []
@@ -521,6 +552,7 @@ def _performance_tab(sp: dict | None, res: dict | None) -> str:
         out.append('<div class="card" style="margin-top:12px"><h3>Setups the paper account skipped</h3>' + "".join(f'<div class="muted" style="font-size:12px;margin:2px 0">{E(x["symbol"].split(".")[0].upper())}: {E(x["why"])}</div>' for x in ac["skipped"][-12:]) + "</div>")
     if yc:
         out.append(f'<div class="card" style="margin-top:12px"><h3>Research · average gain per trade in each year, for the setups that passed (how steady was it?)</h3><div class="scroll">{yc}</div></div>')
+    out.append(_lessons_card(sp))
     return "".join(out)
 
 

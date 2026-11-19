@@ -1090,8 +1090,8 @@ def test_history_is_permanent_idempotent_and_shows_in_dashboard(tmp_path):
     m = HI.merged(log, [dict(id=row["id"], pnl=12.0, r=0.6, cost=300.0, entry_date="2026-11-18", exit_date="2026-11-20")])
     assert len(m) == 1 and m[0]["status"] == "CLOSED" and m[0]["paper"]["pnl"] == 12.0
     h = dashboard._history_tab(dict(history=dict(setups=m)))
-    assert "History" in h and "AAPL" in h and "£+12" in h and "Win rate" in h
-    assert "No" in dashboard._history_tab(dict()) or "Nothing recorded" in dashboard._history_tab(dict())
+    assert "History" in h and "AAPL BUY" in h and "+12 GBP" in h and "success rate" in h and "Created (UK)" in h
+    assert "No setups recorded" in dashboard._history_tab(dict())
 
 
 def test_inject_replaces_a_stale_stocks_tab_already_in_the_fx_page():
@@ -1099,3 +1099,28 @@ def test_inject_replaces_a_stale_stocks_tab_already_in_the_fx_page():
     fx = "<style>x</style><button data-t='system'>System</button><button data-t='stocks'>Stocks</button><div class='tab' id='stocks'>OLD TAB</div><div class='tab' id='system'>fx system</div>"
     h = serve.inject(fx, "#stocks .stnav{}", "<div class='tab' id='stocks'>NEW TAB History</div>")
     assert "NEW TAB History" in h and "OLD TAB" not in h and h.count("id='stocks'") == 1 and "fx system" in h and h.count("data-t='stocks'") == 1
+
+
+def test_review_explains_wins_and_losses_and_learns_only_with_enough_trades():
+    import numpy as np, pandas as pd
+    from fxengine.stocks import review as RV, dashboard
+    idx = pd.bdate_range("2026-10-01", periods=12)
+    px = np.linspace(100, 106, 12)
+    d = pd.DataFrame(dict(open=px, high=px * 1.01, low=px * 0.99, close=px), index=idx)
+    spy = pd.DataFrame(dict(open=np.linspace(400, 401, 12), high=400.0, low=400.0, close=400.0), index=idx)
+    row = dict(id="r1", rule="RSI2_PULLBACK", symbol="aapl.us", status="CLOSED", invalidation=90.0, close=100.0, ctx=dict(spy_vs200=0.05, vix_z=-1.5, usd_20d_z=0.0),
+               closed=dict(entry_date=f"{idx[1]:%Y-%m-%d}", exit_date=f"{idx[6]:%Y-%m-%d}", gross=0.045, bars=5))
+    e = RV.explain(row, {"aapl.us": d, "spy.us": spy})
+    assert e["won"] and "stock-driven" in e["tags"] and "beat it" in e["text"] and "Backdrop at entry" in e["text"] and e["reason"] == "the rule's own exit signal"
+    lose = dict(row, id="r2", closed=dict(row["closed"], gross=-0.06), invalidation=104.0)
+    e2 = RV.explain(lose, {"aapl.us": d, "spy.us": spy})
+    assert not e2["won"] and "stopped-out" in e2["tags"] and "LOST" in e2["text"]
+    few = RV.lessons([row, lose], {"r1": e, "r2": e2})
+    assert few["RSI2_PULLBACK"]["enough"] is False and few["RSI2_PULLBACK"]["conditions"] == []
+    many = [dict(row, id=f"m{i}", ctx=dict(spy_vs200=0.05 if i % 2 else -0.05, vix_z=0.0), closed=dict(row["closed"], gross=0.02 if i % 2 else -0.01)) for i in range(40)]
+    big = RV.lessons(many, {})
+    assert big["RSI2_PULLBACK"]["enough"] and any(c["name"].startswith("market uptrend") and c["edge"] > 0 for c in big["RSI2_PULLBACK"]["conditions"])
+    assert "What the engine is learning" in dashboard._lessons_card(dict(lessons=dict(lessons=big)))
+    h = dashboard._history_tab(dict(history=dict(setups=[dict(id="r1", created_at="2026-11-18 22:50", symbol="aapl.us", market="US", rule="RSI2_PULLBACK", proven=True, close=100.0, invalidation=90.0, status="CLOSED", closed=row["closed"])]),
+                                    lessons=dict(reviews={"r1": e})))
+    assert "Why:" in h and "beat it" in h

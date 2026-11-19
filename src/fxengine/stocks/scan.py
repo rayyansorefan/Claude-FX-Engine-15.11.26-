@@ -231,6 +231,11 @@ def main(path=Path("data/stocks/prices.parquet"), led=Path("data/stocks/setups.j
     from . import account
     acct = account_payload(rows, panel, passed, account.load_rates(), expected)
     try:
+        from . import review as RV
+        RV.build(rows, panel, events, out.with_name("stocks_lessons.json"))
+    except Exception as e:
+        print("review not built:", type(e).__name__)
+    try:
         HI.publish(led.parent / "history.jsonl", out.with_name("stocks_history.json"), acct.get("closed"), acct.get("positions"))
     except Exception as e:
         print("history not published:", type(e).__name__)
