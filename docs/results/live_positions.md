@@ -1,17 +1,17 @@
-# Live positions (written 2026-11-19 08:10 UTC)
+# Live positions (written 2026-11-19 08:25 UTC)
 
 Unfinished setups: 5
 
 - EURUSD SHORT E1_strength [TRIGGERED] created 2026-11-18 04:00
-  FILLED at 1.09900. entry 1.09907 stop 1.10335 target 1.09052. Unrealised +0.19R, best so far +0.86R, worst -0.04R. Target is 1.79R away. Held 337 of 576 five-minute bars (20h until the time limit).
+  FILLED at 1.09900. entry 1.09907 stop 1.10335 target 1.09052. Unrealised +0.10R, best so far +0.86R, worst -0.04R. Target is 1.88R away. Held 340 of 576 five-minute bars (20h until the time limit).
 - NZDUSD SHORT E1_strength [TRIGGERED] created 2026-11-18 04:00
-  FILLED at 0.54941. entry 0.54948 stop 0.55231 target 0.54382. Unrealised -0.31R, best so far +0.36R, worst -0.47R. Target is 2.29R away. Held 337 of 576 five-minute bars (20h until the time limit).
+  FILLED at 0.54941. entry 0.54948 stop 0.55231 target 0.54382. Unrealised -0.51R, best so far +0.36R, worst -0.56R. Target is 2.49R away. Held 340 of 576 five-minute bars (20h until the time limit).
 - GBPUSD SHORT E1_strength [TRIGGERED] created 2026-11-19 04:00
-  FILLED at 1.31251. entry 1.31258 stop 1.31730 target 1.30314. Unrealised -0.55R, best so far +0.00R, worst -0.71R. Target is 2.54R away. Held 49 of 576 five-minute bars (44h until the time limit).
+  FILLED at 1.31251. entry 1.31258 stop 1.31730 target 1.30314. Unrealised -0.58R, best so far +0.00R, worst -0.71R. Target is 2.57R away. Held 52 of 576 five-minute bars (44h until the time limit).
 - USDCAD LONG E2_donchian [TRIGGERED] created 2026-11-19 04:00
-  FILLED at 1.43546. entry 1.43527 stop 1.42906 target 1.44769. Unrealised -0.49R, best so far +0.00R, worst -0.49R. Target is 2.46R away. Held 49 of 1920 five-minute bars (156h until the time limit).
+  FILLED at 1.43546. entry 1.43527 stop 1.42906 target 1.44769. Unrealised -0.52R, best so far +0.00R, worst -0.55R. Target is 2.49R away. Held 52 of 1920 five-minute bars (156h until the time limit).
 - USDJPY LONG asia_breakout [TRIGGERED] created 2026-11-19 08:00
-  FILLED at 159.70800. entry 159.69300 stop 159.48378 target 160.11145. Unrealised +0.08R, best so far +0.19R, worst -0.10R. Target is 1.85R away. Held 1 of 384 five-minute bars (32h until the time limit).
+  FILLED at 159.70800. entry 159.69300 stop 159.48378 target 160.11145. Unrealised +0.14R, best so far +0.41R, worst -0.10R. Target is 1.78R away. Held 4 of 384 five-minute bars (32h until the time limit).
 
 Last 13 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
