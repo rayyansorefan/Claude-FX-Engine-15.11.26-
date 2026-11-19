@@ -71,7 +71,10 @@ def explain(setup: dict, panel: dict, events: pd.DataFrame | None = None) -> dic
             bits.append("dollar " + ("strong" if ctx["usd_20d_z"] > 0.5 else "weak" if ctx["usd_20d_z"] < -0.5 else "steady"))
         if bits:
             parts.append("Backdrop at entry: " + ", ".join(bits) + ".")
-    return dict(id=setup["id"], text=" ".join(parts), tags=tags, won=won, gross=g, mae=round(mae, 4), mfe=round(mfe, 4), market=None if mk is None else round(mk, 4), reason=reason, earnings=earn)
+    i0 = d.index.get_loc(ent)
+    seg = d["close"].iloc[max(0, i0 - 8): d.index.get_loc(ex) + 2]
+    series = dict(dates=[f"{x:%Y-%m-%d}" for x in seg.index], close=[round(float(v), 4) for v in seg.values], entry=f"{ent:%Y-%m-%d}", exit=f"{ex:%Y-%m-%d}", entry_px=round(ep, 4), invalidation=inv)
+    return dict(id=setup["id"], series=series, text=" ".join(parts), tags=tags, won=won, gross=g, mae=round(mae, 4), mfe=round(mfe, 4), market=None if mk is None else round(mk, 4), reason=reason, earnings=earn)
 
 
 CONDITIONS = {

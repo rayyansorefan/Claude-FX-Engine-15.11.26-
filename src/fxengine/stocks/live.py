@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from . import alerts, rates as R
 from .sizing import stop_for, shares as size_shares
+from . import universe as U
 from .universe import yahoo_symbol
 
 URL = "https://query1.finance.yahoo.com/v8/finance/chart/{t}?range=1d&interval=5m"
@@ -45,11 +46,17 @@ def parse_quote(text: str) -> dict | None:
         return None
 
 
+def _allowed(sym: str) -> bool:
+    sym = sym.lower()
+    ca, ch = U.allowed_countries(), U.allowed_home()
+    return (ca is None or U.country_code(sym) in ca) and (ch is None or U.home_country(sym) in ch)
+
+
 def watch_list(sp: dict) -> list[dict]:
-    """Held paper positions first, then today's new (proven) setups."""
+    """Held paper positions first, then today's new (proven) setups, only in markets/countries you can trade."""
     by_id = {r["id"]: r for r in sp.get("setups", [])}
     held = [by_id[p["id"]] for p in (sp.get("account") or {}).get("positions", []) if p["id"] in by_id]
-    new = [r for r in sp.get("setups", []) if r["status"] == "PENDING" and r.get("proven")]
+    new = [r for r in sp.get("setups", []) if r["status"] == "PENDING" and r.get("proven") and _allowed(r["symbol"])]
     seen, out = set(), []
     for r in held + new:
         if r["symbol"] not in seen:
@@ -58,8 +65,8 @@ def watch_list(sp: dict) -> list[dict]:
     return out[:MAX_SYMBOLS]
 
 
-def plan_live(sp: dict, quotes: dict, rates: dict, rank: dict | None = None) -> dict:
-    """Pure function: nightly state + live quotes -> the live plan. No I/O."""
+def plan_live(sp: dict, quotes: dict, rates: dict, rank: dict | None = None, today: str | None = None) -> dict:
+    """Pure function: nightly state + live quotes -> the live plan. No I/O. With `today` (UTC date), a market's open only counts if its session IS today: a market that has not opened yet shows yesterday's session and must not trade."""
     acct = sp.get("account") or {}
     by_id = {r["id"]: r for r in sp.get("setups", [])}
     positions = acct.get("positions", [])
@@ -74,6 +81,8 @@ def plan_live(sp: dict, quotes: dict, rates: dict, rank: dict | None = None) -> 
             live_pos.append(dict(p, live=False))
             continue
         day = q["open_date"] or ""
+        if today and day != today:
+            q = dict(q, open=None)                                       # that market's session is not today's yet: no exit at an old open
         if row.get("status") in SELL and q["open"] is not None and day > p["entry_date"]:
             val = p["shares"] * R.gbp(rates, p["symbol"], q["open"], day)
             cash += val
@@ -82,14 +91,14 @@ def plan_live(sp: dict, quotes: dict, rates: dict, rank: dict | None = None) -> 
             continue
         val = p["shares"] * R.gbp(rates, p["symbol"], q["price"], day or "9999")
         live_pos.append(dict(p, live=True, price=q["price"], value=round(val, 2), floating=round(val - p["cost"], 2), t=q["t"]))
-    cands = [r for r in sp.get("setups", []) if r["status"] == "PENDING" and r.get("proven") and r["symbol"] in quotes and r["id"] not in {p["id"] for p in positions}]
+    cands = [r for r in sp.get("setups", []) if r["status"] == "PENDING" and r.get("proven") and r["symbol"] in quotes and r["id"] not in {p["id"] for p in positions} and _allowed(r["symbol"])]
     rank = rank or {}
     cands.sort(key=lambda r: (-rank.get(r["rule"], 0.0), -r.get("strength", 0.0)))
     equity = balance
     for r in cands:
         q = quotes[r["symbol"]]
         day = q["open_date"]
-        if q["open"] is None or not day or r["signal_date"] >= day:
+        if q["open"] is None or not day or r["signal_date"] >= day or (today and day != today):
             continue                                                     # market not open yet, or the signal is from today's own session
         if r["symbol"] in sym_held or any(e["symbol"] == r["symbol"] for e in entries):
             skipped.append(dict(id=r["id"], symbol=r["symbol"], why="already held through another setup"))
@@ -150,7 +159,7 @@ def run(sp_path: Path = Path("docs/results/stocks_setups.json"), out: Path = Pat
     rank = {}
     if Path(res_path).exists():
         rank = {x["rule"]: x["roi"] for x in json.loads(Path(res_path).read_text()).get("rules", []) if "roi" in x}
-    plan = plan_live(sp, quotes, R.load(raw), rank)
+    plan = plan_live(sp, quotes, R.load(raw), rank, today=now.strftime("%Y-%m-%d"))
     plan["day_ok"] = plan["date"] == now.strftime("%Y-%m-%d")           # only trust the plan if it is about today's session
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(dict(asof=now.strftime("%Y-%m-%d %H:%M"), prices=quotes, failed=failed, plan=plan)))

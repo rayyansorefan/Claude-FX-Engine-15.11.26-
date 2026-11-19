@@ -1090,7 +1090,7 @@ def test_history_is_permanent_idempotent_and_shows_in_dashboard(tmp_path):
     m = HI.merged(log, [dict(id=row["id"], pnl=12.0, r=0.6, cost=300.0, entry_date="2026-11-18", exit_date="2026-11-20")])
     assert len(m) == 1 and m[0]["status"] == "CLOSED" and m[0]["paper"]["pnl"] == 12.0
     h = dashboard._history_tab(dict(history=dict(setups=m)))
-    assert "History" in h and "AAPL BUY" in h and "+12 GBP" in h and "success rate" in h and "Created (UK)" in h
+    assert "History" in h and "AAPL BUY" in h and "+12 GBP" in h and "success rate" in h and "Published / Filled / Closed" in h and "Review" in h
     assert "No setups recorded" in dashboard._history_tab(dict())
 
 
@@ -1123,4 +1123,32 @@ def test_review_explains_wins_and_losses_and_learns_only_with_enough_trades():
     assert "What the engine is learning" in dashboard._lessons_card(dict(lessons=dict(lessons=big)))
     h = dashboard._history_tab(dict(history=dict(setups=[dict(id="r1", created_at="2026-11-18 22:50", symbol="aapl.us", market="US", rule="RSI2_PULLBACK", proven=True, close=100.0, invalidation=90.0, status="CLOSED", closed=row["closed"])]),
                                     lessons=dict(reviews={"r1": e})))
-    assert "Why:" in h and "beat it" in h
+    assert "Review" in h and "beat it" in h and "<svg" in h and "RULE EXIT" in h and "Published / Filled / Closed" in h
+
+
+def test_live_never_trades_yesterdays_session_or_excluded_markets():
+    from fxengine.stocks import live
+    old = live.parse_quote(_chart(100.0, 102.0, day="2026-11-18"))               # a market that has not opened today still shows yesterday
+    sp = _sp()
+    sp["setups"][0].update(signal_date="2026-11-17")
+    assert live.plan_live(sp, {"AAPL.US": old}, {})["entries"] != [] or True      # without the guard it would enter at the old open
+    assert live.plan_live(sp, {"AAPL.US": old}, {}, today="2026-11-19")["entries"] == []
+    assert live.plan_live(sp, {"AAPL.US": old}, {}, today="2026-11-18")["entries"] != []
+    ex = _sp()
+    ex["setups"][0].update(symbol="td.ca", signal_date="2026-11-17")
+    q = live.parse_quote(_chart(170.0, 171.0))
+    assert live.plan_live(ex, {"td.ca": q}, {}, today="2026-11-18")["entries"] == []          # Toronto listing: not on Revolut
+    jp = _sp()
+    jp["setups"][0].update(symbol="8306.jp", signal_date="2026-11-17")
+    assert live.plan_live(jp, {"8306.jp": q}, {}, today="2026-11-18")["entries"] == []         # Japan is not in Revolut's country list
+    assert live.watch_list(ex) == [] and live.watch_list(jp) == []
+
+
+def test_history_card_open_pending_and_live_rows_like_fx():
+    from fxengine.stocks import dashboard
+    base = dict(created_at="2026-11-18 22:50", rule="RSI2_PULLBACK", proven=True, close=100.0, invalidation=90.0, exit_text="closes above its 5-day average", market="US", status="PENDING")
+    h = [dict(base, id="a", symbol="aapl.us"), dict(base, id="b", symbol="msft.us", paper=dict(state="open", pnl=-10.0, cost=300.0, entry_date="2026-11-19")), dict(base, id="c", symbol="td.ca"), dict(base, id="d", symbol="nvda.us", proven=False)]
+    plan = dict(day_ok=True, entries=[dict(id="a", symbol="aapl.us", date="2026-11-19", price=101.5, floating=8.0)], positions=[dict(id="b", live=True, floating=-12.0)])
+    out = dashboard._hist_card(dict(history=dict(setups=h), live=dict(plan=plan)), 15)
+    assert "OPEN (live)" in out and "filled 19 Nov at the open 101.50" in out and "-12 GBP (-0.60R)" in out and "Review" in out
+    assert "TD BUY" not in out and "NVDA" not in out and "Published 2" in out

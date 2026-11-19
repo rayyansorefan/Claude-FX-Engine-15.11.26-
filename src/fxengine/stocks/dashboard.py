@@ -138,43 +138,94 @@ def _fund_card(sp: dict) -> str:
 colr = lambda x: "up" if (x or 0) > 0 else "dn" if (x or 0) < 0 else "muted"
 
 
+def _spark(series: dict | None, gross: float | None) -> str:
+    """Small price chart for a finished trade: close prices around the hold, buy and sell marked, invalid-below level dashed. Inline SVG, opens with the arrow like the FX history."""
+    if not series or len(series.get("close", [])) < 3:
+        return ""
+    cl, dt = series["close"], series["dates"]
+    lo, hi = min(cl + ([series["invalidation"]] if series.get("invalidation") else [])), max(cl)
+    W, H = 560, 130
+    x = lambda i: 8 + i * (W - 16) / (len(cl) - 1)
+    y = lambda v: H - 10 - (v - lo) / ((hi - lo) or 1) * (H - 24)
+    pts = " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in enumerate(cl))
+    mark = ""
+    for key, col, lab in (("entry", "#3987e5", "BUY"), ("exit", "#d4a72c", "SELL")):
+        if series.get(key) in dt:
+            i = dt.index(series[key])
+            mark += f'<circle cx="{x(i):.1f}" cy="{y(cl[i]):.1f}" r="4" fill="{col}"/><text x="{x(i):.1f}" y="{y(cl[i]) - 8:.1f}" fill="{col}" font-size="10" text-anchor="middle">{lab}</text>'
+    inv = f'<line x1="8" x2="{W - 8}" y1="{y(series["invalidation"]):.1f}" y2="{y(series["invalidation"]):.1f}" stroke="#9c2b2b" stroke-dasharray="4 3"/><text x="{W - 10}" y="{y(series["invalidation"]) - 3:.1f}" fill="#9c2b2b" font-size="10" text-anchor="end">invalid below</text>' if series.get("invalidation") and lo <= series["invalidation"] else ""
+    return f'<svg viewBox="0 0 {W} {H}" style="width:100%;max-width:{W}px;height:auto;margin-top:6px"><polyline points="{pts}" fill="none" stroke="var(--ink2)" stroke-width="1.6"/>{inv}{mark}</svg>'
+
+
 def _hist_card(sp: dict | None, limit: int = 15, empty: str | None = None) -> str:
-    """Same layout as the FX engine's History card: one summary line, then Created (UK) | Setup | Rule | Outcome | P&L. Every setup ever flagged, kept in data/stocks/history.jsonl."""
+    """Same approach as the FX engine's History: the trades the engine published, each with Published / Filled / Closed times (UK), the setup, the rule, the result and the P&L in GBP,
+    a Review line under every row and a chart behind the arrow for finished trades. Stocks that are tracked but not traded stay in data/stocks/history.jsonl."""
     from datetime import datetime as _dt
     from zoneinfo import ZoneInfo
-    h = ((sp or {}).get("history") or {}).get("setups") or []
+    from . import universe as U
+    sp = sp or {}
+    h = (sp.get("history") or {}).get("setups") or []
+    rv = (sp.get("lessons") or {}).get("reviews") or {}
+    plan = ((sp.get("live") or {}).get("plan") or {}) if ((sp.get("live") or {}).get("plan") or {}).get("day_ok") else {}
+    live_in = {e["id"]: e for e in plan.get("entries", [])}
+    live_pos = {p["id"]: p for p in plan.get("positions", []) if p.get("live")}
+    ca, ch = U.allowed_countries(), U.allowed_home()
+    h = [r for r in h if r.get("proven") and (ca is None or U.country_code(r["symbol"]) in ca) and (ch is None or U.home_country(r["symbol"]) in ch)]
     if not h:
-        return '<p class="muted">No setups recorded yet. This fills in the night the first setup is flagged.</p>'
+        return '<p class="muted">No setups recorded yet. This fills in the night the first proven setup is flagged.</p>'
 
     def uk(t):
         try:
             return _dt.strptime(t, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc).astimezone(ZoneInfo("Europe/London"))
         except Exception:
             return None
+    day = lambda d: f"{_dt.strptime(d, '%Y-%m-%d'):%d %b}" if d else ""
 
-    def gbp(r):                                           # paper-account P&L where it held the setup, else the hypothetical at £20 risk (gain / distance to the invalid-below level)
-        if r.get("paper"):
-            return r["paper"]["pnl"]
-        c = r.get("closed")
-        if not c:
-            return None
-        inv, cl = r.get("invalidation"), r.get("close") or 0
-        risk = (cl - inv) / cl if inv and cl and 0 < inv < cl else 0.10
-        return c["gross"] / risk * 20.0
-    done = [r for r in h if r["status"] == "CLOSED" and r.get("closed")]
-    wins = sum(r["closed"]["gross"] > 0 for r in done)
+    def state(r):
+        pp, c = r.get("paper"), r.get("closed")
+        if r["id"] in live_in and not pp:
+            e = live_in[r["id"]]
+            return dict(kind="open", filled=f"filled {day(e['date'])} at the open {e['price']:,.2f}", closed="still open", pnl=e["floating"], r=e["floating"] / 20.0, live=True)
+        if pp and pp["state"] == "open":
+            lv = live_pos.get(r["id"])
+            pnl = lv["floating"] if lv else pp["pnl"]
+            return dict(kind="open", filled=f"filled {day(pp['entry_date'])} at the open", closed="still open", pnl=pnl, r=pnl / 20.0, live=bool(lv))
+        if pp and pp["state"] == "closed":
+            return dict(kind="closed", filled=f"filled {day(pp['entry_date'])} at the open", closed=f"closed {day(pp['exit_date'])} at the open", pnl=pp["pnl"], r=pp["r"])
+        if c:
+            inv, cl = r.get("invalidation"), r.get("close") or 0
+            risk = (cl - inv) / cl if inv and cl and 0 < inv < cl else 0.10
+            return dict(kind="closed", filled=f"filled {day(c['entry_date'])} at the open", closed=f"closed {day(c['exit_date'])} at the open", pnl=c["gross"] / risk * 20.0, r=c["gross"] / risk, hyp=True)
+        return dict(kind="pending", filled="waiting for the open", closed="", pnl=None, r=None)
+    rows_all = [(r, state(r)) for r in h]
+    done = [(r, s_) for r, s_ in rows_all if s_["kind"] == "closed"]
+    wins = sum(s_["pnl"] > 0 for _, s_ in done)
     lost = len(done) - wins
     rows = ""
-    for r in h[:limit]:
-        t = uk(r["created_at"])
-        c, pv = r.get("closed"), gbp(r)
-        outc = (f"CLOSED {pct(c['gross'], d=1)}" if c else r["status"])
-        why = ((sp or {}).get("lessons") or {}).get("reviews", {}).get(r["id"])
-        rows += (f"<tr><td class='mono'>{t:%d %b %H:%M}</td>" if t else "<tr><td></td>") + (f"<td>{E(r['symbol'].split('.')[0].upper())} BUY</td><td>{E(INFO.get(r['rule'], (r['rule'],))[0])}</td><td>{E(outc)}" + (f"<div class='muted' style='font-size:12px;max-width:520px;white-space:normal'><b>Why:</b> {E(why['text'])}</div>" if why else "") + "</td>"
-                 f"<td class='num {'up' if (pv or 0) > 0 else 'dn' if (pv or 0) < 0 else ''}'>{'' if pv is None else f'{pv:+.0f} GBP'}</td></tr>")
-    return (f"<p class='muted'>Flagged {len(h)} · resolved {len(done)} · won {wins} · lost {lost} · success rate {'n/a' if not done else f'{wins / len(done) * 100:.0f}%'}</p>"
-            f"<table class='tbl'><tr><th>Created (UK)</th><th>Setup</th><th>Rule</th><th>Outcome</th><th class='r'>P&amp;L</th></tr>{rows}</table>"
-            + ("<p class='muted' style='font-size:12px;margin:8px 0 0'>P&amp;L = the £2,500 paper account's result where it held the setup; otherwise the hypothetical at £20 risk, price only, before costs. Every setup is kept for good.</p>"))
+    for r, s_ in rows_all[:limit]:
+        t, review = uk(r["created_at"]), rv.get(r["id"])
+        ser = review.get("series") if review else None
+        res = {"open": "OPEN (live)" if s_.get("live") else "OPEN", "pending": "PENDING"}.get(s_["kind"])
+        if s_["kind"] == "closed":
+            res = "STOP" if (review and review["reason"].startswith("invalid")) else "TIME LIMIT" if (review and review["reason"].startswith("time")) else "RULE EXIT"
+        pnl = "" if s_["pnl"] is None else f"{s_['pnl']:+.0f} GBP" + (f" ({s_['r']:+.2f}R)" if s_["kind"] == "open" else "")
+        cls = "up" if (s_["pnl"] or 0) > 0 else "dn" if (s_["pnl"] or 0) < 0 else ""
+        closed_line = (f"<details style='margin:0'><summary style='cursor:pointer;list-style:none'><b>{E(s_['closed'])} \u25b8</b></summary>{_spark(ser, r['closed']['gross'] if r.get('closed') else None)}</details>" if s_["kind"] == "closed" and ser else f"<b>{E(s_['closed'])}</b>")
+        if s_["kind"] == "closed" and review:
+            text = ("Win: " if s_["pnl"] > 0 else "Loss: ") + review["text"].split("; ", 1)[-1] if False else review["text"]
+        elif s_["kind"] == "open":
+            text = (f"Open: now {s_['r']:+.2f}R ({s_['pnl']:+.0f} GBP). The rule exits at: {r.get('exit_text') or 'its own exit signal'}" + (f"; sold early if it closes below {r['invalidation']:,.2f}." if r.get("invalidation") else "."))
+        elif s_["kind"] == "pending":
+            text = "Published for the next open. The paper account buys it at the real opening price if cash allows."
+        else:
+            text = "Closed" + (" (hypothetical at £20 risk, not held by the paper account)." if s_.get("hyp") else ".")
+        rows += (f"<tr><td class='mono'><b>{t:%d %b %H:%M}</b><br><span class='muted'>{E(s_['filled'])}</span><br>{closed_line}</td>" if t else "<tr><td></td>") + (
+            f"<td>{E(r['symbol'].split('.')[0].upper())} BUY</td><td>{E(INFO.get(r['rule'], (r['rule'],))[0])}</td><td>{E(res)}</td><td class='num {cls}'>{E(pnl)}</td></tr>"
+            f"<tr><td colspan='5' class='muted' style='font-size:12px'><b>Review</b> \u00b7 {E(text)}</td></tr>")
+    return (f"<p class='muted'>Published {len(h)} · resolved {len(done)} · won {wins} · lost {lost} · success rate {'n/a' if not done else f'{wins / len(done) * 100:.0f}%'}</p>"
+            "<p class='muted'>Tap a finished trade (\u25b8) to see its chart.</p>"
+            f"<table class='tbl'><tr><th>Published / Filled / Closed (UK)</th><th>Setup</th><th>Rule</th><th>Result</th><th class='r'>P&amp;L</th></tr>{rows}</table>"
+            "<p class='muted' style='font-size:12px;margin:8px 0 0'>P&amp;L = the £2,500 paper account's result (£20 risk = 1R), price only, before costs. Every flagged setup, including ones the paper account did not trade, is kept in data/stocks/history.jsonl.</p>")
 
 
 def _history_tab(sp: dict | None) -> str:
