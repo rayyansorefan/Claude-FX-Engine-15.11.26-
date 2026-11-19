@@ -16,3 +16,6 @@ Deterministic code only (zero Claude at runtime). Parameters stay frozen per ver
 - Entry filters: at most 2 conditions per rule, each chosen filter must keep >= 40% of historical trades, and none is applied without passing validation AND a deliberate, announced switch (ops/filters.json).
 - Throughput guard (weekly review): if filters remove more than 50% of candidates over 7 days (>= 6 candidates seen), they are switched off automatically and Rayyan is told.
 - Setup frequency is measured, not assumed: the dashboard/Telegram weekly note reports published vs filtered counts.
+
+## Applied filters (log)
+- 2026-11-19: range_reversion = vol_not_low + htf_with (ops/filters.json). Entry-filter study: +0.157R stressed / +0.160R measured per trade vs unfiltered on the unseen later 40%, clustered CI lower bound > 0, above random skipping. Still a net loser (-0.037R): less bad, not profitable. Not applied: asia_breakout, trend_pullback, E2 (no gain); E1_strength (+0.17R but CI includes 0).

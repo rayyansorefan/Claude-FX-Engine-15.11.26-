@@ -53,3 +53,10 @@ def test_live_publisher_applies_only_switched_on_filters(tmp_path, monkeypatch):
     assert L.publish(conn, {}, lambda *a: True, [cand("GBPUSD", -1)], now) == []                      # filtered out
     assert len(L.publish(conn, {}, lambda *a: True, [cand("USDJPY", 1)], now)) == 1                    # passes the filter
     assert DB.kv_get(conn, "filtered_out") == "1"
+
+
+def test_the_deployed_filter_file_is_valid_and_only_uses_known_conditions():
+    raw = json.loads(open("ops/filters.json").read())
+    for rule, spec in raw.items():
+        assert set(spec["atoms"]) <= set(FL.ATOMS) and len(spec["atoms"]) <= 2           # max two conditions: no stacked vetoes
+    assert FL.load("ops/filters.json") == {k: v["atoms"] for k, v in raw.items() if v.get("active")}

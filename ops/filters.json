@@ -1,1 +1,7 @@
-{}
+{
+  "range_reversion": {
+    "active": true,
+    "atoms": ["vol_not_low", "htf_with"],
+    "source": "docs/results/entries.md (entry-filter study, validated on unseen later 40%: +0.157R stressed / +0.160R measured vs unfiltered, clustered 95% lower bound > 0, beats random skipping). Rule is still a net loser (-0.037R): the filter makes it LESS bad, not profitable. Applied 2026-11-19. Throughput guard switches it off if >50% of candidates are removed in a week."
+  }
+}
