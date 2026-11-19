@@ -52,6 +52,43 @@ def usd_rates(root) -> dict:
     return out
 
 
+META: dict = {}
+ACCT: dict = {}                                            # run_id -> no-leverage account decision (lots held, scale vs the £20-risk lots, taken or not), set once per build
+
+
+def set_acct(c, root) -> None:
+    """The £2,500 account with NO leverage, replayed over every published setup (past, open, waiting): lots held and the factor that turns the £20-risk result into the real one."""
+    global ACCT
+    try:
+        from ..live import account as ACC
+        px = {}
+        for pr in ("GBPUSD", "EURGBP", "AUDUSD", "NZDUSD"):
+            m = store.load(pr, "M5", root, tail=3)
+            if len(m):
+                px[pr] = float(m.bid_c.iloc[-1])
+        if len(px) < 4:                                     # a missing price file must not silently zero the account: show the plain £20-risk view instead
+            ACCT = {}
+            META.clear()
+            return
+        rows = ACC.rows_from_db(c)
+        ACCT = ACC.replay(rows, px)
+        ends = {r["run_id"]: r["end"] for r in rows}
+        expo = sum(d["value"] for i, d in ACCT.items() if d["taken"] and ends.get(i) is None)
+        real = sum(float(r["net_r"]) * ACC.RISK * ACCT[r["run_id"]]["scale"] for r in rows if r["end"] is not None and r["net_r"] is not None and ACCT[r["run_id"]]["taken"])
+        META.update(exposure=expo, free=ACC.ACCOUNT + real - expo, balance=ACC.ACCOUNT + real, not_taken=sum(1 for d in ACCT.values() if not d["taken"]))
+    except Exception:
+        ACCT = {}
+
+
+def acct_of(run_id):
+    return ACCT.get(run_id)
+
+
+def scale_of(run_id) -> float:
+    a = ACCT.get(run_id)
+    return 1.0 if a is None else a["scale"]
+
+
 def usd_txt(v) -> str:
     return "" if v is None else f"${v:,.0f}"
 
@@ -386,8 +423,9 @@ def gbp(v: float, signed=True) -> str:
 def live_pnl(c, root, now):
     """Live (hypothetical) profit and loss from the engine's own ledger. Realised = resolved trades after modelled costs.
     Floating = open triggered trades marked to the latest bid (before commission/swap). Nothing here is typed in."""
-    rows = c.execute("SELECT o.reason, o.net_r, o.resolved_at FROM outcomes o").fetchall()
-    trades = sorted((pd.Timestamp(r["resolved_at"]), float(r["net_r"]), r["reason"]) for r in rows if r["reason"] in ("TARGET", "STOP", "TIMEOUT"))
+    rows = c.execute("SELECT o.run_id, o.reason, o.net_r, o.resolved_at FROM outcomes o").fetchall()
+    trades = sorted((pd.Timestamp(r["resolved_at"]), float(r["net_r"]) * scale_of(r["run_id"]), r["reason"]) for r in rows
+                    if r["reason"] in ("TARGET", "STOP", "TIMEOUT") and (acct_of(r["run_id"]) is None or acct_of(r["run_id"])["taken"]))      # no leverage: only trades the £2,500 account could hold, at the size it could hold
     today = now.normalize()
     wk, mo = today - pd.Timedelta(days=today.day_of_week), today.replace(day=1)
     pay = lambda lo: sum(r for t, r, _ in trades if t >= lo) * RISK
@@ -406,8 +444,11 @@ def live_pnl(c, root, now):
             last = m5.iloc[-1]
             exit_px = last.bid_c if s["direction"] == "long" else (last.ask_c if "ask_c" in m5.columns else last.bid_c)
             fr = (exit_px - t.fill) / t.s.risk if s["direction"] == "long" else (t.fill - exit_px) / t.s.risk
-            opens.append((s["pair"], s["direction"], float(fr)))
-            float_r += float(fr)
+            if acct_of(s["run_id"]) is not None and not acct_of(s["run_id"])["taken"]:
+                continue
+            fr = float(fr) * scale_of(s["run_id"])
+            opens.append((s["pair"], s["direction"], fr))
+            float_r += fr
     except Exception as ex:                                   # show that it failed; never hide it as zero
         note = f"floating P&L unavailable ({type(ex).__name__})"
     realised = sum(r for _, r, _ in trades) * RISK
@@ -436,7 +477,8 @@ def live_panel(lp):
     if len(lp["curve"]) > 5:
         curve = f"<div style='margin-top:10px'>{line_chart([('Live', '--s1', lp['curve'])], '£', pre='£', suf='', base=START)}</div>"
     foot = (f"Published {lp['n_pub']} · filled {lp['n_fill']} · closed {lp['wins'] + lp['losses']} · expired or invalidated without a trade {lp['n_nt']}. "
-            f"Hypothetical: £{RISK:.0f} risk per setup, nothing was traded. {e(lp['note'])}")
+            f"Hypothetical: sized to £{RISK:.0f} risk but never more than the account can hold (NO leverage), nothing was traded. "
+            + (f"In positions now £{META['exposure']:,.0f} of £{META['balance']:,.0f} (free £{META['free']:,.0f}); {META['not_taken']} setup(s) not taken for lack of cash. " if META else "") + f"{e(lp['note'])}")
     return (f"<div class='card c12'><h3>Live profit &amp; loss · hypothetical, scored by the engine</h3><div class='kpis' style='margin:0 0 8px'>{html}</div>"
             f"<div>{opens}</div><p class='muted' style='margin:6px 0 0'>{foot}</p>{curve}</div>")
 
@@ -482,11 +524,15 @@ def trades_data(c, root, now, closed_n=6):
         if not closed and any("trail" in x["d"] or "adjusted" in x["d"] for x in ev):
             state = "OPEN"
         p_ = pip(pair)
-        out.append(dict(run_id=r["run_id"], pair=pair, dir=dirn, tf=rec["tf"], type=rec["type"], state=state, closed=closed,
+        a_ = acct_of(r["run_id"])
+        lots_rec = rec.get("lots_for_20gbp_risk")
+        lots_eff = lots_rec if a_ is None else a_["lots"]
+        scale_ = 1.0 if a_ is None else a_["scale"]
+        out.append(dict(run_id=r["run_id"], scale=scale_, taken=(a_ is None or a_["taken"]), why=("" if a_ is None else a_["why"]), lots_rec=lots_rec, pair=pair, dir=dirn, tf=rec["tf"], type=rec["type"], state=state, closed=closed,
                         entry=rec["entry"], entry_kind=rec.get("entry_kind", ""), stop=rec["stop"], target=rec["target"], fill=fill, fill_ts=fill_ts,
                         created=int(pd.Timestamp(rec["created"]).timestamp()), created_s=rec["created"], expires_s=rec["expires"], price=price,
-                        lots=rec.get("lots_for_20gbp_risk"), usd=usd_notional(pair, rec.get("lots_for_20gbp_risk"), fill if fill is not None else rec["entry"], ur), stop_pips=rec.get("stop_pips"), rr=reward / risk, reward_gbp=RISK * reward / risk,
-                        float_r=float_r, peak_r=peak, worst_r=worst, pnl_gbp=(None if not closed else float(r["net_r"] or 0) * RISK), reason=str(rec.get("reason", "")),
+                        lots=lots_eff, usd=usd_notional(pair, lots_eff, fill if fill is not None else rec["entry"], ur), stop_pips=rec.get("stop_pips"), rr=reward / risk, reward_gbp=RISK * reward / risk,
+                        float_r=float_r, peak_r=peak, worst_r=worst, pnl_gbp=(None if not closed else float(r["net_r"] or 0) * RISK * scale_), reason=str(rec.get("reason", "")),
                         pips_to_entry=(None if price is None else (rec["entry"] - price) / p_), score=rec.get("score"), events=ev,
                         resolved_at=r["resolved_at"], closed_ts=_epoch(r["resolved_at"])))
     return out
@@ -502,7 +548,7 @@ def trade_card(i, t, now):
     elif t["closed"]:
         big, sub, c = "£0", f"{st.lower()} · no trade taken", "muted"
     elif t["float_r"] is not None:
-        g = t["float_r"] * RISK
+        g = t["float_r"] * RISK * t.get("scale", 1.0)
         big, sub, c = gbp(g), f"floating · {t['float_r']:+.2f}R (before commission/swap)", ("up" if g > 0.5 else "dn" if g < -0.5 else "muted")
     else:
         pe = t["pips_to_entry"]
@@ -521,8 +567,8 @@ def trade_card(i, t, now):
         pe = 0 if a == b else min(100, max(0, (t["entry"] - a) / (b - a) * 100))
         bar = (f"<div class='bar'><i style='left:{pe:.1f}%' class='en'></i><b style='left:{pct:.1f}%'></b></div>"
                f"<div class='barl'><span>STOP {px(t['pair'], t['stop'])}</span><span>price {px(t['pair'], t['price'])}</span><span>TARGET {px(t['pair'], t['target'])}</span></div>")
-    nums = [("Entry", px(t["pair"], t["entry"]), f"{t['entry_kind']} order"), ("Stop", px(t["pair"], t["stop"]), f"{t['stop_pips']} pips · −£{RISK:.0f}"),
-            ("Target", px(t["pair"], t["target"]), f"+£{t['reward_gbp']:.0f} · 1:{t['rr']:.1f}"), ("Size", f"{t['lots']} lots", (usd_txt(t.get('usd')) + " · " if t.get('usd') else "") + f"risk £{RISK:.0f}"),
+    nums = [("Entry", px(t["pair"], t["entry"]), f"{t['entry_kind']} order"), ("Stop", px(t["pair"], t["stop"]), f"{t['stop_pips']} pips · −£{RISK * t.get('scale', 1.0):.0f}"),
+            ("Target", px(t["pair"], t["target"]), f"+£{t['reward_gbp']:.0f} · 1:{t['rr']:.1f}"), (("Size", f"{t['lots']} lots", (usd_txt(t.get('usd')) + " · " if t.get('usd') else "") + f"risk £{RISK * t.get('scale', 1.0):.0f} · no leverage") if t.get("taken", True) else ("Size", "not taken", "no free cash in the £2,500 account")),
             (("Closed", f"{uk(t['resolved_at']):%d %b %H:%M}" if t["resolved_at"] else "—", st.lower()) if t["closed"] else ("Price now", "—" if t["price"] is None else px(t["pair"], t["price"]), "bid")), ("Filled at", "—" if t["fill"] is None else px(t["pair"], t["fill"]), "hypothetical")]
     nh = "".join(f"<div><small>{a}</small><b>{b}</b><span>{c2}</span></div>" for a, b, c2 in nums)
     why = "".join(f"<div>{e(x)}</div>" for x in t["reason"].split("\n")[:2] if x.strip())
@@ -844,6 +890,8 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     sc = base[base.triggered] if base is not None else None
     live = live_record(dbc) if dbc else []
     live_net = sum(r["net_r"] or 0 for r in live if r["reason"] in ("TARGET", "STOP", "TIMEOUT"))
+    if dbc:
+        set_acct(dbc, root)
     lp = live_pnl(dbc, root, now) if dbc else None
     trades = trades_data(dbc, root, now, closed_n=12) if dbc else []
     closed_ids = {t['run_id'] for t in trades if t['closed']}
@@ -874,6 +922,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     # --- positions
     levels, cards = {}, ""
     _ur = usd_rates(root)
+    _cl = lambda c_: (acct_of(c_["run_id"])["lots"] if acct_of(c_["run_id"]) is not None else c_["lots_for_20gbp_risk"])
     for c in cands:
         left = max(0, (pd.Timestamp(c["expires"]) - now).total_seconds() / 3600)
         risk = abs(c["entry"] - c["stop"]); rew = abs(c["target"] - c["entry"])
@@ -882,7 +931,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
                   f"<div class='meta'><span class='st'>{e(c.get('state', 'PENDING'))}</span> {e(STRATS.get(c['type'], (c['type'],))[0])} · {c['tf']}</div>"
                   f"<div class='meta'>{e(str(c.get('reason', '')).split(chr(10))[0])}</div></div>{mini_chart(c, root)}"
                   f"<div class='mono'>entry {px(c['pair'], c['entry'])} ({c['entry_kind']})<br>stop {px(c['pair'], c['stop'])} <span class='muted'>({c['stop_pips']}p)</span><br>target {px(c['pair'], c['target'])}"
-                  f"<div class='meta'>{c['lots_for_20gbp_risk']} lots{(' = ' + usd_txt(usd_notional(c['pair'], c['lots_for_20gbp_risk'], c['entry'], _ur))) if usd_notional(c['pair'], c['lots_for_20gbp_risk'], c['entry'], _ur) else ''} · risk £{RISK:.0f} · reward £{RISK * rew / risk:.0f} (1:{rew / risk:.1f})<br>{left:.1f}h left · score {c['score']} · <span class='warnt'>UNPROVEN</span></div></div></div>")
+                  f"<div class='meta'>{_cl(c)} lots{(' = ' + usd_txt(usd_notional(c['pair'], _cl(c), c['entry'], _ur))) if usd_notional(c['pair'], _cl(c), c['entry'], _ur) else ''} · risk £{RISK * scale_of(c['run_id']):.0f} · no leverage · reward £{RISK * rew / risk:.0f} (1:{rew / risk:.1f})<br>{left:.1f}h left · score {c['score']} · <span class='warnt'>UNPROVEN</span></div></div></div>")
     if not cards:
         cards = "<p class='muted' style='padding:14px 0'><b style='color:var(--ink)'>No setups right now.</b> A valid outcome. The scan runs when the market is open.</p>"
     # live record table
@@ -890,11 +939,14 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     wins, losses = sum(r["reason"] == "TARGET" for r in done), sum(r["reason"] in ("STOP",) for r in done)
     def _state_pl(r):
         t = fl.get(r["run_id"])
+        a_ = acct_of(r["run_id"])
+        if a_ is not None and not a_["taken"]:
+            return (e(r["reason"] or r["state"] or "PENDING") + " · not taken"), "", "no cash"
         if r["reason"]:
-            v = (r["net_r"] or 0) * RISK
+            v = (r["net_r"] or 0) * RISK * scale_of(r["run_id"])
             return e(r["reason"]), ("up" if v > 0 else "dn"), ("" if r["net_r"] is None else f"{v:+.0f} GBP")
         if t and t.get("float_r") is not None:                    # open: show the live result, not just 'TRIGGERED'
-            v = t["float_r"] * RISK
+            v = t["float_r"] * RISK * scale_of(r["run_id"])
             return "OPEN (live)", ("up" if v > 0 else "dn"), f"{v:+.0f} GBP ({t['float_r']:+.2f}R)"
         return e(r["state"] or "PENDING"), "", ""
     def _review(r):
@@ -917,7 +969,8 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
                 return f"{uk(x):%d %b %H:%M}"
             except Exception:
                 return str(x)[:16]
-        lots_ = r["rec"].get("lots_for_20gbp_risk")
+        a_ = acct_of(r["run_id"])
+        lots_ = r["rec"].get("lots_for_20gbp_risk") if a_ is None else (a_["lots"] if a_["taken"] else None)
         fp_ = r.get("fill") if r.get("fill") is not None else (fl.get(r["run_id"]) or {}).get("fill")
         usd_ = usd_notional(r["rec"]["pair"], lots_, fp_ if fp_ is not None else r["rec"]["entry"], _hur)
         size_ = (f" · {lots_} lots" + (f" = {usd_txt(usd_)}" if usd_ else "") + (f" at {px(r['rec']['pair'], fp_)}" if fp_ is not None else "")) if lots_ else ""

@@ -36,12 +36,14 @@ def _cands(sym, d, tf, kind, sig, now, px, extra=None):
     for r in sig[sig.pos == last].itertuples():
         created = d.index[r.pos] + tf_delta(tf)
         lots, stop_pips = lots_for_risk(sym, r.entry, r.stop, px)
+        from . import account as ACC
+        pl_ = ACC.per_lot_gbp(sym, px)
         inv = getattr(r, "invalidation", float("nan"))
         out.append(dict(pair=sym, type=kind, tf=tf, direction=r.direction, entry_kind=r.kind,
                         entry=round(float(r.entry), 5), stop=round(float(r.stop), 5), target=round(float(r.target), 5),
                         created=str(created), expires=str(created + int(r.expiry_bars) * tf_delta(tf)),
                         invalidation=None if inv != inv else round(float(inv), 5), reason=str(getattr(r, "reason", kind)),
-                        stop_pips=round(stop_pips, 1), lots_for_20gbp_risk=lots, score=round(float(r.score), 2),
+                        stop_pips=round(stop_pips, 1), lots_for_20gbp_risk=lots, per_lot_gbp=None if pl_ is None else round(pl_, 2), score=round(float(r.score), 2),
                         note=NOTE, ctx=CTX.snapshot(d, int(r.pos), r.direction, (extra or {}).get('spread'), (extra or {}).get('h4'))))
     return out
 
@@ -72,7 +74,7 @@ def scan(root=store.ROOT, now=None, max_age_min=None):
             cands += _cands(sym, frames["H4"][sym], "H4", "E1_strength", sig, now, px, dict(spread=spr.get(sym), h4=frames["H4"][sym]))
     cands.sort(key=lambda c: -c["score"])
     return dict(generated=str(now), last_candle_close=None if last_m5 is None else str(last_m5 + pd.Timedelta(minutes=5)),
-                data_age_min=None if age_min is None else round(age_min, 1), candidates=cands[:5], total_found=len(cands),
+                data_age_min=None if age_min is None else round(age_min, 1), candidates=cands[:5], total_found=len(cands), px={k: round(v, 6) for k, v in px.items()},
                 status="OK" if age_min is not None and age_min <= 15 else ("STALE" if age_min is not None else "NO DATA"))
 
 

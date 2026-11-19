@@ -22,12 +22,23 @@ def why(c) -> str:
     return r if len(r) <= 58 else r[:55] + "..."
 
 
+def _size(c) -> str:
+    """Lots for the £2,500 account with NO leverage (position value never above the free cash); older records without it keep the old wording."""
+    la = c.get("lots_account")
+    if la is None:
+        return f"{c['lots_for_20gbp_risk']} lots (£20 risk)"
+    if la <= 0:
+        return "NOT AFFORDABLE: no free cash in the £2,500 account (published and scored anyway)"
+    pl = c.get("per_lot_gbp") or 0
+    return f"{la} lots = £{la * pl:,.0f} (no leverage; £20-risk size was {c['lots_for_20gbp_risk']})"
+
+
 def new(c) -> str:
     inv = c.get("invalidation")
     cancel = f" · cancel if close {'<=' if c['direction'] == 'long' else '>='} {p(c['pair'], inv)}" if inv is not None else ""
     return (f"🟢 NEW · {c['pair']} {c['direction'].upper()} · {c['tf']} {c['type']} · UNPROVEN\n"
             f"Entry {p(c['pair'], c['entry'])} ({c['entry_kind']} order) · stop-loss {p(c['pair'], c['stop'])} · target {p(c['pair'], c['target'])} · "
-            f"{c['lots_for_20gbp_risk']} lots (£20 risk)\n"
+            f"{_size(c)}\n"
             f"{why(c)} · expires {hhmm(c['expires'])} UK{cancel}")
 
 

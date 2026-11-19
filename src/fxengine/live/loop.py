@@ -99,10 +99,17 @@ def _alert(conn, env, send, c, idx, kind, text, event_ts, now, expires=None):
     return ok
 
 
-def publish(conn, env, send, cands, now):
+def publish(conn, env, send, cands, now, px=None):
     n_today = conn.execute("SELECT COUNT(*) FROM setups WHERE day=?", (str(now.date()),)).fetchone()[0]
     active_pairs = {s["pair"] for s in DB.active_setups(conn)}
     out = []
+    from . import account as ACC
+    free = None
+    if px:
+        try:
+            free = ACC.free_cash_now(conn, px)
+        except Exception:
+            free = None                                                  # never block publishing because the account view failed
     for c in sorted(cands, key=lambda x: -x["score"]):
         if n_today >= MAX_PER_DAY or c["pair"] in active_pairs or not (PUBLISH_HOURS[0] <= now.hour < PUBLISH_HOURS[1]):
             continue
@@ -116,6 +123,11 @@ def publish(conn, env, send, cands, now):
             DB.kv_set(conn, k, int(DB.kv_get(conn, k, 0)) + 1)
             DB.kv_set(conn, "filtered_out", int(DB.kv_get(conn, "filtered_out", 0)) + 1)
             continue
+        if free is not None:                                            # no leverage: how many lots the £2,500 account can really hold (0 = no free cash; still published and scored)
+            pl = c.get("per_lot_gbp") or ACC.per_lot_gbp(c["pair"], px)
+            c["lots_account"] = ACC.affordable_lots(float(c.get("lots_for_20gbp_risk") or 0), pl, free)
+            c["per_lot_gbp"] = None if pl is None else round(pl, 2)
+            free -= c["lots_account"] * (pl or 0)
         champ = DB.kv_get(conn, "champion_exit")
         if champ:                                                       # stored in the immutable record: this setup keeps its exit rule for life
             c["exit_rule"] = champ
@@ -204,7 +216,7 @@ def run_cycle(conn, env, now, send=telegram.send, root=store.ROOT, refresh_fn=No
                     cands = res["candidates"]
                 else:
                     cands = res
-                publish(conn, env, send, cands, now)
+                publish(conn, env, send, cands, now, px=(res.get("px") if isinstance(res, dict) else None))
                 DB.kv_set(conn, "last_scan", key)
             track(conn, env, send, root, now)
             retry_unsent(conn, env, send, now)

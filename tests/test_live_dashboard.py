@@ -121,9 +121,12 @@ def test_live_pnl_panel_numbers_and_charts_tab(tmp_path, monkeypatch):
     c.commit()
     html = db.build(root=tmp_path / "data" / "candles", out=None, now=now)
     assert "Live profit &amp; loss" in html
-    assert "+£16" in html                                     # (1.9 - 1.1) R x £20 = +£16 realised today
-    assert "£2,516" in html                                   # hypothetical balance
-    assert "1 · 1" in html and "50% win rate" in html
+    # NO LEVERAGE: 0.1 lots of EURUSD is worth thousands of pounds, so the £2,500 account holds only what fits; each result shrinks by the same factor
+    a = db.ACCT
+    realised = sum(r * 20.0 * a[f"r{i}"]["scale"] for i, r in enumerate([1.9, -1.1]) if a[f"r{i}"]["taken"])
+    assert 0 < a["r0"]["scale"] < 1 and a["r0"]["value"] <= 2500.0
+    assert f"£{2500 + realised:,.0f}" in html and "£2,516" not in html            # hypothetical balance with the account's real sizes
+    assert sum(1 for i in range(2) if a[f"r{i}"]["taken"]) >= 1
     assert "expired or invalidated without a trade 1" in html
     assert "All pairs at a glance" in html and "pickPair" in html and "To PDH" in html
     lv = json.loads(html.split("id='lv'>")[1].split("</script>")[0])
@@ -231,6 +234,29 @@ def test_dashboard_shows_position_size_in_dollars_on_card_and_history(tmp_path, 
     conn.execute("INSERT INTO events VALUES('live-1',1,'2025-06-03T09:05:00+00:00','PUBLISHED','TRIGGERED','f')"); conn.commit()
     html = build(root=tmp_path / "data" / "candles", out=None, now=pd.Timestamp("2025-06-03 10:00", tz="UTC"))
     import re
-    amounts = [int(x.replace(",", "")) for x in re.findall(r"\$(\d{2},\d{3})", html)]
-    assert "0.1 lots" in html and len(amounts) >= 2 and all(10_500 < a < 11_500 for a in amounts[:2])      # 0.1 lot = 10,000 EUR at ~1.10-1.11 = ~$11k, on the card AND the history 'filled' line
-    assert re.search(r"filled 03 Jun 10:05 · 0\.1 lots = \$11,\d{3} at 1\.\d{5}", html)
+    from fxengine.dashboard import build as B
+    a = B.ACCT["live-1"]
+    assert a["taken"] and a["lots"] < 0.1 and a["value"] <= 2500.0                                      # no leverage: 0.1 lots does not fit the £2,500 account
+    lots = a["lots"]
+    amounts = [int(x.replace(",", "")) for x in re.findall(r"\$(\d{1,3}(?:,\d{3})*)", html)]
+    assert f"{lots} lots" in html and "0.1 lots" not in html and any(abs(x - lots * 100000 * 1.1) < lots * 100000 * 0.06 for x in amounts)     # dollars follow the lots actually held
+    assert re.search(rf"filled 03 Jun 10:05 · {re.escape(str(lots))} lots = \$[\d,]+ at 1\.\d{{5}}", html) and "no leverage" in html
+
+
+def test_dashboard_no_leverage_marks_setups_that_find_no_free_cash_and_shows_the_account_line(tmp_path, monkeypatch):
+    from fxengine.dashboard import build as B
+    from fxengine.live import db as DB
+    monkeypatch.chdir(tmp_path)
+    _store(tmp_path / "data" / "candles")
+    conn = DB.connect(str(tmp_path / "data" / "engine.db"))
+    for i, (pair, cr) in enumerate([("GBPUSD", "2025-06-03 08:00+00:00"), ("EURGBP", "2025-06-03 08:30+00:00")]):
+        rec = dict(pair=pair, type="E1_strength", tf="H1", direction="long", entry_kind="stop", entry=1.1010, stop=1.0990, target=1.1030, created=cr, expires="2025-06-03 15:00+00:00",
+                   stop_pips=20.0, lots_for_20gbp_risk=0.05, score=2.0, reason="x\ny", invalidation=1.0995)
+        DB.add_setup(conn, f"live-{i}", rec)
+        conn.execute("INSERT INTO events VALUES(?,?,?,?,?,?)", (f"live-{i}", 0, cr, None, "PUBLISHED", "p"))
+        conn.execute("INSERT INTO events VALUES(?,?,?,?,?,?)", (f"live-{i}", 1, "2025-06-03T09:05:00+00:00", "PUBLISHED", "TRIGGERED", "f"))
+    conn.commit()
+    html = B.build(root=tmp_path / "data" / "candles", out=None, now=pd.Timestamp("2025-06-03 10:00", tz="UTC"))
+    assert B.ACCT["live-0"]["taken"] and B.ACCT["live-0"]["lots"] == 0.02 and not B.ACCT["live-1"]["taken"]
+    assert "not taken" in html and "no free cash in the" in html and "NO leverage" in html and "free £500" in html
+    assert sum(d["value"] for d in B.ACCT.values()) <= 2500.0 + 1e-6                       # never more than the balance in positions
