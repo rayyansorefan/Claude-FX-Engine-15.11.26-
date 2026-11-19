@@ -25,6 +25,37 @@ def px(sym, v):
     return f"{float(v):.3f}" if sym.endswith('JPY') else f"{float(v):.5f}"
 
 
+def usd_notional(pair: str, lots, px, usd_per: dict) -> float | None:
+    """Position size in US dollars: 1 lot = 100,000 units of the BASE currency. Quote=USD: units x price; base=USD: units; crosses: units x (USD per base currency, from the latest EUR/GBP/AUD/NZD vs USD rate)."""
+    try:
+        units, base, quote = float(lots) * 100000.0, pair[:3], pair[3:]
+        if quote == "USD":
+            return units * float(px)
+        if base == "USD":
+            return units
+        r = usd_per.get(base)
+        return None if not r else units * float(r)
+    except (TypeError, ValueError):
+        return None
+
+
+def usd_rates(root) -> dict:
+    """Latest USD value of one unit of EUR / GBP / AUD / NZD from the stored M5 bars (empty on any problem: the dollar figure is then simply not shown)."""
+    out = {}
+    for ccy in ("EUR", "GBP", "AUD", "NZD"):
+        try:
+            m = store.load(ccy + "USD", "M5", root, tail=3)
+            if len(m):
+                out[ccy] = float(m.bid_c.iloc[-1])
+        except Exception:
+            pass
+    return out
+
+
+def usd_txt(v) -> str:
+    return "" if v is None else f"${v:,.0f}"
+
+
 # ---------- data ----------
 STALE_MIN = 12.0     # same threshold as the live loop (live/loop.py)
 
@@ -422,6 +453,7 @@ def trades_data(c, root, now, closed_n=6):
     rows = c.execute("""SELECT s.run_id, s.record, o.reason, o.net_r, o.resolved_at FROM setups s LEFT JOIN outcomes o USING(run_id)
                         ORDER BY s.created_at DESC""").fetchall()
     out, n_closed = [], 0
+    ur = usd_rates(root)
     for r in rows:
         rec = json.loads(r["record"]); closed = r["reason"] is not None
         if closed:
@@ -453,7 +485,7 @@ def trades_data(c, root, now, closed_n=6):
         out.append(dict(run_id=r["run_id"], pair=pair, dir=dirn, tf=rec["tf"], type=rec["type"], state=state, closed=closed,
                         entry=rec["entry"], entry_kind=rec.get("entry_kind", ""), stop=rec["stop"], target=rec["target"], fill=fill, fill_ts=fill_ts,
                         created=int(pd.Timestamp(rec["created"]).timestamp()), created_s=rec["created"], expires_s=rec["expires"], price=price,
-                        lots=rec.get("lots_for_20gbp_risk"), stop_pips=rec.get("stop_pips"), rr=reward / risk, reward_gbp=RISK * reward / risk,
+                        lots=rec.get("lots_for_20gbp_risk"), usd=usd_notional(pair, rec.get("lots_for_20gbp_risk"), fill if fill is not None else rec["entry"], ur), stop_pips=rec.get("stop_pips"), rr=reward / risk, reward_gbp=RISK * reward / risk,
                         float_r=float_r, peak_r=peak, worst_r=worst, pnl_gbp=(None if not closed else float(r["net_r"] or 0) * RISK), reason=str(rec.get("reason", "")),
                         pips_to_entry=(None if price is None else (rec["entry"] - price) / p_), score=rec.get("score"), events=ev,
                         resolved_at=r["resolved_at"], closed_ts=_epoch(r["resolved_at"])))
@@ -490,7 +522,7 @@ def trade_card(i, t, now):
         bar = (f"<div class='bar'><i style='left:{pe:.1f}%' class='en'></i><b style='left:{pct:.1f}%'></b></div>"
                f"<div class='barl'><span>STOP {px(t['pair'], t['stop'])}</span><span>price {px(t['pair'], t['price'])}</span><span>TARGET {px(t['pair'], t['target'])}</span></div>")
     nums = [("Entry", px(t["pair"], t["entry"]), f"{t['entry_kind']} order"), ("Stop", px(t["pair"], t["stop"]), f"{t['stop_pips']} pips · −£{RISK:.0f}"),
-            ("Target", px(t["pair"], t["target"]), f"+£{t['reward_gbp']:.0f} · 1:{t['rr']:.1f}"), ("Size", f"{t['lots']} lots", f"risk £{RISK:.0f}"),
+            ("Target", px(t["pair"], t["target"]), f"+£{t['reward_gbp']:.0f} · 1:{t['rr']:.1f}"), ("Size", f"{t['lots']} lots", (usd_txt(t.get('usd')) + " · " if t.get('usd') else "") + f"risk £{RISK:.0f}"),
             (("Closed", f"{uk(t['resolved_at']):%d %b %H:%M}" if t["resolved_at"] else "—", st.lower()) if t["closed"] else ("Price now", "—" if t["price"] is None else px(t["pair"], t["price"]), "bid")), ("Filled at", "—" if t["fill"] is None else px(t["pair"], t["fill"]), "hypothetical")]
     nh = "".join(f"<div><small>{a}</small><b>{b}</b><span>{c2}</span></div>" for a, b, c2 in nums)
     why = "".join(f"<div>{e(x)}</div>" for x in t["reason"].split("\n")[:2] if x.strip())
@@ -841,6 +873,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     kpis = "".join(f"<div class='kpi'><small>{a}</small><b>{b}</b><span>{c}</span></div>" for a, b, c in kp)
     # --- positions
     levels, cards = {}, ""
+    _ur = usd_rates(root)
     for c in cands:
         left = max(0, (pd.Timestamp(c["expires"]) - now).total_seconds() / 3600)
         risk = abs(c["entry"] - c["stop"]); rew = abs(c["target"] - c["entry"])
@@ -849,7 +882,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
                   f"<div class='meta'><span class='st'>{e(c.get('state', 'PENDING'))}</span> {e(STRATS.get(c['type'], (c['type'],))[0])} · {c['tf']}</div>"
                   f"<div class='meta'>{e(str(c.get('reason', '')).split(chr(10))[0])}</div></div>{mini_chart(c, root)}"
                   f"<div class='mono'>entry {px(c['pair'], c['entry'])} ({c['entry_kind']})<br>stop {px(c['pair'], c['stop'])} <span class='muted'>({c['stop_pips']}p)</span><br>target {px(c['pair'], c['target'])}"
-                  f"<div class='meta'>{c['lots_for_20gbp_risk']} lots · risk £{RISK:.0f} · reward £{RISK * rew / risk:.0f} (1:{rew / risk:.1f})<br>{left:.1f}h left · score {c['score']} · <span class='warnt'>UNPROVEN</span></div></div></div>")
+                  f"<div class='meta'>{c['lots_for_20gbp_risk']} lots{(' = ' + usd_txt(usd_notional(c['pair'], c['lots_for_20gbp_risk'], c['entry'], _ur))) if usd_notional(c['pair'], c['lots_for_20gbp_risk'], c['entry'], _ur) else ''} · risk £{RISK:.0f} · reward £{RISK * rew / risk:.0f} (1:{rew / risk:.1f})<br>{left:.1f}h left · score {c['score']} · <span class='warnt'>UNPROVEN</span></div></div></div>")
     if not cards:
         cards = "<p class='muted' style='padding:14px 0'><b style='color:var(--ink)'>No setups right now.</b> A valid outcome. The scan runs when the market is open.</p>"
     # live record table
@@ -876,13 +909,19 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
             msg = f"Open: now {t['float_r']:+.2f}R, best so far {t['peak_r']:+.2f}R, worst {-t['worst_r']:+.2f}R."
             return msg + (f" It has given back {back:.2f}R of its peak so far; the frozen rules still wait for the stop, target or time limit." if back >= 0.5 and t["peak_r"] >= 0.5 else "")
         return "Waiting for the entry price to be reached."
+    _hur = usd_rates(root)
+
     def _when(r):
         def f(x):
             try:
                 return f"{uk(x):%d %b %H:%M}"
             except Exception:
                 return str(x)[:16]
-        fill = f"filled {f(r['filled_at'])}" if r.get("filled_at") else "not filled"
+        lots_ = r["rec"].get("lots_for_20gbp_risk")
+        fp_ = r.get("fill") if r.get("fill") is not None else (fl.get(r["run_id"]) or {}).get("fill")
+        usd_ = usd_notional(r["rec"]["pair"], lots_, fp_ if fp_ is not None else r["rec"]["entry"], _hur)
+        size_ = (f" · {lots_} lots" + (f" = {usd_txt(usd_)}" if usd_ else "") + (f" at {px(r['rec']['pair'], fp_)}" if fp_ is not None else "")) if lots_ else ""
+        fill = f"filled {f(r['filled_at'])}{size_}" if r.get("filled_at") else "not filled"
         end = f"closed {f(r['resolved_at'])}" if r.get("resolved_at") else "still open"
         return f"{f(r['created_at'])}<br><small>{fill}</small><br><small><b>{end}</b></small>"
     lr = "".join(f"<tr{(' class=\"clk\" data-run=\"' + r['run_id'] + '\"') if r['run_id'] in closed_ids else ''}><td class='mono'>{_when(r)}</td><td>{r['pair']} {r['rec']['direction'].upper()}</td>"

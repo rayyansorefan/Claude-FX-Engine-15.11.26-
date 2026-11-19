@@ -215,3 +215,22 @@ def test_trades_tab_lists_only_active_trades_newest_first_and_closed_open_as_pop
     assert cards == ["GBPUSD", "EURUSD"]                                     # active only, newest first; the closed USDJPY trade is not a card
     assert "<template id='tpl-done-1'>" in html and "data-run=\"done-1\"" in html and "id='modal'" in html
     assert "data-run=\"new-open\"" not in html                               # only finished trades open a pop-up
+
+
+def test_dashboard_shows_position_size_in_dollars_on_card_and_history(tmp_path, monkeypatch):
+    import json
+    from fxengine.dashboard.build import build
+    from fxengine.live import db as DB
+    monkeypatch.chdir(tmp_path)
+    _store(tmp_path / "data" / "candles")
+    conn = DB.connect(str(tmp_path / "data" / "engine.db"))
+    rec = dict(pair="EURUSD", type="E1_strength", tf="H1", direction="long", entry_kind="stop", entry=1.1010, stop=1.0990, target=1.1030,
+               created="2025-06-03 09:00+00:00", expires="2025-06-03 15:00+00:00", stop_pips=20.0, lots_for_20gbp_risk=0.1, score=2.0, reason="x\ny", invalidation=1.0995)
+    DB.add_setup(conn, "live-1", rec)
+    conn.execute("INSERT INTO events VALUES('live-1',0,'2025-06-03T09:00:00+00:00',NULL,'PUBLISHED','p')")
+    conn.execute("INSERT INTO events VALUES('live-1',1,'2025-06-03T09:05:00+00:00','PUBLISHED','TRIGGERED','f')"); conn.commit()
+    html = build(root=tmp_path / "data" / "candles", out=None, now=pd.Timestamp("2025-06-03 10:00", tz="UTC"))
+    import re
+    amounts = [int(x.replace(",", "")) for x in re.findall(r"\$(\d{2},\d{3})", html)]
+    assert "0.1 lots" in html and len(amounts) >= 2 and all(10_500 < a < 11_500 for a in amounts[:2])      # 0.1 lot = 10,000 EUR at ~1.10-1.11 = ~$11k, on the card AND the history 'filled' line
+    assert re.search(r"filled 03 Jun 10:05 · 0\.1 lots = \$11,\d{3} at 1\.\d{5}", html)
