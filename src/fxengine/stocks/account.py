@@ -90,7 +90,8 @@ def simulate(rows: list[dict], panel: dict, rates, passed: set[str], start: floa
                 cash += val
                 pnl = val - p["cost"]
                 closed.append(dict(id=pid, symbol=p["sym"], rule=p["rule"], entry_date=f"{p['entry_date']:%Y-%m-%d}", exit_date=f"{day:%Y-%m-%d}", cost=round(p["cost"], 2), value=round(val, 2),
-                                   pnl=round(pnl, 2), r=round(pnl / RISK, 2), pct=round(val / p["cost"] - 1, 4)))
+                                   pnl=round(pnl, 2), r=round(pnl / RISK, 2), pct=round(val / p["cost"] - 1, 4),
+                                   shares=round(p["shares"], 4), entry_px=round(p["entry_px"], 4), exit_px=round(p["exit"][1], 4), stop=round(p["stop"], 4)))
                 del pos[pid]
         equity_open = cash + sum(q["shares"] * money.gbp(q["sym"], float(panel[q["sym"]]["close"].asof(day)) if day in panel[q["sym"]].index else q["last"], day) for q in pos.values())
         for c in by_entry.get(day, []):                        # entries at the open, strongest first
@@ -119,7 +120,7 @@ def simulate(rows: list[dict], panel: dict, rates, passed: set[str], start: floa
     for pid, q in pos.items():
         v = q["shares"] * money.gbp(q["sym"], q["last"], last_day)
         openp.append(dict(id=pid, symbol=q["sym"], rule=q["rule"], entry_date=f"{q['entry_date']:%Y-%m-%d}", shares=round(q["shares"], 4), cost=round(q["cost"], 2), value=round(v, 2), floating=round(v - q["cost"], 2),
-                          stop=round(q["stop"], 4), risk=RISK))
+                          stop=round(q["stop"], 4), entry_px=round(q["entry_px"], 4), risk=RISK))
     balance = curve[-1][1]
     return dict(balance=balance, start=start, curve=curve, positions=openp, closed=closed, skipped=skipped, tiles=_tiles(closed, openp, balance, start, today or last_day), fallback_rate=money.used_fallback)
 

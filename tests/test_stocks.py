@@ -1148,10 +1148,17 @@ def test_live_never_trades_yesterdays_session_or_excluded_markets():
 def test_history_card_open_pending_and_live_rows_like_fx():
     from fxengine.stocks import dashboard
     base = dict(created_at="2026-11-18 22:50", signal_date="2026-11-18", shown=True, rule="RSI2_PULLBACK", proven=True, close=100.0, invalidation=90.0, exit_text="closes above its 5-day average", market="US", status="PENDING")
-    h = [dict(base, id="a", symbol="aapl.us"), dict(base, id="b", symbol="msft.us", paper=dict(state="open", pnl=-10.0, cost=300.0, entry_date="2026-11-19")), dict(base, id="c", symbol="td.ca"), dict(base, id="d", symbol="nvda.us", proven=False)]
-    plan = dict(day_ok=True, entries=[dict(id="a", symbol="aapl.us", date="2026-11-19", price=101.5, floating=8.0)], positions=[dict(id="b", live=True, floating=-12.0)])
+    h = [dict(base, id="a", symbol="aapl.us"), dict(base, id="b", symbol="msft.us", paper=dict(state="open", pnl=-10.0, cost=300.0, entry_date="2026-11-19", shares=0.7, entry_px=430.0, stop=400.0)), dict(base, id="c", symbol="td.ca"), dict(base, id="d", symbol="nvda.us", proven=False)]
+    plan = dict(day_ok=True, entries=[dict(id="a", symbol="aapl.us", date="2026-11-19", price=101.5, shares=1.97, cost=200.0, stop=90.0, floating=8.0)], positions=[dict(id="b", live=True, floating=-12.0)])
     out = dashboard._hist_card(dict(history=dict(setups=h), live=dict(plan=plan)), 15)
-    assert "OPEN (live)" in out and "filled 19 Nov at the open 101.50" in out and "-12 GBP (-0.60R)" in out and "Review" in out
+    assert "OPEN (live)" in out and "filled 19 Nov · 1.97 sh at 101.50 = £200 (risk £20, stop 90.00)" in out and "-12 GBP (-0.60R)" in out and "Review" in out
     assert "TD BUY" not in out and "NVDA" not in out and "Published 2" in out and "18 Nov 22:45" in out and "Published / Filled / Closed (UK)" in out
     tracked_only = dict(base, id="z", symbol="ko.us", shown=False)
     assert "KO BUY" not in dashboard._hist_card(dict(history=dict(setups=h + [tracked_only])), 15)             # tracked but never published: not listed
+
+
+def test_account_records_position_size_and_prices_for_history():
+    import inspect
+    from fxengine.stocks import account
+    src = inspect.getsource(account.simulate)
+    assert "entry_px=round(p[\"entry_px\"]" in src and "shares=round(p[\"shares\"]" in src and "exit_px" in src

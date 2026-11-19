@@ -184,17 +184,24 @@ def _hist_card(sp: dict | None, limit: int = 15, empty: str | None = None) -> st
     def pub(d):                                           # the nightly scan publishes at 22:45 UTC on the signal day, shown in UK time like the FX engine
         return f"{_dt.strptime(d, '%Y-%m-%d').replace(hour=22, minute=45, tzinfo=timezone.utc).astimezone(ZoneInfo('Europe/London')):%d %b %H:%M}"
 
+    def size(x, sell=False):                              # "1.57 sh at 127.20 = £200 (£20 risk, stop 118.00)"
+        if not x or x.get("shares") is None:
+            return f"£{x['cost']:,.0f}" if x and x.get("cost") else ""
+        px = x.get("entry_px") if x.get("entry_px") is not None else x.get("price")
+        st = f", stop {x['stop']:,.2f}" if x.get("stop") else ""
+        return f"{x['shares']:g} sh at {px:,.2f} = £{x['cost']:,.0f} (risk £20{st})"
+
     def state(r):
         pp, c = r.get("paper"), r.get("closed")
         if r["id"] in live_in and not pp:
             e = live_in[r["id"]]
-            return dict(kind="open", filled=f"filled {day(e['date'])} at the open {e['price']:,.2f}", closed="still open", pnl=e["floating"], r=e["floating"] / 20.0, live=True)
+            return dict(kind="open", filled=f"filled {day(e['date'])} · {size(e)}", closed="still open", pos=size(e), pnl=e["floating"], r=e["floating"] / 20.0, live=True)
         if pp and pp["state"] == "open":
             lv = live_pos.get(r["id"])
             pnl = lv["floating"] if lv else pp["pnl"]
-            return dict(kind="open", filled=f"filled {day(pp['entry_date'])} at the open", closed="still open", pnl=pnl, r=pnl / 20.0, live=bool(lv))
+            return dict(kind="open", filled=f"filled {day(pp['entry_date'])} · {size(pp)}", closed="still open", pos=size(pp), pnl=pnl, r=pnl / 20.0, live=bool(lv))
         if pp and pp["state"] == "closed":
-            return dict(kind="closed", filled=f"filled {day(pp['entry_date'])} at the open", closed=f"closed {day(pp['exit_date'])} at the open", pnl=pp["pnl"], r=pp["r"])
+            return dict(kind="closed", filled=f"filled {day(pp['entry_date'])} · {size(pp)}", closed=f"closed {day(pp['exit_date'])}" + (f" at {pp['exit_px']:,.2f}" if pp.get("exit_px") else " at the open"), pos=size(pp), pnl=pp["pnl"], r=pp["r"])
         if c:
             inv, cl = r.get("invalidation"), r.get("close") or 0
             risk = (cl - inv) / cl if inv and cl and 0 < inv < cl else 0.10
@@ -217,7 +224,7 @@ def _hist_card(sp: dict | None, limit: int = 15, empty: str | None = None) -> st
         if s_["kind"] == "closed" and review:
             text = ("Win: " if s_["pnl"] > 0 else "Loss: ") + review["text"].split("; ", 1)[-1] if False else review["text"]
         elif s_["kind"] == "open":
-            text = (f"Open: now {s_['r']:+.2f}R ({s_['pnl']:+.0f} GBP). The rule exits at: {r.get('exit_text') or 'its own exit signal'}" + (f"; sold early if it closes below {r['invalidation']:,.2f}." if r.get("invalidation") else "."))
+            text = (f"Open: now {s_['r']:+.2f}R ({s_['pnl']:+.0f} GBP). Position: {s_.get('pos') or 'size shown after tonight' }. The rule exits at: {r.get('exit_text') or 'its own exit signal'}" + (f"; sold early if it closes below {r['invalidation']:,.2f}." if r.get("invalidation") else "."))
         elif s_["kind"] == "pending":
             text = "Published for the next open. The paper account buys it at the real opening price if cash allows."
         else:
