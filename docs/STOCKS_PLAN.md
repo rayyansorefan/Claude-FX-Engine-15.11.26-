@@ -168,3 +168,9 @@ Honest limits: information only, NOT yet tested as a predictor (pre-register a s
 - History columns now identical to FX: "Published / Filled / Closed (UK)", Setup, Rule, Result, P&L. Rows = only setups PUBLISHED to the owner (strongest few per rule, logged as a 'published' event) or traded by the paper account, not all 140+ tracked signals. Published time = nightly scan (22:45 UTC) in UK time; fills/closes say "at the open" (stock markets open at fixed times; no invented minutes).
 - History now shows the position: shares, price paid, £ amount, £20 risk and stop level on the filled line, the sell price on the closed line, and the same in the Review line. Today's live buys show it at once (live plan); the paper account's own positions/closed trades carry shares, entry/exit price and stop from the next nightly scan.
 - Position size also shown in dollars (owner request, for FX and Stocks alike): `24.393 sh at 326.40 = £625 ($822) · risk £20, stop 300.00`. FX agent asked (message sent) to show notional in USD next to lots.
+
+## Autonomy: self-update and self-check (2026-11-20, owner: "I don't understand why it's not autonomous")
+- Engines already ran by themselves on the VM; what was not autonomous was DEPLOYING and CHECKING (the build sandbox cannot reach the VM, so every change needed pasted commands).
+- `deploy/stocks_autoupdate.sh` + `stocksauto.timer` (every 10 min): fast-forward pull of stocks-wip, waits for running stocks jobs, restarts only stocksdash, never touches FX. Every change is tested before it is pushed.
+- `stocks/health.py` + `stockshealth.timer` (every 15 min): checks the Stocks live job, the nightly scan, stocksdash, the FX loop heartbeat, fxengine/fxdash, memory, disk; ONE Telegram message per problem per day; read-only; writes docs/results/stocks_health.json.
+- Installer (one time): `bash deploy/install_stocks_auto.sh`. FX self-update is the FX agent's decision (it restarts the live loop).

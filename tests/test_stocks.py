@@ -1163,3 +1163,40 @@ def test_account_records_position_size_and_prices_for_history():
     from fxengine.stocks import account
     src = inspect.getsource(account.simulate)
     assert "entry_px=round(p[\"entry_px\"]" in src and "shares=round(p[\"shares\"]" in src and "exit_px" in src
+
+
+def test_health_check_flags_stale_jobs_once_and_stays_quiet_when_fine(tmp_path):
+    import json as j, os
+    from datetime import datetime, timedelta, timezone
+    from fxengine.stocks import health as H
+    res = tmp_path / "docs/results"; res.mkdir(parents=True)
+    fx = tmp_path / "fx/data"; fx.mkdir(parents=True)
+    now = datetime(2026, 11, 20, 14, 0, tzinfo=timezone.utc)                    # Friday afternoon
+
+    def touch(p, age_min):
+        p.write_text("{}")
+        t = (now - timedelta(minutes=age_min)).timestamp()
+        os.utime(p, (t, t))
+    touch(res / "stocks_live.json", 3); touch(res / "stocks_setups.json", 15 * 60); touch(fx / "heartbeat.json", 2)       # setups written ~23:00 UTC yesterday
+    ok = H.check(now, tmp_path, tmp_path / "fx", active=lambda s: True, mem_mb=300, disk_pct=40)
+    assert ok == []
+    touch(res / "stocks_live.json", 60); touch(fx / "heartbeat.json", 90); touch(res / "stocks_setups.json", 60 * 40)
+    bad = dict(H.check(now, tmp_path, tmp_path / "fx", active=lambda s: s != "fxdash", mem_mb=30, disk_pct=95))
+    assert {"stocks-live", "fx-heartbeat", "stocks-nightly", "svc-fxdash", "memory", "disk"} <= set(bad)
+    sent = []
+    kw = dict(now=now, root=tmp_path, fx_root=tmp_path / "fx", env={"TELEGRAM_TOKEN": "t", "TELEGRAM_CHAT_ID": "c"}, post=lambda u, d: sent.append(d["text"]) or True, sent_path=tmp_path / "s.json", active=lambda s: s != "fxdash")
+    r1 = H.run(**kw); n1 = len(sent); r2 = H.run(**kw)
+    assert r1["alerts_sent"] >= 3 and r2["alerts_sent"] == 0 and len(sent) == n1                                                # once per problem per day
+    assert all(len(m.split("\n")) <= 3 for m in sent) and j.loads((res / "stocks_health.json").read_text())["ok"] is False
+    weekend = datetime(2026, 11, 21, 14, 0, tzinfo=timezone.utc)                                                                  # Saturday: no live-job alarm
+    assert "stocks-live" not in dict(H.check(weekend, tmp_path, tmp_path / "fx", active=lambda s: True, mem_mb=300, disk_pct=40))
+
+
+def test_last_nightly_due_skips_weekends_and_waits_for_the_close():
+    from datetime import datetime, timezone
+    from fxengine.stocks import health as H
+    mon_noon = datetime(2026, 11, 23, 12, 0, tzinfo=timezone.utc)
+    assert H.last_nightly_due(mon_noon) == datetime(2026, 11, 20, 22, 45, tzinfo=timezone.utc)                                   # Monday before the close: Friday's scan is the last due
+    fri_late = datetime(2026, 11, 20, 23, 59, tzinfo=timezone.utc)                                                                # still inside the 90-minute grace: Thursday's is the last due
+    assert H.last_nightly_due(fri_late) == datetime(2026, 11, 19, 22, 45, tzinfo=timezone.utc)
+    assert H.last_nightly_due(datetime(2026, 11, 21, 1, 0, tzinfo=timezone.utc)) == datetime(2026, 11, 20, 22, 45, tzinfo=timezone.utc)
