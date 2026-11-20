@@ -1,19 +1,19 @@
-# Live positions (written 2026-11-20 11:00 UTC)
+# Live positions (written 2026-11-20 11:10 UTC)
 
 Unfinished setups: 6
 
 - AUDUSD SHORT E1_strength [TRIGGERED] created 2026-11-19 08:00
-  FILLED at 0.67049. entry 0.67057 stop 0.67483 target 0.66204. Unrealised +1.04R, best so far +1.38R, worst -0.34R. Target is 0.94R away. Held 323 of 576 five-minute bars (21h until the time limit).
+  FILLED at 0.67049. entry 0.67057 stop 0.67483 target 0.66204. Unrealised +1.00R, best so far +1.38R, worst -0.34R. Target is 0.98R away. Held 325 of 576 five-minute bars (21h until the time limit).
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.29R, best so far +0.40R, worst -0.18R. Target is 1.70R away. Held 83 of 1920 five-minute bars (153h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.26R, best so far +0.40R, worst -0.18R. Target is 1.73R away. Held 85 of 1920 five-minute bars (153h until the time limit).
 - GBPUSD SHORT trend_pullback [TRIGGERED] created 2026-11-20 09:00
-  FILLED at 1.30977. entry 1.30983 stop 1.31206 target 1.30536. Unrealised -0.15R, best so far +0.00R, worst -0.59R. Target is 2.13R away. Held 8 of 384 five-minute bars (31h until the time limit).
+  FILLED at 1.30977. entry 1.30983 stop 1.31206 target 1.30536. Unrealised -0.42R, best so far +0.00R, worst -0.59R. Target is 2.40R away. Held 10 of 384 five-minute bars (31h until the time limit).
 - EURUSD SHORT trend_pullback [TRIGGERED] created 2026-11-20 09:00
-  FILLED at 1.09638. entry 1.09644 stop 1.09893 target 1.09147. Unrealised +0.18R, best so far +0.29R, worst -0.57R. Target is 1.80R away. Held 23 of 384 five-minute bars (30h until the time limit).
+  FILLED at 1.09638. entry 1.09644 stop 1.09893 target 1.09147. Unrealised -0.00R, best so far +0.29R, worst -0.57R. Target is 1.98R away. Held 25 of 384 five-minute bars (30h until the time limit).
 - USDCAD LONG trend_pullback [PUBLISHED] created 2026-11-20 09:00
-  not filled yet. entry 1.43311 stop 1.43098 target 1.43737. Expires in 2.0h. Price is +0.32R from entry (positive = entry still ahead).
+  not filled yet. entry 1.43311 stop 1.43098 target 1.43737. Expires in 1.8h. Price is +0.45R from entry (positive = entry still ahead).
 - EURJPY SHORT asia_breakout [TRIGGERED] created 2026-11-20 09:00
-  FILLED at 174.40800. entry 174.41500 stop 174.77387 target 173.69726. Unrealised +0.80R, best so far +1.02R, worst -0.32R. Target is 1.18R away. Held 23 of 384 five-minute bars (30h until the time limit).
+  FILLED at 174.40800. entry 174.41500 stop 174.77387 target 173.69726. Unrealised +0.74R, best so far +1.02R, worst -0.32R. Target is 1.24R away. Held 25 of 384 five-minute bars (30h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
