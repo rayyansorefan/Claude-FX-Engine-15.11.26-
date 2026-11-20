@@ -1,16 +1,15 @@
-# Live positions (written 2026-11-20 00:40 UTC)
+# Live positions (written 2026-11-20 00:50 UTC)
 
-Unfinished setups: 3
+Unfinished setups: 2
 
 - EURUSD SHORT E1_strength [TRIGGERED] created 2026-11-18 04:00
-  FILLED at 1.09900. entry 1.09907 stop 1.10335 target 1.09052. Unrealised +0.39R, best so far +0.86R, worst -0.47R. Target is 1.60R away. Held 535 of 576 five-minute bars (3h until the time limit).
-- USDJPY LONG asia_breakout [TRIGGERED] created 2026-11-19 08:00
-  FILLED at 159.70800. entry 159.69300 stop 159.48378 target 160.11145. Unrealised -0.65R, best so far +1.22R, worst -0.87R. Target is 2.58R away. Held 199 of 384 five-minute bars (15h until the time limit).
+  FILLED at 1.09900. entry 1.09907 stop 1.10335 target 1.09052. Unrealised +0.41R, best so far +0.86R, worst -0.47R. Target is 1.57R away. Held 537 of 576 five-minute bars (3h until the time limit).
 - AUDUSD SHORT E1_strength [TRIGGERED] created 2026-11-19 08:00
-  FILLED at 0.67049. entry 0.67057 stop 0.67483 target 0.66204. Unrealised +1.24R, best so far +1.30R, worst -0.34R. Target is 0.74R away. Held 199 of 576 five-minute bars (31h until the time limit).
+  FILLED at 0.67049. entry 0.67057 stop 0.67483 target 0.66204. Unrealised +1.31R, best so far +1.31R, worst -0.34R. Target is 0.67R away. Held 201 of 576 five-minute bars (31h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
+- USDJPY asia_breakout: STOP -1.15R at 2026-11-20 00:50 · best +1.22R, worst -1.16R · GAVE_BACK
 - EURGBP asia_breakout: TARGET +1.62R at 2026-11-19 15:00 · best +1.78R, worst -0.81R
 - USDCAD E2_donchian: STOP -1.05R at 2026-11-19 13:30 · best +0.00R, worst -1.06R · WRONG_WAY
 - GBPUSD E1_strength: STOP -1.04R at 2026-11-19 10:50 · best +0.00R, worst -1.02R · WRONG_WAY
@@ -25,4 +24,3 @@ Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it l
 - EURUSD asia_breakout: TARGET +1.90R at 2026-11-17 13:35 · best +2.15R, worst -0.65R
 - USDCHF trend_pullback: STOP -1.10R at 2026-11-17 09:20 · best +0.00R, worst -1.19R · WRONG_WAY
 - GBPJPY asia_breakout: TARGET +1.95R at 2026-11-17 09:15 · best +2.01R, worst -0.83R
-- NZDUSD trend_pullback: STOP -1.14R at 2026-11-17 08:50 · best +0.01R, worst -1.13R · WRONG_WAY
