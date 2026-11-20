@@ -1,11 +1,11 @@
-# Live positions (written 2026-11-20 01:25 UTC)
+# Live positions (written 2026-11-20 01:35 UTC)
 
 Unfinished setups: 2
 
 - EURUSD SHORT E1_strength [TRIGGERED] created 2026-11-18 04:00
-  FILLED at 1.09900. entry 1.09907 stop 1.10335 target 1.09052. Unrealised +0.53R, best so far +0.86R, worst -0.47R. Target is 1.45R away. Held 544 of 576 five-minute bars (3h until the time limit).
+  FILLED at 1.09900. entry 1.09907 stop 1.10335 target 1.09052. Unrealised +0.48R, best so far +0.86R, worst -0.47R. Target is 1.50R away. Held 546 of 576 five-minute bars (2h until the time limit).
 - AUDUSD SHORT E1_strength [TRIGGERED] created 2026-11-19 08:00
-  FILLED at 0.67049. entry 0.67057 stop 0.67483 target 0.66204. Unrealised +1.20R, best so far +1.34R, worst -0.34R. Target is 0.78R away. Held 208 of 576 five-minute bars (31h until the time limit).
+  FILLED at 0.67049. entry 0.67057 stop 0.67483 target 0.66204. Unrealised +1.20R, best so far +1.34R, worst -0.34R. Target is 0.78R away. Held 210 of 576 five-minute bars (30h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
