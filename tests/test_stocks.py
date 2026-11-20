@@ -1200,3 +1200,13 @@ def test_last_nightly_due_skips_weekends_and_waits_for_the_close():
     fri_late = datetime(2026, 11, 20, 23, 59, tzinfo=timezone.utc)                                                                # still inside the 90-minute grace: Thursday's is the last due
     assert H.last_nightly_due(fri_late) == datetime(2026, 11, 19, 22, 45, tzinfo=timezone.utc)
     assert H.last_nightly_due(datetime(2026, 11, 21, 1, 0, tzinfo=timezone.utc)) == datetime(2026, 11, 20, 22, 45, tzinfo=timezone.utc)
+
+
+def test_stocks_header_always_shows_how_fresh_the_live_data_is():
+    from datetime import datetime, timedelta, timezone
+    from fxengine.stocks import tab
+    ts = lambda m: (datetime.now(timezone.utc) - timedelta(minutes=m)).strftime("%Y-%m-%d %H:%M")
+    assert "live prices updated 3 min ago" in tab._fresh(dict(live=dict(asof=ts(3))))
+    assert "not running yet" in tab._fresh(dict()) and "not running yet" in tab._fresh(dict(live=dict(asof="garbage")))
+    h = tab.fragment(None, dict(asof="2026-11-19", setups=[], live=dict(asof=ts(1))), None, None, None)
+    assert "last close used 2026-11-19" in h and "live prices updated" in h

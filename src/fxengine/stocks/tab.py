@@ -35,12 +35,27 @@ JS = ("<script>(function(){var r=document.getElementById('stocks');if(!r)return;
       "bs.forEach(function(b){b.onclick=function(){go(b.dataset.s)}});go('setups')})();</script>")
 
 
+def _fresh(sp: dict | None) -> str:
+    """How fresh the live data is, in plain words (the owner asked for data age to be always visible): minutes since the 5-minute job last updated, red if it is overdue on a weekday."""
+    from datetime import datetime, timezone
+    lv = (sp or {}).get("live") or {}
+    try:
+        t = datetime.strptime(lv["asof"], "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+    except (KeyError, ValueError, TypeError):
+        return "<span class='chip'>live prices: not running yet</span>"
+    now = datetime.now(timezone.utc)
+    m = max(0, int((now - t).total_seconds() // 60))
+    market = now.weekday() < 5 and 6 <= now.hour < 22
+    late = market and m > 20
+    return f"<span class='chip' style='{'color:#e5534b;border-color:#e5534b' if late else ''}'>live prices updated {m} min ago{' · OVERDUE' if late else ''}</span>"
+
+
 def fragment(res: dict | None, sp: dict | None = None, mk: dict | None = None, jr: dict | None = None, fl: dict | None = None) -> str:
     x = DB.parts(res, sp, mk, jr, fl)
     names = DB.SECTIONS
     nav = "".join(f"<button data-s='{k}'>{v}</button>" for k, v in names)
     secs = "".join(f"<div class='stsec' data-s='{k}'>{x[k]}</div>" for k, _ in names)
-    return (f"<div class='tab' id='stocks'><div class='top' style='padding:0 0 4px'><span class='pill {x['state']}'>{x['label']}</span><span class='chip'>stocks · as of {DB.E(x['asof'])}</span>"
+    return (f"<div class='tab' id='stocks'><div class='top' style='padding:0 0 4px'><span class='pill {x['state']}'>{x['label']}</span><span class='chip'>stocks · last close used {DB.E(x['asof'])}</span>{_fresh(sp)}"
             f"<span class='chip'>research only · never places an order</span></div><div class='stnav'>{nav}</div>{secs}{JS}</div>")
 
 
