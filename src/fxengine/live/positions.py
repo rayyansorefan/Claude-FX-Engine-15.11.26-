@@ -44,7 +44,8 @@ def backfill_outcomes(conn, root) -> int:
     return n
 
 
-def snapshot(conn, root, now, out: Path = OUT) -> str:
+def snapshot(conn, root, now, out: Path | None = None) -> str:
+    out = out or OUT                                              # resolved at call time so tests can redirect it
     backfill_outcomes(conn, root)
     from .loop import replay
     from ..data import store
