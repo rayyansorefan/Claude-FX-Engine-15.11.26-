@@ -82,3 +82,83 @@ def test_full_live_cycle_with_a_real_scan_result_publishes_with_the_cap_and_aler
     assert len(out) == 1 and 0 < rec["lots_account"] <= 0.06 and rec["lots_account"] * rec["per_lot_gbp"] <= 2500.0
     msg = M.new(rec)
     assert len(msg.split("\n")) <= 3 and "no leverage" in msg
+
+
+def test_one_alert_of_each_kind_per_setup_even_if_a_replay_shifts_the_event_numbers(tmp_path):
+    """Audit finding: duplicate NEW/TRIGGERED alerts for one setup. Dedupe used the event number only; now a hard rule per (setup, kind)."""
+    from fxengine.live import db as DB, loop
+    conn = DB.connect(str(tmp_path / "e.db"))
+    sent = []
+    send = lambda env, text: sent.append(text) or True
+    c = dict(run_id="r1", expires="2026-11-23 16:00+00:00")
+    now = pd.Timestamp("2026-11-23 10:00", tz="UTC")
+    loop._alert(conn, {}, send, c, 0, "NEW", "new", now, now)
+    loop._alert(conn, {}, send, c, 1, "TRIGGERED", "trig", now, now)
+    loop._alert(conn, {}, send, c, 2, "TRIGGERED", "trig again (event numbers shifted by a replay)", now, now)
+    loop._alert(conn, {}, send, c, 3, "NEW", "new again", now, now)
+    assert sent == ["new", "trig"]                                                       # the owner is messaged once per kind
+    kinds = [r["kind"] for r in conn.execute("SELECT kind FROM alerts ORDER BY idx")]
+    assert kinds == ["NEW", "TRIGGERED", "SUPPRESSED-TRIGGERED", "SUPPRESSED-NEW"]        # and the attempt is recorded for the investigation
+    assert conn.execute("SELECT COUNT(*) FROM alerts WHERE kind IN ('NEW','TRIGGERED') GROUP BY run_id, kind HAVING COUNT(*)>1").fetchone() is None
+
+
+def test_a_401_from_oanda_alerts_the_owner_at_once_then_at_most_every_six_hours(tmp_path):
+    from tests.test_live_loop import make_store, Bag
+    from fxengine.live import db as DB, loop
+    d = make_store(tmp_path)
+    now = d.index[-1] + pd.Timedelta(minutes=6)
+    conn = DB.connect(str(tmp_path / "e.db"))
+    bag = Bag()
+
+    def boom():
+        raise RuntimeError("401 Client Error: Unauthorized for url: https://api-fxpractice.oanda.com/...")
+    loop.run_cycle(conn, {}, now, send=bag, root=tmp_path, refresh_fn=boom, scan_fn=lambda: [])
+    assert len(bag.msgs) == 1 and "OANDA TOKEN REJECTED" in bag.msgs[0]                       # first 401: told at once (before: only after 3 in a row)
+    loop.run_cycle(conn, {}, now + pd.Timedelta(minutes=5), send=bag, root=tmp_path, refresh_fn=boom, scan_fn=lambda: [])
+    assert len(bag.msgs) == 1                                                                  # not spammed every 5 minutes
+    loop.run_cycle(conn, {}, now + pd.Timedelta(hours=7), send=bag, root=tmp_path, refresh_fn=boom, scan_fn=lambda: [])
+    assert len(bag.msgs) == 2                                                                  # reminded after 6 hours
+    def other():
+        raise RuntimeError("503 service unavailable")
+    c2 = DB.connect(str(tmp_path / "e2.db")); b2 = Bag()
+    for i in range(2):
+        loop.run_cycle(c2, {}, now + pd.Timedelta(minutes=5 * i), send=b2, root=tmp_path, refresh_fn=other, scan_fn=lambda: [])
+    assert b2.msgs == []                                                                       # other errors keep the 3-in-a-row rule
+
+
+def test_fx_page_says_so_when_the_account_view_cannot_be_built(tmp_path, monkeypatch):
+    from tests.test_live_dashboard import _store
+    from fxengine.dashboard import build as B
+    from fxengine.live import db as DB
+    monkeypatch.chdir(tmp_path)
+    _store(tmp_path / "data" / "candles")
+    conn = DB.connect(str(tmp_path / "data" / "engine.db"))
+    rec = dict(pair="EURUSD", type="E1_strength", tf="H1", direction="long", entry_kind="stop", entry=1.1, stop=1.09, target=1.12, created="2025-06-03 08:00+00:00", expires="2025-06-03 15:00+00:00",
+               stop_pips=100, lots_for_20gbp_risk=0.1, score=1.0)
+    DB.add_setup(conn, "r0", rec)
+    conn.execute("INSERT INTO events VALUES('r0',0,'2025-06-03 08:00+00:00',NULL,'PUBLISHED','p')"); conn.commit()
+    import shutil
+    shutil.rmtree(tmp_path / "data" / "candles" / "GBPUSD")                                    # a price file goes missing
+    html = B.build(root=tmp_path / "data" / "candles", out=None, now=pd.Timestamp("2025-06-03 10:00", tz="UTC"))
+    assert "ACCOUNT VIEW UNAVAILABLE" in html
+
+
+def test_a_crash_while_sending_leaves_a_record_and_the_message_goes_out_exactly_once(tmp_path):
+    """Audit F1 secondary path: the old code sent first and recorded after, so a kill in between meant a resend after restart."""
+    from fxengine.live import db as DB, loop
+    conn = DB.connect(str(tmp_path / "e.db"))
+    c = dict(run_id="r1", expires="2026-11-23 16:00+00:00")
+    now = pd.Timestamp("2026-11-23 10:00", tz="UTC")
+    delivered = []
+
+    def dies(env, text):
+        raise KeyboardInterrupt                                                          # process killed during the send
+    try:
+        loop._alert(conn, {}, dies, c, 0, "NEW", "new setup", now, now)
+    except KeyboardInterrupt:
+        pass
+    assert conn.execute("SELECT ok FROM alerts WHERE run_id='r1'").fetchone()["ok"] == 0                   # recorded before the send
+    ok_send = lambda env, text: delivered.append(text) or True
+    loop.retry_unsent(conn, {}, ok_send, now)                                           # restart: unsent rows are retried
+    loop.retry_unsent(conn, {}, ok_send, now)
+    assert delivered == ["new setup"] and conn.execute("SELECT ok FROM alerts WHERE run_id='r1'").fetchone()["ok"] == 1

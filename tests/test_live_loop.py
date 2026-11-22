@@ -118,11 +118,11 @@ def test_error_alerts_at_three_then_every_three_hours_and_recovery(tmp_path):
     now = T0 + pd.Timedelta(hours=2)
 
     def boom():
-        raise RuntimeError("OANDA HTTP 401")
+        raise RuntimeError("OANDA HTTP 503")                  # a transient-type error keeps the 3-in-a-row rule (a 401 now alerts at once: see test_account_no_leverage.py)
     for _ in range(loop.ERR_ALERT_EVERY * 2):
         loop.run_cycle(conn, {}, now, send=bag, root=tmp_path, refresh_fn=boom)
     errs = [m for m in bag.msgs if "ENGINE ERROR" in m or "TOKEN REJECTED" in m]
-    assert len(errs) == 3 and "x3" in errs[0] and "set_token.sh" in errs[0] and "x72" in errs[-1]
+    assert len(errs) == 3 and "x3" in errs[0] and "x72" in errs[-1]
     loop.run_cycle(conn, {}, now, send=bag, root=tmp_path, refresh_fn=lambda: None, scan_fn=lambda: [])
     assert any("RECOVERED" in m for m in bag.msgs)
     assert conn.execute("SELECT status FROM cycles ORDER BY rowid DESC LIMIT 1").fetchone()["status"] == "OK"

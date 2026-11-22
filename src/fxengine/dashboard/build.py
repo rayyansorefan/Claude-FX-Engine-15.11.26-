@@ -66,9 +66,11 @@ def set_acct(c, root) -> None:
             m = store.load(pr, "M5", root, tail=3)
             if len(m):
                 px[pr] = float(m.bid_c.iloc[-1])
-        if len(px) < 4:                                     # a missing price file must not silently zero the account: show the plain £20-risk view instead
+        META.pop("fallback", None)
+        if len(px) < 4:                                     # a missing price file must not silently zero the account: show the plain £20-risk view instead, and SAY SO on the page
             ACCT = {}
             META.clear()
+            META["fallback"] = True
             return
         rows = ACC.rows_from_db(c)
         ACCT = ACC.replay(rows, px)
@@ -478,7 +480,8 @@ def live_panel(lp):
         curve = f"<div style='margin-top:10px'>{line_chart([('Live', '--s1', lp['curve'])], '£', pre='£', suf='', base=START)}</div>"
     foot = (f"Published {lp['n_pub']} · filled {lp['n_fill']} · closed {lp['wins'] + lp['losses']} · expired or invalidated without a trade {lp['n_nt']}. "
             f"Hypothetical: sized to £{RISK:.0f} risk but never more than the account can hold (NO leverage), nothing was traded. "
-            + (f"In positions now £{META['exposure']:,.0f} of £{META['balance']:,.0f} (free £{META['free']:,.0f}); {META['not_taken']} setup(s) not taken for lack of cash. " if META else "") + f"{e(lp['note'])}")
+            + (f"In positions now £{META['exposure']:,.0f} of £{META['balance']:,.0f} (free £{META['free']:,.0f}); {META['not_taken']} setup(s) not taken for lack of cash. " if META.get("exposure") is not None else "")
+            + ("ACCOUNT VIEW UNAVAILABLE (price files missing): showing the plain £20-risk sizes, NOT capped to the £2,500. " if META.get("fallback") else "") + f"{e(lp['note'])}")
     return (f"<div class='card c12'><h3>Live profit &amp; loss · hypothetical, scored by the engine</h3><div class='kpis' style='margin:0 0 8px'>{html}</div>"
             f"<div>{opens}</div><p class='muted' style='margin:6px 0 0'>{foot}</p>{curve}</div>")
 

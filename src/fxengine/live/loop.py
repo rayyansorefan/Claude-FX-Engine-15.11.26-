@@ -90,12 +90,23 @@ def advice(t, m5, at):
 
 
 def _alert(conn, env, send, c, idx, kind, text, event_ts, now, expires=None):
-    ok = send(env, text)
+    if conn.execute("SELECT 1 FROM alerts WHERE run_id=? AND kind=? AND idx<>?", (c["run_id"], kind, idx)).fetchone():
+        # Hard rule: ONE alert of each kind per setup. Duplicates were being prevented only by event number, which can shift if a replay after a data gap produces a different event list.
+        # The event is still recorded (as SUPPRESSED-<kind>) so the cause can be investigated, but the owner is never messaged twice.
+        conn.execute("INSERT OR REPLACE INTO alerts VALUES(?,?,?,?,?,?,?,?,?)", (c["run_id"], idx, "SUPPRESSED-" + kind, str(event_ts), str(pd.Timestamp(now)), 0.0, 0, 1, "(duplicate suppressed)"))
+        conn.commit()
+        return True
     sent = pd.Timestamp(now)
     lat = (sent - pd.Timestamp(event_ts)).total_seconds()
     late = int(kind == "NEW" and sent > pd.Timestamp(c["expires"]))
-    conn.execute("INSERT OR REPLACE INTO alerts VALUES(?,?,?,?,?,?,?,?,?)", (c["run_id"], idx, kind, str(event_ts), str(sent), lat, late, int(ok), text))
+    # RECORD FIRST, THEN SEND (outbox): if the process is killed between sending and recording, the old order lost the record and the restart sent the message again.
+    # Now a kill leaves an unsent row that retry_unsent() sends exactly once.
+    conn.execute("INSERT OR REPLACE INTO alerts VALUES(?,?,?,?,?,?,?,?,?)", (c["run_id"], idx, kind, str(event_ts), str(sent), lat, late, 0, text))
     conn.commit()
+    ok = send(env, text)
+    if ok:
+        conn.execute("UPDATE alerts SET ok=1 WHERE run_id=? AND idx=?", (c["run_id"], idx))
+        conn.commit()
     return ok
 
 
@@ -225,7 +236,12 @@ def run_cycle(conn, env, now, send=telegram.send, root=store.ROOT, refresh_fn=No
         log.error(traceback.format_exc())
         n = int(DB.kv_get(conn, "consec_err", 0)) + 1
         DB.kv_set(conn, "consec_err", n)
-        if n == 3 or n % ERR_ALERT_EVERY == 0:
+        if "401" in note:                                    # OANDA rejected the login: never transient-harmless, so tell the owner at once (then at most every 6 hours), not only after 3 failures in a row
+            last = DB.kv_get(conn, "auth_alert_ts")
+            if not last or (pd.Timestamp(now) - pd.Timestamp(last)) >= pd.Timedelta(hours=6):
+                send(env, M.engine_error(n, note))
+                DB.kv_set(conn, "auth_alert_ts", str(now))
+        elif n == 3 or n % ERR_ALERT_EVERY == 0:
             send(env, M.engine_error(n, note))
     else:
         if int(DB.kv_get(conn, "consec_err", 0)) >= 3:
