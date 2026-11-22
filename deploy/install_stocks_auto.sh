@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 D="$(pwd)"; U="$(id -un)"
 [ -x .venv/bin/python ] || { echo "run deploy/install_stocks.sh first"; exit 1; }
-chmod +x deploy/stocks_autoupdate.sh
+git config core.fileMode false                       # the timer runs the script with bash: no chmod needed, and a mode change must never block a pull
 sudo tee /etc/systemd/system/stocksauto.service >/dev/null <<UNIT
 [Unit]
 Description=Stocks: pull the newest code and restart the Stocks dashboard

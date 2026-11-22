@@ -15,6 +15,7 @@ update_stocks() {
   local U old
   U="$(stat -c %U .)"
   g() { runuser -u "$U" -- git "$@"; }
+  g config core.fileMode false                          # a chmod on a script must never look like a local change that blocks the update
   g fetch -q origin stocks-wip 2>/dev/null || { log "fetch failed"; return; }
   [ "$(g rev-parse HEAD)" = "$(g rev-parse FETCH_HEAD)" ] && return
   if pgrep -f "fxengine.stocks.(scan|data|events|filingtext|run)|stocks_nightly|stocks_all" >/dev/null; then log "stocks job running: update waits"; return; fi
@@ -34,6 +35,7 @@ update_fx() {
   [ -e "$FXD/data/autoupdate.pause" ] && return
   FU="$(stat -c %U "$FXD")"
   fxg() { runuser -u "$FU" -- git -C "$FXD" "$@"; }
+  fxg config core.fileMode false
   fxg fetch -q origin engine 2>/dev/null || { log "fetch failed (FX)"; return; }
   [ "$(fxg rev-parse HEAD)" = "$(fxg rev-parse FETCH_HEAD)" ] && return
   fold="$(fxg rev-parse --short HEAD)"

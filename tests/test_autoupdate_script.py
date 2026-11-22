@@ -71,3 +71,13 @@ def test_autoupdate_pause_switch_and_local_changes_are_respected(tmp_path):
     (tmp_path / "fx/src/fxengine/live/a.py").write_text("local edit\n"); sh(f"{git} commit -qam local", tmp_path / "fx")     # diverged local commit: cannot fast-forward
     assert _run(tmp_path, bin_) == [] and (tmp_path / "fx/src/fxengine/live/a.py").read_text() == "local edit\n"
     assert "cannot fast-forward" in (tmp_path / "stocks/data/stocks_autoupdate.log").read_text()
+
+
+def test_a_chmod_on_a_tracked_script_never_blocks_the_update(tmp_path):
+    """The real failure on the VM: the installer did chmod +x on the update script, git saw a local change, and the next update (which replaces that script) was refused."""
+    bin_, git = _setup(tmp_path)
+    (tmp_path / "stocks/deploy/stocks_autoupdate.sh").chmod(0o755)                       # the 'local change'
+    sh("git config core.fileMode true", tmp_path / "stocks")                              # worst case: git does notice mode changes
+    _push(tmp_path, git, "stocks", "stocks-wip", "deploy/stocks_autoupdate.sh", SCRIPT.read_text() + "\n# newer version\n")
+    assert _run(tmp_path, bin_) == ["restart stocksdash"]
+    assert "# newer version" in (tmp_path / "stocks/deploy/stocks_autoupdate.sh").read_text()
