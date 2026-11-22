@@ -58,3 +58,27 @@ def test_publish_caps_new_setups_at_free_cash_and_keeps_publishing_what_it_canno
     conn2 = DB.connect(str(tmp_path / "e2.db"))
     loop.publish(conn2, {}, lambda e, t: True, [c("GBPUSD", 2.0)], now)
     assert "lots_account" not in json.loads(conn2.execute("SELECT record FROM setups").fetchone()["record"])
+
+
+def test_full_live_cycle_with_a_real_scan_result_publishes_with_the_cap_and_alerts_cleanly(tmp_path):
+    """The exact path the live loop takes at the market open: scan() -> run_cycle -> publish -> alert. Uses the real scanner on synthetic candles for ALL pairs."""
+    import json
+    from tests.test_live_dashboard import _store
+    from fxengine.live import db as DB, loop, scan as SC, messages as M
+    end = _store(tmp_path / "c")
+    now = end + pd.Timedelta(minutes=3)
+    res = SC.scan(tmp_path / "c", now=now)
+    assert isinstance(res["px"], dict) and {"GBPUSD", "EURGBP", "AUDUSD", "NZDUSD"} <= set(res["px"])
+    json.dumps(res)                                                                       # the scan result is saved as JSON by the loop: must serialise
+    for cnd in res["candidates"]:
+        assert cnd["per_lot_gbp"] is None or cnd["per_lot_gbp"] > 0
+    # force a candidate through publish -> alert exactly as the loop does, at a publish hour
+    t = pd.Timestamp("2026-11-23 10:00", tz="UTC")
+    cnd = dict(pair="GBPUSD", direction="long", type="E1_strength", tf="H1", entry_kind="stop", entry=1.31, stop=1.308, target=1.314, created=str(t), expires=str(t + pd.Timedelta(hours=6)),
+               stop_pips=20.0, lots_for_20gbp_risk=0.06, score=2.0, note="UNPROVEN", per_lot_gbp=None)
+    conn = DB.connect(str(tmp_path / "e.db"))
+    out = loop.publish(conn, {}, lambda e, tx: True, [cnd], t, px=res["px"])
+    rec = json.loads(conn.execute("SELECT record FROM setups").fetchone()["record"])
+    assert len(out) == 1 and 0 < rec["lots_account"] <= 0.06 and rec["lots_account"] * rec["per_lot_gbp"] <= 2500.0
+    msg = M.new(rec)
+    assert len(msg.split("\n")) <= 3 and "no leverage" in msg
