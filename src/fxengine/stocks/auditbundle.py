@@ -47,12 +47,31 @@ def fx_section(db: Path) -> list[str]:
              f"max position value £{max([x['lots_account'] * (x.get('per_lot_gbp') or 0) for x in la] or [0]):,.0f} (must never exceed the account)")
     cy = c.execute("SELECT status, COUNT(*) n FROM cycles GROUP BY status").fetchall()
     L.append("- loop cycles by status: " + ", ".join(f"{r['status']}:{r['n']}" for r in cy))
-    errs = c.execute("SELECT ts, note FROM cycles WHERE ok=0 ORDER BY ts DESC LIMIT 5").fetchall()
-    L.append("- latest failed cycles: " + ("; ".join(f"{r['ts'][:16]} {str(r['note'])[:80]}" for r in errs) or "none"))
+    # failure timeline: scattered or consecutive? recovered or not?
+    cyc = c.execute("SELECT ts, ok, status, note FROM cycles ORDER BY ts").fetchall()
+    fails = [r for r in cyc if r["ok"] == 0]
+    if fails:
+        perday = collections.Counter(r["ts"][:10] for r in fails)
+        streak = best = 0
+        for r in cyc:
+            streak = streak + 1 if r["ok"] == 0 else 0
+            best = max(best, streak)
+        last_ok = max((r["ts"] for r in cyc if r["ok"] == 1), default=None)
+        causes = collections.Counter(("401 (login rejected)" if "401" in str(r["note"]) else str(r["note"])[:50]) for r in fails)
+        L.append(f"- failed cycles: {len(fails)} of {len(cyc)}; per day: {dict(perday)}; longest consecutive run: {best}; last successful cycle: {last_ok}; causes: {dict(causes)}")
+        L.append("  (an owner alert is sent at the FIRST 401, otherwise after 3 failures in a row)")
+    else:
+        L.append(f"- failed cycles: 0 of {len(cyc)}")
     al = c.execute("SELECT kind, COUNT(*) n, SUM(late) late, SUM(1-ok) failed FROM alerts GROUP BY kind").fetchall()
     L.append("- alerts by kind (count / late / failed to send): " + ", ".join(f"{r['kind']}:{r['n']}/{r['late']}/{r['failed']}" for r in al))
-    dup = c.execute("SELECT COUNT(*) FROM (SELECT run_id, kind, COUNT(*) k FROM alerts GROUP BY run_id, kind HAVING k > 1 AND kind IN ('NEW','TRIGGERED'))").fetchone()[0]
-    L.append(f"- duplicate NEW/TRIGGERED alerts for one setup: {dup} (must be 0)")
+    dup = c.execute("SELECT run_id, kind, COUNT(*) k, GROUP_CONCAT(idx) idxs, GROUP_CONCAT(substr(sent_at,1,16), ' | ') times FROM alerts WHERE kind IN ('NEW','TRIGGERED') GROUP BY run_id, kind HAVING k > 1").fetchall()
+    L.append(f"- (setup, kind) pairs alerted more than once, NEW/TRIGGERED: {len(dup)} (must be 0; before the fix of 22 Nov history can contain some)")
+    for r in dup[:10]:
+        L.append(f"    {r['run_id']} {r['kind']} x{r['k']} event numbers [{r['idxs']}] sent at {r['times']}")
+        ev = c.execute("SELECT idx, ts, frm, to_state FROM events WHERE run_id=? ORDER BY idx", (r["run_id"],)).fetchall()
+        L.append("      events: " + "; ".join(f"{e['idx']}:{e['frm']}->{e['to_state']}@{str(e['ts'])[:16]}" for e in ev[:12]))
+    sup = c.execute("SELECT COUNT(*) FROM alerts WHERE kind LIKE 'SUPPRESSED-%'").fetchone()[0]
+    L.append(f"- duplicates suppressed by the one-alert-per-kind rule since it was deployed: {sup} (any value above 0 means a replay shifted event numbers: investigate)")
     return L
 
 
@@ -72,7 +91,10 @@ def stocks_section(root: Path) -> list[str]:
         t = a.get("tiles") or {}
         L.append(f"- scan as of {d.get('asof')}: paper balance £{t.get('balance')}, open {t.get('n_open')}, closed wins/losses {t.get('wins')}/{t.get('losses')}, skipped for cash {len(a.get('skipped') or [])}")
         pos = a.get("positions") or []
-        L.append(f"- money in positions £{sum(p['cost'] for p in pos):,.0f} of the account (must never exceed it); largest position £{max([p['cost'] for p in pos] or [0]):,.0f} (cap £625)")
+        cost, value = sum(p["cost"] for p in pos), sum(p["value"] for p in pos)
+        bal = float(t.get("balance") or 0)
+        L.append(f"- positions: cost £{cost:,.0f}, current value £{value:,.0f}; balance £{bal:,.0f} => cash £{bal - value:,.0f} (NO LEVERAGE means cash >= 0; cost above balance is just an unrealised loss); largest position cost £{max([p['cost'] for p in pos] or [0]):,.0f} (cap £625)")
+        L.append("- cash check: " + ("OK" if bal - value >= -0.5 else "VIOLATION: cash below zero"))
         L.append("- forward test per rule: " + "; ".join(f"{k}: n={v['n']} mean {v['mean']:+.2%} hit {v['hit_rate']:.0%}" for k, v in (d.get("forward") or {}).items()))
     lv = res / "stocks_live.json"
     if lv.exists():
@@ -83,6 +105,11 @@ def stocks_section(root: Path) -> list[str]:
         keys = json.loads(sent.read_text())
         L.append("- Telegram events sent (by type): " + ", ".join(f"{k}:{v}" for k, v in collections.Counter(x.split("|")[0] for x in keys).items()))
     L.append(f"- health file: {(res / 'stocks_health.json').read_text()[:300] if (res / 'stocks_health.json').exists() else 'missing'}")
+    try:
+        j = subprocess.run("journalctl -u stocksnightly -u stockslive --since '14 days ago' --no-pager -q 2>/dev/null | grep -ciE 'oom|killed|memory cgroup'", shell=True, capture_output=True, text=True, timeout=30).stdout.strip()
+        L.append(f"- memory kills / OOM lines in the Stocks job journals (14 days): {j or 'n/a'} (the nightly job is limited to 350 MB)")
+    except Exception:
+        L.append("- memory kills: n/a (journal not readable)")
     L.append("- nightly log tail:"); L += ["    " + x[:150] for x in _tail(root / "data/stocks_nightly.log", 12)]
     L.append("- auto-update log tail:"); L += ["    " + x[:150] for x in _tail(root / "data/stocks_autoupdate.log", 8)]
     return L

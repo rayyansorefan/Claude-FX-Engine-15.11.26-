@@ -1247,7 +1247,7 @@ def test_audit_bundle_runs_on_empty_and_on_real_shaped_data_without_secrets(tmp_
     st = tmp_path / "stocks/data/stocks"; st.mkdir(parents=True)
     (st / "history.jsonl").write_text(j.dumps(dict(event="created", id="a", at="x")) + "\n" + j.dumps(dict(event="closed", id="a", closed=dict(gross=0.03))) + "\n")
     out = AB.build(tmp_path / "stocks", tmp_path / "fx")
-    assert "setups published: 1" in out and "win rate 100%" in out and "no-leverage sizing recorded on 1 of 1" in out and "duplicate NEW/TRIGGERED alerts for one setup: 0" in out
+    assert "setups published: 1" in out and "win rate 100%" in out and "no-leverage sizing recorded on 1 of 1" in out and "alerted more than once, NEW/TRIGGERED: 0" in out and "failed cycles: 0 of 0" in out
     assert "TOKEN" not in out.upper().replace("TOKENS", "") and "100.78" not in out
 
 
@@ -1266,3 +1266,24 @@ def test_paper_account_cash_never_goes_negative_even_when_prices_fall_and_positi
     assert cost <= 2500.0 + 0.01 and abs(cost - 2500.0) < 0.5                                       # the whole account is invested at entry
     assert r["balance"] < 2500.0 and value < cost                                                   # prices fell: balance and value are below cost
     assert cash >= -0.01                                                                            # but cash is never negative: no leverage
+
+
+def test_audit_bundle_shows_the_duplicate_rows_failure_timeline_and_cash_from_value(tmp_path):
+    import json as j
+    from fxengine.stocks import auditbundle as AB
+    from fxengine.live import db as DB
+    fx = tmp_path / "fx/data"; fx.mkdir(parents=True)
+    c = DB.connect(str(fx / "engine.db"))
+    rec = dict(pair="EURUSD", type="E1_strength", tf="H1", direction="long", created="2026-11-23 10:00+00:00", expires="2026-11-23 16:00+00:00", entry=1.1, stop=1.09, target=1.12, lots_for_20gbp_risk=0.05)
+    DB.add_setup(c, "r1", rec)
+    c.execute("INSERT INTO events VALUES('r1',0,'2026-11-23T10:00:00','' ,'PUBLISHED','p')")
+    for i, ts in enumerate(("2026-11-23 10:00", "2026-11-23 11:00")):                                       # the same kind alerted twice under two event numbers
+        c.execute("INSERT INTO alerts VALUES('r1',?,?,?,?,?,?,?,?)", (i + 1, "TRIGGERED", ts, ts, 0.0, 0, 1, "x"))
+    for ts, ok, note in (("2026-11-23 09:00", 1, ""), ("2026-11-23 09:05", 0, "RuntimeError: 401 Client Error"), ("2026-11-23 09:10", 0, "401"), ("2026-11-23 09:15", 1, "")):
+        c.execute("INSERT INTO cycles VALUES(?,?,?,?,?,?)", (ts, ok, "OK" if ok else "ERROR", None, 1.0, note))
+    c.commit()
+    st = tmp_path / "stocks/docs/results"; st.mkdir(parents=True)
+    (st / "stocks_setups.json").write_text(j.dumps(dict(asof="2026-11-23", account=dict(tiles=dict(balance=2398.1, n_open=1, wins=0, losses=0), skipped=[], positions=[dict(cost=2500.0, value=2398.1, floating=-101.9)]), forward={})))
+    out = AB.build(tmp_path / "stocks", tmp_path / "fx")
+    assert "r1 TRIGGERED x2" in out and "failed cycles: 2 of 4" in out and "longest consecutive run: 2" in out and "401 (login rejected)" in out
+    assert "cash £0" in out and "cash check: OK" in out and "VIOLATION" not in out                              # balance 2,398 vs value 2,398: cash is zero, not -102
