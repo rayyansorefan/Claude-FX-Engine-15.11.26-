@@ -63,6 +63,8 @@ def check(now: datetime, root: Path = Path("."), fx_root: Path = Path("../fx"), 
     try:
         last = lg.read_text().strip().splitlines()[-1]
         ts = datetime.strptime(last[1:20], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        if "cannot fast-forward" in last and (now - ts) < timedelta(minutes=45):
+            out.append(("update-blocked", "Automatic update is blocked: the VM has local changes that stop it pulling new code. The engines keep running on the code they have."))
         if "fetch failed" in last and (now - ts) < timedelta(minutes=45):
             out.append(("github", "The VM cannot reach GitHub, so it cannot pick up new code (an access token may have expired). The engines keep running on the code they have."))
     except (OSError, IndexError, ValueError):

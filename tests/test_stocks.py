@@ -1222,3 +1222,12 @@ def test_health_flags_when_the_vm_cannot_reach_github(tmp_path):
     assert "github" in dict(H.check(now, tmp_path, tmp_path / "fx", active=lambda s: True, mem_mb=300, disk_pct=40))
     lg.write_text(f"[{now - timedelta(minutes=5):%Y-%m-%d %H:%M:%S}] updated abc -> def\n")
     assert "github" not in dict(H.check(now, tmp_path, tmp_path / "fx", active=lambda s: True, mem_mb=300, disk_pct=40))
+
+
+def test_health_flags_when_automatic_update_is_blocked(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    from fxengine.stocks import health as H
+    (tmp_path / "data").mkdir()
+    now = datetime(2026, 11, 23, 12, 0, tzinfo=timezone.utc)
+    (tmp_path / "data/stocks_autoupdate.log").write_text(f"[{now - timedelta(minutes=3):%Y-%m-%d %H:%M:%S}] FX cannot fast-forward (local changes?): left as it was\n")
+    assert "update-blocked" in dict(H.check(now, tmp_path, tmp_path / "fx", active=lambda s: True, mem_mb=300, disk_pct=40))
