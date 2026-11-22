@@ -1249,3 +1249,20 @@ def test_audit_bundle_runs_on_empty_and_on_real_shaped_data_without_secrets(tmp_
     out = AB.build(tmp_path / "stocks", tmp_path / "fx")
     assert "setups published: 1" in out and "win rate 100%" in out and "no-leverage sizing recorded on 1 of 1" in out and "duplicate NEW/TRIGGERED alerts for one setup: 0" in out
     assert "TOKEN" not in out.upper().replace("TOKENS", "") and "100.78" not in out
+
+
+def test_paper_account_cash_never_goes_negative_even_when_prices_fall_and_positions_cost_the_whole_account():
+    """Audit claim: 'positions cost GBP 2,500, balance 2,398 -> cash is -GBP 102 (leverage)'. Cost basis vs market value are different things: after a fall the balance is lower
+    than the cost, but cash (balance - market value of positions) is still >= 0 because no entry can spend more cash than exists."""
+    from fxengine.stocks import account as A
+    rates = pd.Series([1.25], index=[pd.Timestamp("2026-10-01")])
+    falling = np.r_[np.full(10, 100.0), np.linspace(100.0, 94.0, 30)]                              # every position loses ~6% after entry
+    p = {f"s{i}.us": _acct_panel(n=40, path=falling) for i in range(8)}
+    rows = [_setup(f"s{i}.us", "RSI2_PULLBACK", "2026-11-02", 99.5, strength=float(i)) for i in range(8)]        # tight stops: each wants the GBP 625 cap
+    r = A.simulate(rows, p, rates, {"RSI2_PULLBACK"})
+    cost = sum(x["cost"] for x in r["positions"])
+    value = sum(x["value"] for x in r["positions"])
+    cash = r["balance"] - value
+    assert cost <= 2500.0 + 0.01 and abs(cost - 2500.0) < 0.5                                       # the whole account is invested at entry
+    assert r["balance"] < 2500.0 and value < cost                                                   # prices fell: balance and value are below cost
+    assert cash >= -0.01                                                                            # but cash is never negative: no leverage
