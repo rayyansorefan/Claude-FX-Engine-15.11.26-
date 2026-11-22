@@ -63,7 +63,7 @@ def test_publish_caps_new_setups_at_free_cash_and_keeps_publishing_what_it_canno
 def test_full_live_cycle_with_a_real_scan_result_publishes_with_the_cap_and_alerts_cleanly(tmp_path):
     """The exact path the live loop takes at the market open: scan() -> run_cycle -> publish -> alert. Uses the real scanner on synthetic candles for ALL pairs."""
     import json
-    from tests.test_live_dashboard import _store
+    from test_live_dashboard import _store
     from fxengine.live import db as DB, loop, scan as SC, messages as M
     end = _store(tmp_path / "c")
     now = end + pd.Timedelta(minutes=3)
@@ -103,7 +103,7 @@ def test_one_alert_of_each_kind_per_setup_even_if_a_replay_shifts_the_event_numb
 
 
 def test_a_401_from_oanda_alerts_the_owner_at_once_then_at_most_every_six_hours(tmp_path):
-    from tests.test_live_loop import make_store, Bag
+    from test_live_loop import make_store, Bag
     from fxengine.live import db as DB, loop
     d = make_store(tmp_path)
     now = d.index[-1] + pd.Timedelta(minutes=6)
@@ -127,7 +127,7 @@ def test_a_401_from_oanda_alerts_the_owner_at_once_then_at_most_every_six_hours(
 
 
 def test_fx_page_says_so_when_the_account_view_cannot_be_built(tmp_path, monkeypatch):
-    from tests.test_live_dashboard import _store
+    from test_live_dashboard import _store
     from fxengine.dashboard import build as B
     from fxengine.live import db as DB
     monkeypatch.chdir(tmp_path)
