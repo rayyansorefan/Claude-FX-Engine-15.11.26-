@@ -1231,3 +1231,21 @@ def test_health_flags_when_automatic_update_is_blocked(tmp_path):
     now = datetime(2026, 11, 23, 12, 0, tzinfo=timezone.utc)
     (tmp_path / "data/stocks_autoupdate.log").write_text(f"[{now - timedelta(minutes=3):%Y-%m-%d %H:%M:%S}] FX cannot fast-forward (local changes?): left as it was\n")
     assert "update-blocked" in dict(H.check(now, tmp_path, tmp_path / "fx", active=lambda s: True, mem_mb=300, disk_pct=40))
+
+
+def test_audit_bundle_runs_on_empty_and_on_real_shaped_data_without_secrets(tmp_path):
+    import json as j, sqlite3
+    from fxengine.stocks import auditbundle as AB
+    out = AB.build(tmp_path / "stocks", tmp_path / "fx")
+    assert "Audit bundle" in out and "ledger not found" in out                            # nothing present: still a readable report, no crash
+    fx = tmp_path / "fx/data"; fx.mkdir(parents=True)
+    from fxengine.live import db as DB
+    c = DB.connect(str(fx / "engine.db"))
+    rec = dict(pair="EURUSD", type="E1_strength", tf="H1", direction="long", created="2026-11-23 10:00+00:00", expires="2026-11-23 16:00+00:00", entry=1.1, stop=1.09, target=1.12, lots_for_20gbp_risk=0.05, lots_account=0.02, per_lot_gbp=86000.0)
+    DB.add_setup(c, "r1", rec)
+    c.execute("INSERT INTO outcomes(run_id,reason,net_r,fill,exit,resolved_at) VALUES('r1','TARGET',1.9,1.1,1.12,'2026-11-23T12:00:00+00:00')"); c.commit()
+    st = tmp_path / "stocks/data/stocks"; st.mkdir(parents=True)
+    (st / "history.jsonl").write_text(j.dumps(dict(event="created", id="a", at="x")) + "\n" + j.dumps(dict(event="closed", id="a", closed=dict(gross=0.03))) + "\n")
+    out = AB.build(tmp_path / "stocks", tmp_path / "fx")
+    assert "setups published: 1" in out and "win rate 100%" in out and "no-leverage sizing recorded on 1 of 1" in out and "duplicate NEW/TRIGGERED alerts for one setup: 0" in out
+    assert "TOKEN" not in out.upper().replace("TOKENS", "") and "100.78" not in out
