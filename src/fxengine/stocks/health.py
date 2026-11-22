@@ -59,6 +59,14 @@ def check(now: datetime, root: Path = Path("."), fx_root: Path = Path("../fx"), 
     n = _age_min(res / "stocks_setups.json", now)
     if n is None or (now - timedelta(minutes=n)) < due - timedelta(minutes=5):
         out.append(("stocks-nightly", f"Stocks nightly scan has not completed since {due:%a %d %b}'s close. Today's new setups and the final record are missing."))
+    lg = root / "data/stocks_autoupdate.log"                  # the VM could not reach GitHub (expired token, network): self-update would otherwise fail silently
+    try:
+        last = lg.read_text().strip().splitlines()[-1]
+        ts = datetime.strptime(last[1:20], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        if "fetch failed" in last and (now - ts) < timedelta(minutes=45):
+            out.append(("github", "The VM cannot reach GitHub, so it cannot pick up new code (an access token may have expired). The engines keep running on the code they have."))
+    except (OSError, IndexError, ValueError):
+        pass
     for svc, key, nice in (("stocksdash", "svc-stocksdash", "Stocks dashboard"), ("fxengine", "svc-fxengine", "FX live loop"), ("fxdash", "svc-fxdash", "FX dashboard")):
         if active(svc) is False:
             out.append((key, f"{nice} is not running."))

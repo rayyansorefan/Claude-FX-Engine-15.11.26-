@@ -1210,3 +1210,15 @@ def test_stocks_header_always_shows_how_fresh_the_live_data_is():
     assert "not running yet" in tab._fresh(dict()) and "not running yet" in tab._fresh(dict(live=dict(asof="garbage")))
     h = tab.fragment(None, dict(asof="2026-11-19", setups=[], live=dict(asof=ts(1))), None, None, None)
     assert "last close used 2026-11-19" in h and "live prices updated" in h
+
+
+def test_health_flags_when_the_vm_cannot_reach_github(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    from fxengine.stocks import health as H
+    (tmp_path / "data").mkdir()
+    now = datetime(2026, 11, 23, 12, 0, tzinfo=timezone.utc)
+    lg = tmp_path / "data/stocks_autoupdate.log"
+    lg.write_text(f"[{now - timedelta(minutes=5):%Y-%m-%d %H:%M:%S}] fetch failed\n")
+    assert "github" in dict(H.check(now, tmp_path, tmp_path / "fx", active=lambda s: True, mem_mb=300, disk_pct=40))
+    lg.write_text(f"[{now - timedelta(minutes=5):%Y-%m-%d %H:%M:%S}] updated abc -> def\n")
+    assert "github" not in dict(H.check(now, tmp_path, tmp_path / "fx", active=lambda s: True, mem_mb=300, disk_pct=40))
