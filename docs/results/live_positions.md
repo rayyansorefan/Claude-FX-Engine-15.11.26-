@@ -1,9 +1,9 @@
-# Live positions (written 2026-11-23 22:40 UTC)
+# Live positions (written 2026-11-23 22:50 UTC)
 
 Unfinished setups: 1
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.87R, best so far +0.93R, worst -0.34R. Target is 1.13R away. Held 511 of 1920 five-minute bars (117h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.89R, best so far +0.93R, worst -0.34R. Target is 1.11R away. Held 513 of 1920 five-minute bars (117h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
