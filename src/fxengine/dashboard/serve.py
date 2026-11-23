@@ -8,13 +8,16 @@ PYTHONPATH=src python -m fxengine.dashboard.serve [--port 8787] [--open] [--auto
   --refresh    on each page load, first fetch the newest prices from OANDA (rate-limited to once a minute; Mac use only)"""
 from __future__ import annotations
 import argparse
-import sys, threading, time, traceback, webbrowser
+import os, sys, threading, time, traceback, webbrowser
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ..envfile import load_env
 from .build import build
 
-STATE = {"last_refresh": 0.0, "auto": 0, "refresh": False, "lock": threading.Lock(), "html": None, "built": 0.0, "cache": 120,
+FRESH_WITHIN_S = 90                                          # a cached page older than this is NEVER served as-is: the request waits for a fresh build (it used to return the old page and rebuild afterwards, so even a hard refresh showed hours-old data)
+WAIT_FOR_BUILD_S = 45
+STUCK_AFTER_S = 300                                          # a rebuild that has not finished after 5 minutes is stuck: the process restarts itself (systemd Restart=always brings it straight back)
+STATE = {"building_since": 0.0, "last_refresh": 0.0, "auto": 0, "refresh": False, "lock": threading.Lock(), "html": None, "built": 0.0, "cache": 120,
          "building": False, "error": None, "error_at": 0.0}
 WAIT_PAGE = ("<!doctype html><meta charset='utf-8'><meta http-equiv='refresh' content='4'><meta name='viewport' content='width=device-width,initial-scale=1'>"
              "<body style='background:#111110;color:#f0efec;font:18px system-ui;padding:40px'><b>Building the dashboard…</b>"
@@ -40,7 +43,7 @@ def _start_rebuild(note: str = "") -> bool:
     with STATE["lock"]:
         if STATE["building"]:
             return False
-        STATE["building"] = True
+        STATE["building"], STATE["building_since"] = True, time.time()
     threading.Thread(target=_rebuild, args=(note,), daemon=True).start()
     return True
 
@@ -57,7 +60,16 @@ def _fetch_prices() -> str:
         return f"<div class='sample' style='background:#d03b3b;color:#fff'>Could not fetch newest prices: {escape(str(e))[:160]}</div>"
 
 
+def _exit_stuck() -> None:
+    sys.stderr.write("[fxdash] a dashboard rebuild has been running for more than %d seconds: restarting the server\n" % STUCK_AFTER_S); sys.stderr.flush()
+    os._exit(3)
+
+
 def render() -> str:
+    with STATE["lock"]:
+        stuck = STATE["building"] and time.time() - STATE["building_since"] > STUCK_AFTER_S
+    if stuck:                                                # the page used to freeze at its last build time with no error and no way back
+        _exit_stuck()
     note = _fetch_prices()
     if STATE["cache"] <= 0:                                 # legacy: rebuild synchronously on every request
         html = build(out=None, banner=note)
@@ -75,6 +87,16 @@ def render() -> str:
             return WAIT_PAGE
         if (age > STATE["cache"] or note) and not backoff:
             _start_rebuild(note)
+        if age > FRESH_WITHIN_S and not backoff:                          # too old to show: wait (bounded) for the rebuild that is running or was just started
+            deadline = time.time() + WAIT_FOR_BUILD_S
+            while time.time() < deadline:
+                with STATE["lock"]:
+                    done = not STATE["building"]
+                if done:
+                    break
+                time.sleep(0.5)
+            with STATE["lock"]:
+                html, age = STATE["html"], time.time() - STATE["built"]
         if STATE["error"]:
             html = html.replace("<body>", "<body><div style='background:#d03b3b;color:#fff;padding:8px;text-align:center;font:13px system-ui'>"
                                           f"The latest dashboard rebuild failed; showing the last good page built {age / 60:.0f} min ago. Error: {escape(STATE['error'].strip().splitlines()[-1][:200])} (full trace: journalctl -u fxdash)</div>", 1)

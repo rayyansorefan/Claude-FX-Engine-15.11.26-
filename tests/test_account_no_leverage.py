@@ -202,3 +202,38 @@ def test_losses_and_wins_of_trades_the_account_could_not_hold_are_still_recorded
     assert "STOP · not held" in html and "-22 GBP (not held)" in html and "TARGET · not held" in html and "+38 GBP (not held)" in html
     assert "not held (no cash): 0.05 lots would be" in html and "no cash</td>" not in html
     assert "Every published setup at £20 risk" in html and "+16 GBP over 2 resolved (1 won, 1 lost)" in html                    # (-1.08 + 1.9) R x £20 = +£16, even though the account held neither
+
+
+def test_a_stuck_dashboard_rebuild_makes_the_server_restart_itself():
+    import time
+    from fxengine.dashboard import serve as S
+    S.STATE.update(html="<html><body>old</body></html>", built=time.time(), error=None, error_at=0.0, building=True, building_since=time.time() - S.STUCK_AFTER_S - 10, cache=30, auto=0, refresh=False)
+    called = []
+    orig = S._exit_stuck
+    S._exit_stuck = lambda: called.append(1) or (_ for _ in ()).throw(SystemExit)
+    try:
+        try:
+            S.render()
+        except SystemExit:
+            pass
+    finally:
+        S._exit_stuck = orig
+    assert called == [1]
+    S.STATE.update(building=True, building_since=time.time() - 10)                                  # a normal running build is left alone
+    S.STATE.update(html="<html><body>old</body></html>", built=time.time())
+    assert "old" in S.render()
+    S.STATE.update(building=False, html=None)
+
+
+def test_an_old_cached_dashboard_is_never_served_as_is_the_request_gets_a_fresh_build():
+    import time
+    from fxengine.dashboard import serve as S
+    S.STATE.update(html="<html><body>OLD PAGE</body></html>", built=time.time() - 3 * 3600, error=None, error_at=0.0, building=False, building_since=0.0, cache=30, auto=0, refresh=False)
+    orig = S.build
+    S.build = lambda **k: "<html><body>FRESH PAGE</body></html>"
+    try:
+        page = S.render()
+    finally:
+        S.build = orig
+    assert "FRESH PAGE" in page and "OLD PAGE" not in page                      # 3 hours old: the first request already gets the new build
+    S.STATE.update(html=None, built=0.0)
