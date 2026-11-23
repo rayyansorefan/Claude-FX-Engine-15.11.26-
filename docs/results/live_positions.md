@@ -1,14 +1,13 @@
-# Live positions (written 2026-11-23 13:50 UTC)
+# Live positions (written 2026-11-23 14:00 UTC)
 
-Unfinished setups: 2
+Unfinished setups: 1
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.56R, best so far +0.80R, worst -0.34R. Target is 1.44R away. Held 405 of 1920 five-minute bars (126h until the time limit).
-- NZDUSD SHORT trend_pullback [TRIGGERED] created 2026-11-23 08:00
-  FILLED at 0.54690. entry 0.54696 stop 0.54825 target 0.54437. Unrealised +1.93R, best so far +1.83R, worst -0.31R. Target is 0.03R away. Held 45 of 384 five-minute bars (28h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.28R, best so far +0.80R, worst -0.34R. Target is 1.72R away. Held 407 of 1920 five-minute bars (126h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
+- NZDUSD trend_pullback: TARGET +1.91R at 2026-11-23 13:55 · best +2.34R, worst -0.31R
 - USDCHF asia_breakout: STOP -1.11R at 2026-11-23 10:25 · best +0.57R, worst -1.08R · STALLED
 - EURJPY asia_breakout: STOP -1.11R at 2026-11-23 10:05 · best +0.00R, worst -1.08R · WRONG_WAY
 - GBPUSD asia_breakout: STOP -1.16R at 2026-11-23 10:00 · best +0.00R, worst -1.17R · WRONG_WAY
@@ -23,4 +22,3 @@ Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it l
 - EURGBP asia_breakout: TARGET +1.62R at 2026-11-19 15:00 · best +1.78R, worst -0.81R
 - USDCAD E2_donchian: STOP -1.05R at 2026-11-19 13:30 · best +0.00R, worst -1.06R · WRONG_WAY
 - GBPUSD E1_strength: STOP -1.04R at 2026-11-19 10:50 · best +0.00R, worst -1.02R · WRONG_WAY
-- NZDUSD E1_strength: STOP -1.10R at 2026-11-19 09:05 · best +0.36R, worst -1.13R · WRONG_WAY
