@@ -1,17 +1,17 @@
-# Live positions (written 2026-11-23 09:00 UTC)
+# Live positions (written 2026-11-23 09:15 UTC)
 
 Unfinished setups: 5
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.24R, best so far +0.80R, worst -0.34R. Target is 2.23R away. Held 347 of 1920 five-minute bars (131h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.15R, best so far +0.80R, worst -0.34R. Target is 2.15R away. Held 350 of 1920 five-minute bars (131h until the time limit).
 - NZDUSD SHORT trend_pullback [PUBLISHED] created 2026-11-23 08:00
-  not filled yet. entry 0.54696 stop 0.54825 target 0.54437. Expires in 3.0h. Price is +0.60R from entry (positive = entry still ahead).
+  not filled yet. entry 0.54696 stop 0.54825 target 0.54437. Expires in 2.7h. Price is +0.36R from entry (positive = entry still ahead).
 - USDCHF SHORT asia_breakout [TRIGGERED] created 2026-11-23 08:00
-  FILLED at 0.83775. entry 0.83782 stop 0.83966 target 0.83413. Unrealised -0.43R, best so far +0.57R, worst -0.51R. Target is 2.40R away. Held 11 of 384 five-minute bars (31h until the time limit).
-- GBPUSD LONG asia_breakout [PUBLISHED] created 2026-11-23 09:00
-  not filled yet. entry 1.31335 stop 1.31138 target 1.31729. Expires in 4.0h. Price is +0.00R from entry (positive = entry still ahead).
-- EURJPY LONG asia_breakout [PUBLISHED] created 2026-11-23 09:00
-  not filled yet. entry 174.90600 stop 174.58464 target 175.54873. Expires in 4.0h. Price is +0.00R from entry (positive = entry still ahead).
+  FILLED at 0.83775. entry 0.83782 stop 0.83966 target 0.83413. Unrealised -0.69R, best so far +0.57R, worst -0.82R. Target is 2.66R away. Held 14 of 384 five-minute bars (31h until the time limit).
+- GBPUSD LONG asia_breakout [TRIGGERED] created 2026-11-23 09:00
+  FILLED at 1.31354. entry 1.31335 stop 1.31138 target 1.31729. Unrealised -0.57R, best so far +0.00R, worst -0.64R. Target is 2.47R away. Held 2 of 384 five-minute bars (32h until the time limit).
+- EURJPY LONG asia_breakout [TRIGGERED] created 2026-11-23 09:00
+  FILLED at 174.92900. entry 174.90600 stop 174.58464 target 175.54873. Unrealised -0.53R, best so far +0.00R, worst -0.53R. Target is 2.46R away. Held 2 of 384 five-minute bars (32h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
