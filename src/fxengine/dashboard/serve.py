@@ -7,7 +7,8 @@ PYTHONPATH=src python -m fxengine.dashboard.serve [--port 8787] [--open] [--auto
   --auto N     the page reloads itself every N seconds
   --refresh    on each page load, first fetch the newest prices from OANDA (rate-limited to once a minute; Mac use only)"""
 from __future__ import annotations
-import argparse, threading, time, traceback, webbrowser
+import argparse
+import sys, threading, time, traceback, webbrowser
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ..envfile import load_env
@@ -26,8 +27,10 @@ def _rebuild(note: str = ""):
         with STATE["lock"]:
             STATE["html"], STATE["built"], STATE["error"] = html, time.time(), None
     except Exception:
+        tb = traceback.format_exc()
+        sys.stderr.write(f"[fxdash] dashboard rebuild FAILED, serving the last good page:\n{tb}\n"); sys.stderr.flush()       # to the journal: the page banner used to point at a log that was never written
         with STATE["lock"]:
-            STATE["error"], STATE["error_at"] = traceback.format_exc(), time.time()
+            STATE["error"], STATE["error_at"] = tb, time.time()
     finally:
         with STATE["lock"]:
             STATE["building"] = False
@@ -74,7 +77,7 @@ def render() -> str:
             _start_rebuild(note)
         if STATE["error"]:
             html = html.replace("<body>", "<body><div style='background:#d03b3b;color:#fff;padding:8px;text-align:center;font:13px system-ui'>"
-                                          "The latest dashboard rebuild failed; showing the last good page. The error is in the server log.</div>", 1)
+                                          f"The latest dashboard rebuild failed; showing the last good page built {age / 60:.0f} min ago. Error: {escape(STATE['error'].strip().splitlines()[-1][:200])} (full trace: journalctl -u fxdash)</div>", 1)
         html = html.replace("</body>", f"<div style='text-align:center;color:#8d8c84;font:12px system-ui;padding:10px'>Page built {age:.0f}s ago · "
                                        f"rebuilds in the background every {STATE['cache']}s · reload to see the newest</div></body>", 1)
     if STATE["auto"]:

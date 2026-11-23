@@ -162,3 +162,43 @@ def test_a_crash_while_sending_leaves_a_record_and_the_message_goes_out_exactly_
     loop.retry_unsent(conn, {}, ok_send, now)                                           # restart: unsent rows are retried
     loop.retry_unsent(conn, {}, ok_send, now)
     assert delivered == ["new setup"] and conn.execute("SELECT ok FROM alerts WHERE run_id='r1'").fetchone()["ok"] == 1
+
+
+def test_a_failed_dashboard_rebuild_is_logged_and_the_banner_says_why(capsys):
+    from fxengine.dashboard import serve as S
+    S.STATE.update(html="<html><body>old page</body></html>", built=0.0, error=None, error_at=0.0, building=False, cache=120, auto=0, refresh=False)
+    orig = S.build
+    S.build = lambda **k: (_ for _ in ()).throw(KeyError("lots_account"))
+    try:
+        S._rebuild()
+    finally:
+        S.build = orig
+    assert "dashboard rebuild FAILED" in capsys.readouterr().err                          # in the journal now
+    S.STATE["built"] = 0.0
+    page = S.render()
+    assert "rebuild failed" in page and "KeyError" in page and "journalctl -u fxdash" in page and "old page" in page
+    S.STATE.update(html=None, error=None, error_at=0.0)
+
+
+def test_losses_and_wins_of_trades_the_account_could_not_hold_are_still_recorded(tmp_path, monkeypatch):
+    """Owner: 'I want the losses to be recorded'. A trade the no-leverage account could not hold must still show its result at £20 risk, marked not held, and be counted in the all-setups total."""
+    from tests.test_live_dashboard import _store
+    from fxengine.dashboard import build as B
+    from fxengine.live import db as DB
+    monkeypatch.chdir(tmp_path)
+    _store(tmp_path / "data" / "candles")
+    conn = DB.connect(str(tmp_path / "data" / "engine.db"))
+    for i, (pair, cr) in enumerate([("GBPUSD", "2025-06-03 08:00+00:00"), ("EURGBP", "2025-06-03 08:30+00:00"), ("EURJPY", "2025-06-03 08:40+00:00")]):
+        rec = dict(pair=pair, type="E1_strength", tf="H1", direction="long", entry_kind="stop", entry=1.1010, stop=1.0990, target=1.1030, created=cr, expires="2025-06-03 15:00+00:00",
+                   stop_pips=20.0, lots_for_20gbp_risk=0.05, score=2.0, reason="x\ny", invalidation=1.0995)
+        DB.add_setup(conn, f"live-{i}", rec)
+        conn.execute("INSERT INTO events VALUES(?,?,?,?,?,?)", (f"live-{i}", 0, cr, None, "PUBLISHED", "p"))
+        conn.execute("INSERT INTO events VALUES(?,?,?,?,?,?)", (f"live-{i}", 1, "2025-06-03T09:05:00+00:00", "PUBLISHED", "TRIGGERED", "f"))
+    conn.execute("INSERT INTO outcomes(run_id,reason,net_r,fill,exit,resolved_at) VALUES('live-1','STOP',-1.08,1.1,1.09,'2025-06-03T09:30:00+00:00')")      # not held: a LOSS
+    conn.execute("INSERT INTO outcomes(run_id,reason,net_r,fill,exit,resolved_at) VALUES('live-2','TARGET',1.9,1.1,1.12,'2025-06-03T09:40:00+00:00')")     # not held: a WIN
+    conn.commit()
+    html = B.build(root=tmp_path / "data" / "candles", out=None, now=pd.Timestamp("2025-06-03 10:00", tz="UTC"))
+    assert not B.ACCT["live-1"]["taken"] and not B.ACCT["live-2"]["taken"]
+    assert "STOP · not held" in html and "-22 GBP (not held)" in html and "TARGET · not held" in html and "+38 GBP (not held)" in html
+    assert "not held (no cash): 0.05 lots would be" in html and "no cash</td>" not in html
+    assert "Every published setup at £20 risk" in html and "+16 GBP over 2 resolved (1 won, 1 lost)" in html                    # (-1.08 + 1.9) R x £20 = +£16, even though the account held neither

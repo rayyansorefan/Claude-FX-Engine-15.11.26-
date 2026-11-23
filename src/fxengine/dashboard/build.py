@@ -454,9 +454,10 @@ def live_pnl(c, root, now):
     except Exception as ex:                                   # show that it failed; never hide it as zero
         note = f"floating P&L unavailable ({type(ex).__name__})"
     realised = sum(r for _, r, _ in trades) * RISK
+    all_r = [float(r["net_r"]) for r in rows if r["reason"] in ("TARGET", "STOP", "TIMEOUT") and r["net_r"] is not None]
     curve = pd.Series([START + sum(r for _, r, _ in trades[:i + 1]) * RISK for i in range(len(trades))],
                       index=pd.DatetimeIndex([t for t, _, _ in trades], tz="UTC") if trades and trades[0][0].tzinfo is None else pd.DatetimeIndex([t for t, _, _ in trades]))
-    return dict(today=pay(today), week=pay(wk), month=pay(mo), total=realised, floating=float_r * RISK, opens=opens, note=note,
+    return dict(all_total=sum(all_r) * RISK, all_n=len(all_r), all_w=sum(1 for x in all_r if x > 0), all_l=sum(1 for x in all_r if x <= 0), today=pay(today), week=pay(wk), month=pay(mo), total=realised, floating=float_r * RISK, opens=opens, note=note,
                 balance=START + realised + float_r * RISK, wins=sum(1 for _, r, _ in trades if r > 0), losses=sum(1 for _, r, _ in trades if r <= 0),
                 n_pub=n_pub, n_fill=n_fill, n_nt=n_nt, curve=curve)
 
@@ -481,6 +482,7 @@ def live_panel(lp):
     foot = (f"Published {lp['n_pub']} · filled {lp['n_fill']} · closed {lp['wins'] + lp['losses']} · expired or invalidated without a trade {lp['n_nt']}. "
             f"Hypothetical: sized to £{RISK:.0f} risk but never more than the account can hold (NO leverage), nothing was traded. "
             + (f"In positions now £{META['exposure']:,.0f} of £{META['balance']:,.0f} (free £{META['free']:,.0f}); {META['not_taken']} setup(s) not taken for lack of cash. " if META.get("exposure") is not None else "")
+            + (f"Every published setup at £20 risk, whether or not the account could hold it: {lp['all_total']:+,.0f} GBP over {lp['all_n']} resolved ({lp['all_w']} won, {lp['all_l']} lost). " if lp.get("all_n") else "")
             + ("ACCOUNT VIEW UNAVAILABLE (price files missing): showing the plain £20-risk sizes, NOT capped to the £2,500. " if META.get("fallback") else "") + f"{e(lp['note'])}")
     return (f"<div class='card c12'><h3>Live profit &amp; loss · hypothetical, scored by the engine</h3><div class='kpis' style='margin:0 0 8px'>{html}</div>"
             f"<div>{opens}</div><p class='muted' style='margin:6px 0 0'>{foot}</p>{curve}</div>")
@@ -943,8 +945,14 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     def _state_pl(r):
         t = fl.get(r["run_id"])
         a_ = acct_of(r["run_id"])
-        if a_ is not None and not a_["taken"]:
-            return (e(r["reason"] or r["state"] or "PENDING") + " · not taken"), "", "no cash"
+        if a_ is not None and not a_["taken"]:                  # not held by the £2,500 account, but its win or loss is still RECORDED (hypothetical at £20 risk, like every setup before)
+            if r["reason"]:
+                v = (r["net_r"] or 0) * RISK
+                return e(r["reason"]) + " · not held", ("up" if v > 0 else "dn" if v < 0 else ""), ("" if r["net_r"] is None else f"{v:+.0f} GBP (not held)")
+            if t and t.get("float_r") is not None:
+                v = t["float_r"] * RISK
+                return "OPEN (live) · not held", ("up" if v > 0 else "dn"), f"{v:+.0f} GBP ({t['float_r']:+.2f}R, not held)"
+            return e(r["state"] or "PENDING") + " · not held", "", ""
         if r["reason"]:
             v = (r["net_r"] or 0) * RISK * scale_of(r["run_id"])
             return e(r["reason"]), ("up" if v > 0 else "dn"), ("" if r["net_r"] is None else f"{v:+.0f} GBP")
@@ -973,10 +981,11 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
             except Exception:
                 return str(x)[:16]
         a_ = acct_of(r["run_id"])
-        lots_ = r["rec"].get("lots_for_20gbp_risk") if a_ is None else (a_["lots"] if a_["taken"] else None)
+        lots_ = r["rec"].get("lots_for_20gbp_risk") if a_ is None else (a_["lots"] if a_["taken"] else r["rec"].get("lots_for_20gbp_risk"))
+        held_ = a_ is None or a_["taken"]
         fp_ = r.get("fill") if r.get("fill") is not None else (fl.get(r["run_id"]) or {}).get("fill")
         usd_ = usd_notional(r["rec"]["pair"], lots_, fp_ if fp_ is not None else r["rec"]["entry"], _hur)
-        size_ = (f" · {lots_} lots" + (f" = {usd_txt(usd_)}" if usd_ else "") + (f" at {px(r['rec']['pair'], fp_)}" if fp_ is not None else "")) if lots_ else ""
+        size_ = ((f" · {lots_} lots" if held_ else f" · not held (no cash): {lots_} lots would be") + (f" = {usd_txt(usd_)}" if usd_ else "") + (f" at {px(r['rec']['pair'], fp_)}" if fp_ is not None else "")) if lots_ else ""
         fill = f"filled {f(r['filled_at'])}{size_}" if r.get("filled_at") else "not filled"
         end = f"closed {f(r['resolved_at'])}" if r.get("resolved_at") else "still open"
         return f"{f(r['created_at'])}<br><small>{fill}</small><br><small><b>{end}</b></small>"
