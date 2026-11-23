@@ -1,14 +1,13 @@
-# Live positions (written 2026-11-23 05:55 UTC)
+# Live positions (written 2026-11-23 06:05 UTC)
 
-Unfinished setups: 2
+Unfinished setups: 1
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.05R, best so far +0.80R, worst -0.18R. Target is 1.94R away. Held 310 of 1920 five-minute bars (134h until the time limit).
-- EURJPY SHORT asia_breakout [TRIGGERED] created 2026-11-20 09:00
-  FILLED at 174.40800. entry 174.41500 stop 174.77387 target 173.69726. Unrealised -0.86R, best so far +1.86R, worst -0.97R. Target is 2.84R away. Held 250 of 384 five-minute bars (11h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.02R, best so far +0.80R, worst -0.18R. Target is 1.98R away. Held 312 of 1920 five-minute bars (134h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
+- EURJPY asia_breakout: STOP -1.06R at 2026-11-23 06:05 · best +1.86R, worst -1.10R · GAVE_BACK
 - AUDUSD E1_strength: TARGET +1.96R at 2026-11-20 19:30 · best +2.07R, worst -0.34R
 - GBPUSD trend_pullback: STOP -1.09R at 2026-11-20 13:05 · best +0.16R, worst -1.35R · WRONG_WAY
 - EURUSD trend_pullback: STOP -1.08R at 2026-11-20 13:05 · best +0.29R, worst -1.14R · WRONG_WAY
@@ -23,4 +22,3 @@ Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it l
 - GBPJPY asia_breakout: TARGET +1.96R at 2026-11-18 16:25 · best +2.25R, worst -0.20R
 - GBPUSD asia_breakout: TARGET +1.92R at 2026-11-18 16:25 · best +2.11R, worst -0.30R
 - USDCAD asia_breakout: STOP -1.23R at 2026-11-18 11:00 · best +0.39R, worst -1.21R · WRONG_WAY
-- EURGBP asia_breakout: TARGET +1.77R at 2026-11-17 22:05 · best +1.92R, worst -0.86R
