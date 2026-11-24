@@ -1,17 +1,17 @@
-# Live positions (written 2026-11-24 11:30 UTC)
+# Live positions (written 2026-11-24 11:40 UTC)
 
 Unfinished setups: 5
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.24R, best so far +0.93R, worst -0.34R. Target is 1.75R away. Held 665 of 1920 five-minute bars (105h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.26R, best so far +0.93R, worst -0.34R. Target is 1.74R away. Held 667 of 1920 five-minute bars (104h until the time limit).
 - AUDUSD SHORT trend_pullback [TRIGGERED] created 2026-11-24 08:00
-  FILLED at 0.66244. entry 0.66250 stop 0.66425 target 0.65900. Unrealised -0.38R, best so far +0.21R, worst -0.54R. Target is 2.34R away. Held 41 of 384 five-minute bars (29h until the time limit).
+  FILLED at 0.66244. entry 0.66250 stop 0.66425 target 0.65900. Unrealised -0.73R, best so far +0.21R, worst -0.79R. Target is 2.70R away. Held 43 of 384 five-minute bars (28h until the time limit).
 - GBPUSD SHORT E1_strength [TRIGGERED] created 2026-11-24 08:00
-  FILLED at 1.30370. entry 1.30376 stop 1.30927 target 1.29274. Unrealised -0.71R, best so far +0.06R, worst -0.76R. Target is 2.70R away. Held 41 of 576 five-minute bars (45h until the time limit).
+  FILLED at 1.30370. entry 1.30376 stop 1.30927 target 1.29274. Unrealised -0.71R, best so far +0.06R, worst -0.78R. Target is 2.70R away. Held 43 of 576 five-minute bars (44h until the time limit).
 - EURJPY LONG asia_breakout [TRIGGERED] created 2026-11-24 09:00
-  FILLED at 173.97500. entry 173.95300 stop 173.61048 target 174.63805. Unrealised +0.95R, best so far +1.56R, worst -0.41R. Target is 0.98R away. Held 29 of 384 five-minute bars (30h until the time limit).
+  FILLED at 173.97500. entry 173.95300 stop 173.61048 target 174.63805. Unrealised +0.98R, best so far +1.56R, worst -0.41R. Target is 0.95R away. Held 31 of 384 five-minute bars (29h until the time limit).
 - USDCAD SHORT asia_breakout [TRIGGERED] created 2026-11-24 09:00
-  FILLED at 1.43479. entry 1.43486 stop 1.43641 target 1.43175. Unrealised +1.10R, best so far +1.14R, worst -0.52R. Target is 0.86R away. Held 29 of 384 five-minute bars (30h until the time limit).
+  FILLED at 1.43479. entry 1.43486 stop 1.43641 target 1.43175. Unrealised +1.15R, best so far +1.15R, worst -0.52R. Target is 0.81R away. Held 31 of 384 five-minute bars (29h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
