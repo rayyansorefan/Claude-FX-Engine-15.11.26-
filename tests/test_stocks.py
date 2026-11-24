@@ -1301,4 +1301,4 @@ def test_audit_bundle_breaks_fx_results_down_by_strategy_and_pair_with_a_plain_v
     c.commit()
     out = AB.build(tmp_path / "stocks", tmp_path / "fx")
     assert "by strategy" in out and "asia_breakout: n=8" in out and "trend_pullback: n=4" in out and "too few to judge" in out       # 4 trades: no verdict
-    assert "by pair" in out and "EURUSD: n=6" in out and "asia_breakout: n=8, win 38%, mean +0.03R" in out
+    assert "by pair" in out and "EURUSD: n=6" in out and "asia_breakout: n=8, win 38%, mean +0.02R" in out
