@@ -45,6 +45,23 @@ def fx_section(db: Path) -> list[str]:
     la = [x for x in recs if x.get("lots_account") is not None]
     L.append(f"- no-leverage sizing recorded on {len(la)} of {n} setups; not affordable (0 lots): {sum(1 for x in la if x['lots_account'] == 0)}; "
              f"max position value £{max([x['lots_account'] * (x.get('per_lot_gbp') or 0) for x in la] or [0]):,.0f} (must never exceed the account)")
+    # where are the wins and losses coming from? per strategy and per pair, with a plain verdict (needs enough trades before anything is concluded)
+    import math
+    rows = c.execute("SELECT s.type, s.pair, o.net_r FROM outcomes o JOIN setups s USING(run_id) WHERE o.reason IN ('TARGET','STOP','TIMEOUT') AND o.net_r IS NOT NULL").fetchall()
+
+    def verdict(rs):
+        n = len(rs)
+        if n < 10:
+            return "too few to judge"
+        m = statistics.mean(rs); se = statistics.stdev(rs) / math.sqrt(n)
+        return "EDGE (range above 0)" if m - 1.96 * se > 0 else "LOSING (range below 0)" if m + 1.96 * se < 0 else "no verdict (range spans 0)"
+    for label, key in (("strategy", 0), ("pair", 1)):
+        groups = collections.defaultdict(list)
+        for r in rows:
+            groups[r[key]].append(float(r[2]))
+        L.append(f"- by {label} (trades, win rate, mean R, verdict; 60 trades are needed before the engine may change anything):")
+        for k, rs in sorted(groups.items(), key=lambda kv: -len(kv[1])):
+            L.append(f"    {k}: n={len(rs)}, win {sum(x > 0 for x in rs) / len(rs):.0%}, mean {statistics.mean(rs):+.2f}R, total {sum(rs):+.1f}R, {verdict(rs)}")
     cy = c.execute("SELECT status, COUNT(*) n FROM cycles GROUP BY status").fetchall()
     L.append("- loop cycles by status: " + ", ".join(f"{r['status']}:{r['n']}" for r in cy))
     # failure timeline: scattered or consecutive? recovered or not?

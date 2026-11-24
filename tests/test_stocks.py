@@ -1287,3 +1287,18 @@ def test_audit_bundle_shows_the_duplicate_rows_failure_timeline_and_cash_from_va
     out = AB.build(tmp_path / "stocks", tmp_path / "fx")
     assert "r1 TRIGGERED x2" in out and "failed cycles: 2 of 4" in out and "longest consecutive run: 2" in out and "401 (login rejected)" in out
     assert "cash £0" in out and "cash check: OK" in out and "VIOLATION" not in out                              # balance 2,398 vs value 2,398: cash is zero, not -102
+
+
+def test_audit_bundle_breaks_fx_results_down_by_strategy_and_pair_with_a_plain_verdict(tmp_path):
+    from fxengine.stocks import auditbundle as AB
+    from fxengine.live import db as DB
+    fx = tmp_path / "fx/data"; fx.mkdir(parents=True)
+    c = DB.connect(str(fx / "engine.db"))
+    for i in range(12):
+        rec = dict(pair="EURUSD" if i % 2 else "GBPUSD", type="asia_breakout" if i < 8 else "trend_pullback", tf="H1", direction="long", created=f"2026-11-{10 + i} 10:00+00:00", expires="2026-11-30 16:00+00:00", entry=1.1, stop=1.09, target=1.12)
+        DB.add_setup(c, f"r{i}", rec)
+        c.execute("INSERT INTO outcomes(run_id,reason,net_r,fill,exit,resolved_at) VALUES(?,?,?,?,?,?)", (f"r{i}", "TARGET" if i < 3 else "STOP", 1.9 if i < 3 else -1.1, 1.1, 1.1, f"2026-11-{10 + i}T20:00:00+00:00"))
+    c.commit()
+    out = AB.build(tmp_path / "stocks", tmp_path / "fx")
+    assert "by strategy" in out and "asia_breakout: n=8" in out and "trend_pullback: n=4" in out and "too few to judge" in out       # 4 trades: no verdict
+    assert "by pair" in out and "EURUSD: n=6" in out and "asia_breakout: n=8, win 25%, mean -0.41R" in out
