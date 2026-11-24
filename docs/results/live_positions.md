@@ -1,15 +1,15 @@
-# Live positions (written 2026-11-24 08:45 UTC)
+# Live positions (written 2026-11-24 08:55 UTC)
 
 Unfinished setups: 4
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.46R, best so far +0.93R, worst -0.34R. Target is 1.54R away. Held 632 of 1920 five-minute bars (107h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.40R, best so far +0.93R, worst -0.34R. Target is 1.59R away. Held 634 of 1920 five-minute bars (107h until the time limit).
 - AUDUSD SHORT trend_pullback [TRIGGERED] created 2026-11-24 08:00
-  FILLED at 0.66244. entry 0.66250 stop 0.66425 target 0.65900. Unrealised -0.20R, best so far +0.21R, worst -0.33R. Target is 2.17R away. Held 8 of 384 five-minute bars (31h until the time limit).
+  FILLED at 0.66244. entry 0.66250 stop 0.66425 target 0.65900. Unrealised -0.10R, best so far +0.21R, worst -0.33R. Target is 2.07R away. Held 10 of 384 five-minute bars (31h until the time limit).
 - NZDUSD SHORT trend_pullback [TRIGGERED] created 2026-11-24 08:00
-  FILLED at 0.54448. entry 0.54454 stop 0.54578 target 0.54207. Unrealised -0.39R, best so far +0.00R, worst -0.63R. Target is 2.33R away. Held 8 of 384 five-minute bars (31h until the time limit).
+  FILLED at 0.54448. entry 0.54454 stop 0.54578 target 0.54207. Unrealised -0.26R, best so far +0.00R, worst -0.63R. Target is 2.20R away. Held 10 of 384 five-minute bars (31h until the time limit).
 - GBPUSD SHORT E1_strength [TRIGGERED] created 2026-11-24 08:00
-  FILLED at 1.30370. entry 1.30376 stop 1.30927 target 1.29274. Unrealised -0.19R, best so far +0.06R, worst -0.32R. Target is 2.18R away. Held 8 of 576 five-minute bars (47h until the time limit).
+  FILLED at 1.30370. entry 1.30376 stop 1.30927 target 1.29274. Unrealised -0.25R, best so far +0.06R, worst -0.32R. Target is 2.24R away. Held 10 of 576 five-minute bars (47h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
