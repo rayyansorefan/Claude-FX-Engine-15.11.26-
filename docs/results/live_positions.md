@@ -1,15 +1,15 @@
-# Live positions (written 2026-11-24 08:00 UTC)
+# Live positions (written 2026-11-24 08:10 UTC)
 
 Unfinished setups: 4
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.52R, best so far +0.93R, worst -0.34R. Target is 1.47R away. Held 623 of 1920 five-minute bars (108h until the time limit).
-- AUDUSD SHORT trend_pullback [PUBLISHED] created 2026-11-24 08:00
-  not filled yet. entry 0.66250 stop 0.66425 target 0.65900. Expires in 4.0h. Price is +0.02R from entry (positive = entry still ahead).
-- NZDUSD SHORT trend_pullback [PUBLISHED] created 2026-11-24 08:00
-  not filled yet. entry 0.54454 stop 0.54578 target 0.54207. Expires in 4.0h. Price is +0.03R from entry (positive = entry still ahead).
-- GBPUSD SHORT E1_strength [PUBLISHED] created 2026-11-24 08:00
-  not filled yet. entry 1.30376 stop 1.30927 target 1.29274. Expires in 8.0h. Price is -0.00R from entry (positive = entry still ahead).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.48R, best so far +0.93R, worst -0.34R. Target is 1.51R away. Held 625 of 1920 five-minute bars (108h until the time limit).
+- AUDUSD SHORT trend_pullback [TRIGGERED] created 2026-11-24 08:00
+  FILLED at 0.66244. entry 0.66250 stop 0.66425 target 0.65900. Unrealised +0.09R, best so far +0.21R, worst -0.29R. Target is 1.88R away. Held 1 of 384 five-minute bars (32h until the time limit).
+- NZDUSD SHORT trend_pullback [TRIGGERED] created 2026-11-24 08:00
+  FILLED at 0.54448. entry 0.54454 stop 0.54578 target 0.54207. Unrealised -0.06R, best so far +0.00R, worst -0.26R. Target is 2.01R away. Held 1 of 384 five-minute bars (32h until the time limit).
+- GBPUSD SHORT E1_strength [TRIGGERED] created 2026-11-24 08:00
+  FILLED at 1.30370. entry 1.30376 stop 1.30927 target 1.29274. Unrealised -0.07R, best so far +0.06R, worst -0.10R. Target is 2.06R away. Held 1 of 576 five-minute bars (48h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
