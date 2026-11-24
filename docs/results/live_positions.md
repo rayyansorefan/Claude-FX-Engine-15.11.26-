@@ -1,16 +1,15 @@
-# Live positions (written 2026-11-24 14:05 UTC)
+# Live positions (written 2026-11-24 14:15 UTC)
 
-Unfinished setups: 3
+Unfinished setups: 2
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.10R, best so far +0.93R, worst -0.34R. Target is 1.90R away. Held 696 of 1920 five-minute bars (102h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.13R, best so far +0.93R, worst -0.34R. Target is 1.87R away. Held 698 of 1920 five-minute bars (102h until the time limit).
 - EURJPY LONG asia_breakout [TRIGGERED] created 2026-11-24 09:00
-  FILLED at 173.97500. entry 173.95300 stop 173.61048 target 174.63805. Unrealised +1.52R, best so far +1.63R, worst -0.41R. Target is 0.42R away. Held 60 of 384 five-minute bars (27h until the time limit).
-- USDCAD SHORT asia_breakout [TRIGGERED] created 2026-11-24 09:00
-  FILLED at 1.43479. entry 1.43486 stop 1.43641 target 1.43175. Unrealised +1.55R, best so far +1.64R, worst -0.52R. Target is 0.41R away. Held 60 of 384 five-minute bars (27h until the time limit).
+  FILLED at 173.97500. entry 173.95300 stop 173.61048 target 174.63805. Unrealised +1.71R, best so far +1.84R, worst -0.41R. Target is 0.22R away. Held 62 of 384 five-minute bars (27h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
+- USDCAD asia_breakout: TARGET +1.92R at 2026-11-24 14:15 · best +2.10R, worst -0.52R
 - GBPUSD E1_strength: STOP -1.03R at 2026-11-24 12:45 · best +0.06R, worst -1.05R · WRONG_WAY
 - AUDUSD trend_pullback: STOP -1.11R at 2026-11-24 12:00 · best +0.21R, worst -1.05R · WRONG_WAY
 - NZDUSD trend_pullback: STOP -1.15R at 2026-11-24 11:05 · best +0.00R, worst -1.09R · WRONG_WAY
@@ -25,4 +24,3 @@ Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it l
 - EURUSD trend_pullback: STOP -1.08R at 2026-11-20 13:05 · best +0.29R, worst -1.14R · WRONG_WAY
 - USDCAD trend_pullback: STOP -1.09R at 2026-11-20 12:40 · best +0.00R, worst -1.21R · WRONG_WAY
 - EURUSD E1_strength: TIMEOUT +0.29R at 2026-11-20 04:05 · best +0.86R, worst -0.47R
-- USDJPY asia_breakout: STOP -1.15R at 2026-11-20 00:50 · best +1.22R, worst -1.16R · GAVE_BACK
