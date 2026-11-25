@@ -1,13 +1,13 @@
-# Live positions (written 2026-11-25 09:45 UTC)
+# Live positions (written 2026-11-25 10:00 UTC)
 
 Unfinished setups: 3
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.32R, best so far +0.93R, worst -0.34R. Target is 1.68R away. Held 932 of 1920 five-minute bars (82h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.26R, best so far +0.93R, worst -0.34R. Target is 1.73R away. Held 935 of 1920 five-minute bars (82h until the time limit).
 - GBPUSD SHORT asia_breakout [TRIGGERED] created 2026-11-25 08:00
-  FILLED at 1.30673. entry 1.30679 stop 1.30854 target 1.30330. Unrealised +0.34R, best so far +0.40R, worst -0.91R. Target is 1.62R away. Held 20 of 384 five-minute bars (30h until the time limit).
+  FILLED at 1.30673. entry 1.30679 stop 1.30854 target 1.30330. Unrealised +0.61R, best so far +0.65R, worst -0.91R. Target is 1.35R away. Held 23 of 384 five-minute bars (30h until the time limit).
 - USDCHF SHORT asia_breakout [TRIGGERED] created 2026-11-25 09:00
-  FILLED at 0.83419. entry 0.83429 stop 0.83602 target 0.83083. Unrealised +0.08R, best so far +0.25R, worst -0.39R. Target is 1.87R away. Held 8 of 384 five-minute bars (31h until the time limit).
+  FILLED at 0.83419. entry 0.83429 stop 0.83602 target 0.83083. Unrealised -0.18R, best so far +0.25R, worst -0.39R. Target is 2.12R away. Held 11 of 384 five-minute bars (31h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
