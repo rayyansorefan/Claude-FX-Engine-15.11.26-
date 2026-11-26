@@ -27,6 +27,8 @@ def _size(c) -> str:
     la = c.get("lots_account")
     if la is None:
         return f"{c['lots_for_20gbp_risk']} lots (£20 risk)"
+    if c.get("suspended"):
+        return "NOT TAKEN: this strategy is on probation (live results clearly below zero). Published and scored anyway."
     if la <= 0:
         return "NOT AFFORDABLE: no free cash in the £2,500 account (published and scored anyway)"
     pl = c.get("per_lot_gbp") or 0

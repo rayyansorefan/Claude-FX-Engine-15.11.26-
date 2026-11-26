@@ -19,3 +19,9 @@ Deterministic code only (zero Claude at runtime). Parameters stay frozen per ver
 
 ## Applied filters (log)
 - 2026-11-19: range_reversion = vol_not_low + htf_with (ops/filters.json). Entry-filter study: +0.157R stressed / +0.160R measured per trade vs unfiltered on the unseen later 40%, clustered CI lower bound > 0, above random skipping. Still a net loser (-0.037R): less bad, not profitable. Not applied: asia_breakout, trend_pullback, E2 (no gain); E1_strength (+0.17R but CI includes 0).
+
+
+## Strategy scorecard and probation (pre-registered 2026-11-26, owner request: act on failing strategies, reinforce successful ones)
+Code: src/fxengine/learn/scorecard.py. Fixed BEFORE it could act on any result: LEARNING under 15 finished live trades; WEAK = 15+ trades and shrunk mean (n/(n+30) x mean) below -0.25R; CONFIRMED = 30+ trades and the 95% range of mean R entirely above 0; SUSPENDED = 30+ trades and the range entirely below 0.
+Effects: SUSPENDED strategies are still published and scored (research and forward test untouched) but not taken in the GBP 2,500 account (lots_account = 0, marked suspended); recomputed from all live trades each time, so reversible. CONFIRMED and WEAK change labels only (dashboard card, weekly Telegram note). No strategy rule, gate or parameter changes. First cash priority for CONFIRMED strategies is NOT built: it would change which setups reach the account and needs its own pre-registration.
+Honest limit: with about 5 setups a day over several strategies, the first strategy can reach 30 trades in roughly two to four weeks, so no switch-off is expected before then.

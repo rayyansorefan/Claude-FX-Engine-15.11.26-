@@ -53,6 +53,8 @@ def daily_jobs(conn, env, now, send=telegram.send, root=store.ROOT):
                 for m in LR.decide(conn, now):
                     send(env, m)
                 send(env, "\n".join(LR.summary_lines(conn)))
+                from ..learn import scorecard as SCORE
+                send(env, "\n".join(SCORE.summary_lines(conn)))
             LR.write_report(conn, now)
         except Exception as e:
             send(env, f"⚠️ LEARNING · review failed ({type(e).__name__}); the frozen exit stays in force.")

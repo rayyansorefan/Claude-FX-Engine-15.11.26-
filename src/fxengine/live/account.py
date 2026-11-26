@@ -75,7 +75,7 @@ def replay(setups: list[dict], px: dict) -> dict:
             lots = affordable_lots(want, pl, free)
         taken = lots >= MIN_LOT and bool(pl)
         out[s["run_id"]] = dict(lots=lots if taken else 0.0, value=(lots * pl) if taken else 0.0, scale=(lots / want) if (taken and want) else 0.0, taken=taken,
-                                free_before=round(free, 2), why="" if taken else ("no free cash in the £2,500 account" if pl else "no price to value the position"))
+                                free_before=round(free, 2), why="" if taken else ("strategy on probation" if s.get("suspended") else "no free cash in the £2,500 account" if pl else "no price to value the position"))
     return out
 
 
@@ -92,7 +92,7 @@ def rows_from_db(conn) -> list[dict]:
     for r in conn.execute("SELECT s.run_id, s.record, o.reason, o.net_r, o.resolved_at FROM setups s LEFT JOIN outcomes o USING(run_id)"):
         rec = json.loads(r["record"])
         out.append(dict(run_id=r["run_id"], pair=rec["pair"], created=rec["created"], end=r["resolved_at"] if r["reason"] else None, lots=rec.get("lots_for_20gbp_risk"),
-                        net_r=r["net_r"], per_lot=rec.get("per_lot_gbp"), lots_account=rec.get("lots_account")))
+                        net_r=r["net_r"], per_lot=rec.get("per_lot_gbp"), lots_account=rec.get("lots_account"), suspended=bool(rec.get("suspended"))))
     return out
 
 

@@ -998,6 +998,21 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     lesson_html = ("<div class='card' style='margin-top:10px'><h3>What the engine is learning (per rule)</h3>" + "".join(f"<p class='muted'>{e(x)}</p>" for x in lessons) +
                    "<p class='muted'>Rules only change through a pre-registered replay test on history (exit tests: docs/results/exits.md), never because of a single trade. "
                    "Every review above is a hypothesis, not a live change.</p></div>") if lessons else ""
+    score_html = ""
+    try:
+        from ..learn import scorecard as SCORE
+        sc_ = SCORE.scorecard(dbc) if dbc else {}
+        icon_ = {"CONFIRMED": "✅ CONFIRMED", "SUSPENDED": "⛔ ON PROBATION (not taken in the account)", "WEAK": "⚠️ WEAK", "NEUTRAL": "➖ no verdict", "LEARNING": "⏳ learning"}
+        def _rng(v):
+            return "n/a" if v["n"] < 3 else "[%+.2f, %+.2f]" % (v["lo"], v["hi"])
+        srows = "".join(f"<tr><td><b>{e(STRATS.get(k, (k,))[0])}</b></td><td class='num'>{v['n']}</td><td class='num'>{v['wins'] / v['n'] * 100:.0f}%</td>"
+                        f"<td class='num {'up' if v['mean'] > 0 else 'dn'}'>{v['mean']:+.2f}R</td><td class='num'>{_rng(v)}</td><td>{icon_[v['status']]}</td></tr>"
+                        for k, v in sorted(sc_.items(), key=lambda kv: -kv[1]["mean"]))
+        if srows:
+            score_html = ("<div class='card' style='margin-top:10px'><h3>Strategy scorecard · live trades, after costs</h3><table class='tbl'><tr><th>Strategy</th><th class='r'>Trades</th><th class='r'>Won</th><th class='r'>Average</th><th class='r'>95% range</th><th>Status</th></tr>" + srows + "</table>"
+                          "<p class='muted'>Judging starts at 15 trades; a strategy is only confirmed or put on probation at 30+ trades when its whole 95% range is above or below zero. Probation = still published and scored, not taken in the £2,500 account; reversible automatically. Nothing else about a strategy changes.</p></div>")
+    except Exception:
+        score_html = ""
     learn_html = ""
     try:
         from ..learn import review as LR
@@ -1017,7 +1032,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     except Exception:
         learn_html = ""
     livetbl = (f"<p class='muted'>Published {len(live)} · resolved {len(done)} · target {wins} · stop {losses} · "
-               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><p class='muted'>Tap a finished trade (▸) to see its chart.</p><table class='tbl hist'><tr><th class='c1'>Published / filled / closed (UK)</th><th class='c2'>Setup</th><th class='hr'>Rule</th><th class='c3'>Result</th><th class='r c4'>P&amp;L</th></tr>{lr}</table>{lesson_html}{learn_html}"
+               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><p class='muted'>Tap a finished trade (▸) to see its chart.</p><table class='tbl hist'><tr><th class='c1'>Published / filled / closed (UK)</th><th class='c2'>Setup</th><th class='hr'>Rule</th><th class='c3'>Result</th><th class='r c4'>P&amp;L</th></tr>{lr}</table>{lesson_html}{score_html}{learn_html}"
               if live else "<p class='muted'>No live setups recorded yet. This fills in once the live loop publishes its first setup.</p>")
     # --- research
     m5tab = "".join(f"<tr><td><b>{e(v)}</b></td><td>{k}</td><td class='num'>{n:,}</td><td class='num'>{pdays:,}</td><td class='num'>{w:.0f}%</td>"

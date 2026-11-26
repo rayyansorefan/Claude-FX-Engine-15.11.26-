@@ -115,6 +115,8 @@ def publish(conn, env, send, cands, now, px=None):
     active_pairs = {s["pair"] for s in DB.active_setups(conn)}
     out = []
     from . import account as ACC
+    from ..learn import scorecard as SCORE
+    susp = SCORE.suspended(conn)
     free = None
     if px:
         try:
@@ -134,9 +136,11 @@ def publish(conn, env, send, cands, now, px=None):
             DB.kv_set(conn, k, int(DB.kv_get(conn, k, 0)) + 1)
             DB.kv_set(conn, "filtered_out", int(DB.kv_get(conn, "filtered_out", 0)) + 1)
             continue
+        if c["type"] in susp:                                           # strategy on probation (live results clearly below zero, learn/scorecard.py): still published and scored, not taken in the account
+            c["suspended"] = True
         if free is not None:                                            # no leverage: how many lots the £2,500 account can really hold (0 = no free cash; still published and scored)
             pl = c.get("per_lot_gbp") or ACC.per_lot_gbp(c["pair"], px)
-            c["lots_account"] = ACC.affordable_lots(float(c.get("lots_for_20gbp_risk") or 0), pl, free)
+            c["lots_account"] = 0.0 if c.get("suspended") else ACC.affordable_lots(float(c.get("lots_for_20gbp_risk") or 0), pl, free)
             c["per_lot_gbp"] = None if pl is None else round(pl, 2)
             free -= c["lots_account"] * (pl or 0)
         champ = DB.kv_get(conn, "champion_exit")
