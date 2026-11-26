@@ -1,15 +1,15 @@
-# Live positions (written 2026-11-26 13:00 UTC)
+# Live positions (written 2026-11-26 13:10 UTC)
 
 Unfinished setups: 4
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.07R, best so far +0.93R, worst -0.34R. Target is 2.07R away. Held 1259 of 1920 five-minute bars (55h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.03R, best so far +0.93R, worst -0.34R. Target is 2.03R away. Held 1261 of 1920 five-minute bars (55h until the time limit).
 - USDCHF LONG asia_breakout [TRIGGERED] created 2026-11-26 08:00
-  FILLED at 0.83296. entry 0.83279 stop 0.83118 target 0.83600. Unrealised +0.57R, best so far +1.16R, worst -0.58R. Target is 1.32R away. Held 59 of 384 five-minute bars (27h until the time limit).
+  FILLED at 0.83296. entry 0.83279 stop 0.83118 target 0.83600. Unrealised +0.60R, best so far +1.16R, worst -0.58R. Target is 1.29R away. Held 61 of 384 five-minute bars (27h until the time limit).
 - USDCAD LONG asia_breakout [TRIGGERED] created 2026-11-26 10:00
-  FILLED at 1.42291. entry 1.42273 stop 1.42106 target 1.42607. Unrealised -0.12R, best so far +0.45R, worst -0.32R. Target is 2.01R away. Held 35 of 384 five-minute bars (29h until the time limit).
+  FILLED at 1.42291. entry 1.42273 stop 1.42106 target 1.42607. Unrealised -0.05R, best so far +0.45R, worst -0.32R. Target is 1.94R away. Held 37 of 384 five-minute bars (29h until the time limit).
 - EURJPY LONG asia_breakout [TRIGGERED] created 2026-11-26 10:00
-  FILLED at 174.70500. entry 174.68200 stop 174.38115 target 175.28371. Unrealised +0.39R, best so far +0.49R, worst -0.18R. Target is 1.54R away. Held 35 of 384 five-minute bars (29h until the time limit).
+  FILLED at 174.70500. entry 174.68200 stop 174.38115 target 175.28371. Unrealised +0.22R, best so far +0.49R, worst -0.18R. Target is 1.70R away. Held 37 of 384 five-minute bars (29h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
