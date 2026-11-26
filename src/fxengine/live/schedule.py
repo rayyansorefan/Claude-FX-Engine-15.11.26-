@@ -53,9 +53,15 @@ def daily_jobs(conn, env, now, send=telegram.send, root=store.ROOT):
                 for m in LR.decide(conn, now):
                     send(env, m)
                 send(env, "\n".join(LR.summary_lines(conn)))
-                from ..learn import scorecard as SCORE
+                from ..learn import scorecard as SCORE, postmortem as PM
                 send(env, "\n".join(SCORE.summary_lines(conn)))
+                send(env, "\n".join(PM.summary_lines(PM.analyse(conn))))
             LR.write_report(conn, now)
+            try:
+                from ..learn import postmortem as PM
+                PM.write_report(conn)                                 # docs/results/postmortem.md: what the losses have in common and which entry conditions separate winners from losers
+            except Exception:
+                pass                                                  # the post-mortem is information only: it must never break the learning job
         except Exception as e:
             send(env, f"⚠️ LEARNING · review failed ({type(e).__name__}); the frozen exit stays in force.")
     if hm >= 7 * 60 and _once(conn, f"audit-{d}-7"):

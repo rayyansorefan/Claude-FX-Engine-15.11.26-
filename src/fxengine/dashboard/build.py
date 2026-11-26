@@ -1013,6 +1013,21 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
                           "<p class='muted'>Judging starts at 15 trades; a strategy is only confirmed or put on probation at 30+ trades when its whole 95% range is above or below zero. Probation = still published and scored, not taken in the £2,500 account; reversible automatically. Nothing else about a strategy changes.</p></div>")
     except Exception:
         score_html = ""
+    pm_html = ""
+    try:
+        from ..learn import postmortem as PM
+        pm = PM.analyse(dbc) if dbc else None
+        if pm and pm["n"]:
+            a_ = pm["anatomy"]; k_ = a_["kinds"]
+            lines_ = "".join(f"<p class='muted'>{e(x)}</p>" for x in PM.summary_lines(pm))
+            hits_ = PM.labeled_hits(pm)
+            htab = ("<table class='tbl'><tr><th>Group</th><th>Condition</th><th class='r'>Pass: n / mean</th><th class='r'>Fail: n / mean</th><th class='r'>Difference (corrected range)</th><th>Verdict</th></tr>" + "".join(
+                f"<tr><td>{e(STRATS.get(g, (g,))[0] if g != 'all strategies' else g)}</td><td>{e(h['name'])}</td><td class='num'>{h['passes']['n']} / {h['passes']['mean']:+.2f}R</td><td class='num'>{h['fails']['n']} / {h['fails']['mean']:+.2f}R</td>"
+                f"<td class='num'>{h['diff']:+.2f}R [{h['lo']:+.2f}, {h['hi']:+.2f}]</td><td>{e(h['status'])}</td></tr>" for g, h in hits_) + "</table>") if hits_ else ""
+            pm_html = ("<div class='card' style='margin-top:10px'><h3>Post-mortem · what the losses have in common, and what separates winners from losers</h3>" + lines_ + htab +
+                       f"<p class='muted'>{pm['m']} comparisons tested; SUPPORTED needs 30+ trades each side and p below 0.05/{pm['m']} (Bonferroni). Nothing here changes a trade: a supported condition is only a candidate and must pass the history validation first. Full table: docs/results/postmortem.md</p></div>")
+    except Exception:
+        pm_html = ""
     learn_html = ""
     try:
         from ..learn import review as LR
@@ -1032,7 +1047,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     except Exception:
         learn_html = ""
     livetbl = (f"<p class='muted'>Published {len(live)} · resolved {len(done)} · target {wins} · stop {losses} · "
-               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><p class='muted'>Tap a finished trade (▸) to see its chart.</p><table class='tbl hist'><tr><th class='c1'>Published / filled / closed (UK)</th><th class='c2'>Setup</th><th class='hr'>Rule</th><th class='c3'>Result</th><th class='r c4'>P&amp;L</th></tr>{lr}</table>{lesson_html}{score_html}{learn_html}"
+               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><p class='muted'>Tap a finished trade (▸) to see its chart.</p><table class='tbl hist'><tr><th class='c1'>Published / filled / closed (UK)</th><th class='c2'>Setup</th><th class='hr'>Rule</th><th class='c3'>Result</th><th class='r c4'>P&amp;L</th></tr>{lr}</table>{lesson_html}{score_html}{pm_html}{learn_html}"
               if live else "<p class='muted'>No live setups recorded yet. This fills in once the live loop publishes its first setup.</p>")
     # --- research
     m5tab = "".join(f"<tr><td><b>{e(v)}</b></td><td>{k}</td><td class='num'>{n:,}</td><td class='num'>{pdays:,}</td><td class='num'>{w:.0f}%</td>"
