@@ -47,7 +47,7 @@ def test_a_suspended_strategy_is_still_published_and_scored_but_not_taken_in_the
 
 
 def test_dashboard_shows_the_scorecard_and_the_weekly_note_is_three_lines(tmp_path, monkeypatch):
-    from tests.test_live_dashboard import _store
+    from test_live_dashboard import _store
     from fxengine.dashboard import build as B
     monkeypatch.chdir(tmp_path)
     _store(tmp_path / "data" / "candles")

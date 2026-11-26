@@ -182,7 +182,7 @@ def test_a_failed_dashboard_rebuild_is_logged_and_the_banner_says_why(capsys):
 
 def test_losses_and_wins_of_trades_the_account_could_not_hold_are_still_recorded(tmp_path, monkeypatch):
     """Owner: 'I want the losses to be recorded'. A trade the no-leverage account could not hold must still show its result at £20 risk, marked not held, and be counted in the all-setups total."""
-    from tests.test_live_dashboard import _store
+    from test_live_dashboard import _store
     from fxengine.dashboard import build as B
     from fxengine.live import db as DB
     monkeypatch.chdir(tmp_path)
