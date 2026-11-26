@@ -1,17 +1,17 @@
-# Live positions (written 2026-11-26 10:25 UTC)
+# Live positions (written 2026-11-26 10:35 UTC)
 
 Unfinished setups: 5
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.11R, best so far +0.93R, worst -0.34R. Target is 2.11R away. Held 1228 of 1920 five-minute bars (58h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.16R, best so far +0.93R, worst -0.34R. Target is 2.15R away. Held 1230 of 1920 five-minute bars (58h until the time limit).
 - USDCHF LONG asia_breakout [TRIGGERED] created 2026-11-26 08:00
-  FILLED at 0.83296. entry 0.83279 stop 0.83118 target 0.83600. Unrealised +0.78R, best so far +0.83R, worst -0.58R. Target is 1.11R away. Held 28 of 384 five-minute bars (30h until the time limit).
+  FILLED at 0.83296. entry 0.83279 stop 0.83118 target 0.83600. Unrealised +0.72R, best so far +1.00R, worst -0.58R. Target is 1.17R away. Held 30 of 384 five-minute bars (30h until the time limit).
 - USDJPY SHORT trend_pullback [PUBLISHED] created 2026-11-26 09:00
-  not filled yet. entry 159.08300 stop 159.28140 target 158.68619. Expires in 2.6h. Price is +0.98R from entry (positive = entry still ahead).
+  not filled yet. entry 159.08300 stop 159.28140 target 158.68619. Expires in 2.4h. Price is +0.97R from entry (positive = entry still ahead).
 - USDCAD LONG asia_breakout [TRIGGERED] created 2026-11-26 10:00
-  FILLED at 1.42291. entry 1.42273 stop 1.42106 target 1.42607. Unrealised +0.12R, best so far +0.22R, worst -0.24R. Target is 1.77R away. Held 4 of 384 five-minute bars (32h until the time limit).
+  FILLED at 1.42291. entry 1.42273 stop 1.42106 target 1.42607. Unrealised +0.07R, best so far +0.22R, worst -0.24R. Target is 1.83R away. Held 6 of 384 five-minute bars (32h until the time limit).
 - EURJPY LONG asia_breakout [TRIGGERED] created 2026-11-26 10:00
-  FILLED at 174.70500. entry 174.68200 stop 174.38115 target 175.28371. Unrealised +0.08R, best so far +0.14R, worst -0.18R. Target is 1.85R away. Held 4 of 384 five-minute bars (32h until the time limit).
+  FILLED at 174.70500. entry 174.68200 stop 174.38115 target 175.28371. Unrealised +0.39R, best so far +0.44R, worst -0.18R. Target is 1.54R away. Held 6 of 384 five-minute bars (32h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
