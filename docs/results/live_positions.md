@@ -1,13 +1,13 @@
-# Live positions (written 2026-11-26 08:00 UTC)
+# Live positions (written 2026-11-26 08:15 UTC)
 
 Unfinished setups: 3
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised +0.04R, best so far +0.93R, worst -0.34R. Target is 1.96R away. Held 1199 of 1920 five-minute bars (60h until the time limit).
-- EURGBP LONG asia_breakout [PUBLISHED] created 2026-11-26 08:00
-  not filled yet. entry 0.83738 stop 0.83661 target 0.83892. Expires in 4.0h. Price is +0.00R from entry (positive = entry still ahead).
-- USDCHF LONG asia_breakout [PUBLISHED] created 2026-11-26 08:00
-  not filled yet. entry 0.83279 stop 0.83118 target 0.83600. Expires in 4.0h. Price is +0.00R from entry (positive = entry still ahead).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.00R, best so far +0.93R, worst -0.34R. Target is 2.00R away. Held 1202 of 1920 five-minute bars (60h until the time limit).
+- EURGBP LONG asia_breakout [TRIGGERED] created 2026-11-26 08:00
+  FILLED at 0.83754. entry 0.83738 stop 0.83661 target 0.83892. Unrealised -0.38R, best so far +0.14R, worst -0.44R. Target is 2.17R away. Held 2 of 384 five-minute bars (32h until the time limit).
+- USDCHF LONG asia_breakout [TRIGGERED] created 2026-11-26 08:00
+  FILLED at 0.83296. entry 0.83279 stop 0.83118 target 0.83600. Unrealised -0.25R, best so far +0.00R, worst -0.58R. Target is 2.14R away. Held 2 of 384 five-minute bars (32h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
