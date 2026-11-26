@@ -1,22 +1,21 @@
-# Live positions (written 2026-11-26 10:00 UTC)
+# Live positions (written 2026-11-26 10:15 UTC)
 
-Unfinished setups: 6
+Unfinished setups: 5
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.06R, best so far +0.93R, worst -0.34R. Target is 2.05R away. Held 1223 of 1920 five-minute bars (58h until the time limit).
-- EURGBP LONG asia_breakout [TRIGGERED] created 2026-11-26 08:00
-  FILLED at 0.83754. entry 0.83738 stop 0.83661 target 0.83892. Unrealised -0.90R, best so far +0.14R, worst -1.16R. Target is 2.69R away. Held 23 of 384 five-minute bars (30h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.08R, best so far +0.93R, worst -0.34R. Target is 2.08R away. Held 1226 of 1920 five-minute bars (58h until the time limit).
 - USDCHF LONG asia_breakout [TRIGGERED] created 2026-11-26 08:00
-  FILLED at 0.83296. entry 0.83279 stop 0.83118 target 0.83600. Unrealised +0.30R, best so far +0.39R, worst -0.58R. Target is 1.58R away. Held 23 of 384 five-minute bars (30h until the time limit).
+  FILLED at 0.83296. entry 0.83279 stop 0.83118 target 0.83600. Unrealised +0.74R, best so far +0.78R, worst -0.58R. Target is 1.15R away. Held 26 of 384 five-minute bars (30h until the time limit).
 - USDJPY SHORT trend_pullback [PUBLISHED] created 2026-11-26 09:00
-  not filled yet. entry 159.08300 stop 159.28140 target 158.68619. Expires in 3.0h. Price is +0.70R from entry (positive = entry still ahead).
-- USDCAD LONG asia_breakout [PUBLISHED] created 2026-11-26 10:00
-  not filled yet. entry 1.42273 stop 1.42106 target 1.42607. Expires in 4.0h. Price is +0.00R from entry (positive = entry still ahead).
-- EURJPY LONG asia_breakout [PUBLISHED] created 2026-11-26 10:00
-  not filled yet. entry 174.68200 stop 174.38115 target 175.28371. Expires in 4.0h. Price is +0.00R from entry (positive = entry still ahead).
+  not filled yet. entry 159.08300 stop 159.28140 target 158.68619. Expires in 2.7h. Price is +0.85R from entry (positive = entry still ahead).
+- USDCAD LONG asia_breakout [TRIGGERED] created 2026-11-26 10:00
+  FILLED at 1.42291. entry 1.42273 stop 1.42106 target 1.42607. Unrealised -0.08R, best so far +0.00R, worst -0.24R. Target is 1.97R away. Held 2 of 384 five-minute bars (32h until the time limit).
+- EURJPY LONG asia_breakout [TRIGGERED] created 2026-11-26 10:00
+  FILLED at 174.70500. entry 174.68200 stop 174.38115 target 175.28371. Unrealised -0.11R, best so far +0.00R, worst -0.18R. Target is 2.04R away. Held 2 of 384 five-minute bars (32h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
+- EURGBP asia_breakout: STOP -1.38R at 2026-11-26 10:15 · best +0.14R, worst -1.21R · WRONG_WAY
 - GBPUSD asia_breakout: STOP -1.11R at 2026-11-25 16:45 · best +1.21R, worst -1.27R · GAVE_BACK
 - USDCHF asia_breakout: TARGET +1.90R at 2026-11-25 12:10 · best +2.10R, worst -0.39R
 - NZDUSD asia_breakout: STOP -1.15R at 2026-11-25 09:00 · best +0.00R, worst -1.08R · WRONG_WAY
@@ -31,4 +30,3 @@ Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it l
 - USDCHF asia_breakout: STOP -1.11R at 2026-11-23 10:25 · best +0.57R, worst -1.08R · STALLED
 - EURJPY asia_breakout: STOP -1.11R at 2026-11-23 10:05 · best +0.00R, worst -1.08R · WRONG_WAY
 - GBPUSD asia_breakout: STOP -1.16R at 2026-11-23 10:00 · best +0.00R, worst -1.17R · WRONG_WAY
-- EURGBP trend_pullback: INVALIDATED +0.00R at 2026-11-23 08:30 · best +0.00R, worst -0.00R
