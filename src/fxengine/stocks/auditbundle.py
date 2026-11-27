@@ -45,6 +45,18 @@ def fx_section(db: Path) -> list[str]:
     la = [x for x in recs if x.get("lots_account") is not None]
     L.append(f"- no-leverage sizing recorded on {len(la)} of {n} setups; not affordable (0 lots): {sum(1 for x in la if x['lots_account'] == 0)}; "
              f"max position value £{max([x['lots_account'] * (x.get('per_lot_gbp') or 0) for x in la] or [0]):,.0f} (must never exceed the account)")
+    # day by day: is today better or worse than the days before? (all published setups at 20 GBP risk per R, by the day each trade FINISHED; one day is noise, so the comparison is shown with the spread)
+    drows = c.execute("SELECT substr(resolved_at,1,10) d, COUNT(*) n, SUM(net_r > 0) w, SUM(net_r) r FROM outcomes WHERE reason IN ('TARGET','STOP','TIMEOUT') AND net_r IS NOT NULL AND resolved_at IS NOT NULL GROUP BY d ORDER BY d").fetchall()
+    if drows:
+        L.append("- results by the day each trade finished (trades, won, total R, GBP at 20 risk per R):")
+        for r in drows[-14:]:
+            L.append(f"    {r['d']}: {r['n']} trades, {int(r['w'] or 0)} won, {r['r']:+.2f}R, {r['r'] * 20:+.0f} GBP")
+        if len(drows) >= 3:
+            last, prior = drows[-1], drows[:-1]
+            pr = [x["r"] for x in prior]
+            sd = statistics.stdev(pr) if len(pr) > 1 else 0.0
+            L.append(f"  latest day {last['d']}: {last['r']:+.2f}R; the {len(prior)} days before: average {statistics.mean(pr):+.2f}R per day (typical swing +/-{sd:.2f}R), best {max(pr):+.2f}R, worst {min(pr):+.2f}R. "
+                     + ("Inside the normal day-to-day swing: not a real change." if abs(last["r"] - statistics.mean(pr)) <= 2 * sd else "Outside the usual swing, but still one day."))
     # where are the wins and losses coming from? per strategy and per pair, with a plain verdict (needs enough trades before anything is concluded)
     import math
     rows = c.execute("SELECT s.type, s.pair, o.net_r FROM outcomes o JOIN setups s USING(run_id) WHERE o.reason IN ('TARGET','STOP','TIMEOUT') AND o.net_r IS NOT NULL").fetchall()

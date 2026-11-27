@@ -1302,3 +1302,21 @@ def test_audit_bundle_breaks_fx_results_down_by_strategy_and_pair_with_a_plain_v
     out = AB.build(tmp_path / "stocks", tmp_path / "fx")
     assert "by strategy" in out and "asia_breakout: n=8" in out and "trend_pullback: n=4" in out and "too few to judge" in out       # 4 trades: no verdict
     assert "by pair" in out and "EURUSD: n=6" in out and "asia_breakout: n=8, win 38%, mean +0.02R" in out
+
+
+def test_audit_bundle_compares_the_latest_day_with_the_days_before(tmp_path):
+    from fxengine.stocks import auditbundle as AB
+    from fxengine.live import db as DB
+    fx = tmp_path / "fx/data"; fx.mkdir(parents=True)
+    c = DB.connect(str(fx / "engine.db"))
+    days = [("2026-11-23", [1.9, -1.1, -1.1]), ("2026-11-24", [-1.1, -1.1, 1.9]), ("2026-11-25", [1.9, 1.9, -1.1]), ("2026-11-26", [-1.1, 1.9, -1.1])]
+    i = 0
+    for d, rs in days:
+        for r in rs:
+            rec = dict(pair="EURUSD", type="a", tf="H1", direction="long", created=f"{d} 08:00+00:00", expires=f"{d} 20:00+00:00", entry=1.1, stop=1.09, target=1.12)
+            DB.add_setup(c, f"r{i}", rec)
+            c.execute("INSERT INTO outcomes(run_id,reason,net_r,fill,exit,resolved_at) VALUES(?,?,?,?,?,?)", (f"r{i}", "TARGET" if r > 0 else "STOP", r, 1.1, 1.1, f"{d}T15:00:00+00:00"))
+            i += 1
+    c.commit()
+    out = AB.build(tmp_path / "stocks", tmp_path / "fx")
+    assert "2026-11-25: 3 trades, 2 won, +2.70R, +54 GBP" in out and "latest day 2026-11-26: -0.30R" in out and "the 3 days before" in out and "not a real change" in out
