@@ -13,7 +13,14 @@
 **2026-11-16:** batch 3 (E6/E7) built + tested + pushed (68 tests). Ops runner (self-update + whitelisted jobs queued in ops/jobs.txt, results pushed to branch `vm-results`) built; Rayyan must run ONCE on the VM: `cd ~/fx && git pull && bash deploy/install_ops.sh` (adds a deploy key on GitHub). After that: queue jobs by editing ops/jobs.txt and pushing. VM finding: 3-year M5 download had never run on the VM (R0 saw no data) -> queue `history` then `r0` then `batch3`.
 **2026-11-16 night: Astra review (ASTRA_REVIEW_2026-11-16.md) implemented:** runner hardened (ids validated, quoted; jobs = systemd transient units with MemoryMax/nice/OOMScoreAdjust; unit-tracked kill; deploy pre-check + bad_remote; once-only notices; user-mode support + deploy/ops_migrate.sh, deploy/harden.sh for earlyoom/softdog/swappiness), tail reads + small row groups (loop/scan/dashboard), trials seeded, empty-research-window guard, FRED url fixed, phone chart layout, honest uptime/balance labels, serve backoff + 120s cache. 81 tests. NOT yet proven on the VM (it had not reported since the 19:42 reset). NEXT: confirm VM runs new runner; run `tests` job to prove jobs survive; then migrate_ops (root->owner) and re-queue history/r0/batch3.
 **Current phase:** 2 machinery DONE (no real-data results yet); Phase 1 data BLOCKED on cTrader keys (app status: 'Submitted')
-**Last updated:** 2026-11-15
+**Last updated:** 2026-11-27 (reinforcement fixes deployed)
+
+## Reinforcement fixes (2026-11-27)
+Merged two critical fixes to `src/fxengine/live/loop.py` and `src/fxengine/learn/reinforce.py`:
+1. **Starvation prevention:** Added round-robin guarantee so each strategy publishes at least once every 72h, even if FAVOURED strategies fill the daily 5-setup limit. Prevents REDUCED strategies from being permanently starved.
+2. **Early-reacting gate:** Raised minimum live trades to 15 before applying REDUCED or NOT_TAKEN actions, matching scorecard.py MIN_JUDGE. Prevents the reinforcement layer from acting on noisy early data.
+
+Both fixes are reversible (recomputed nightly), preserve all gates/stops/sizing logic, and use the same code path for backtest/replay/live. Next: run post-mortem after 2-4 weeks of live trading (needs 30+ trades per strategy) to extract loss patterns and extract ideas for new strategies.
 
 ## Done
 - Phase 0 plan/decisions (CLAUDE.md, docs/PLAN.md).
