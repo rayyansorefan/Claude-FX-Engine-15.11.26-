@@ -34,6 +34,7 @@ JOBS = {
     "exits": ".venv/bin/python -m fxengine.backtest.run_exits",
     "entries": ".venv/bin/python -m fxengine.backtest.run_entry_study",
     "diagnose": ".venv/bin/python -m fxengine.research.diagnose",
+    "learning": ".venv/bin/python -m fxengine.ops.learning_job",
 }
 SAFE_DURING_JOB = ("src/fxengine/dashboard/", "src/fxengine/live/", "src/fxengine/alerts/", "tests/", "docs/", "STATUS.md", "CLAUDE.md", "ops/")
 JOB_MEM = {"exits": "600M", "entries": "600M", "history": "450M", "r0": "600M", "batch3": "600M", "full_research": "600M", "tests": "500M"}   # default 300M

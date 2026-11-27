@@ -59,8 +59,12 @@ def daily_jobs(conn, env, now, send=telegram.send, root=store.ROOT):
                 for m in LR.decide(conn, now):
                     send(env, m)
                 send(env, "\n".join(LR.summary_lines(conn)))
-                from ..learn import scorecard as SCORE, postmortem as PM
+                from ..learn import scorecard as SCORE, postmortem as PM, monitor as MON
                 send(env, "\n".join(SCORE.summary_lines(conn)))
+                try:
+                    send(env, MON.summary_text(conn))                        # learning pipeline progress: when hit each threshold
+                except Exception:
+                    pass                                                      # monitor must never break the learning job
                 from ..learn import reinforce as RF2
                 send(env, "\n".join(RF2.summary_lines(conn)))
                 send(env, "\n".join(PM.summary_lines(PM.analyse(conn))))
