@@ -46,6 +46,16 @@ def affordable_lots(wanted: float, per_lot: float | None, free: float) -> float:
     return lots if lots >= MIN_LOT else 0.0
 
 
+def scaled_lots(affordable: float, factor: float) -> float:
+    """Lots after a reinforcement factor (1.0 normal, 0.5 reduced, 0 not taken). Half of the smallest tradable size is not a tradable size: a REDUCED strategy that can afford at least the broker minimum
+    keeps the minimum (0.01) instead of silently rounding to zero, which would have made 'reduced' mean 'not taken'."""
+    if factor <= 0 or affordable < MIN_LOT:
+        return 0.0
+    if factor >= 1.0:
+        return affordable
+    return max(MIN_LOT, math.floor(affordable * factor * 100 + 1e-9) / 100)
+
+
 def replay(setups: list[dict], px: dict) -> dict:
     """setups: dicts with run_id, created (ts), end (ts when the cash is released: resolved, expired or invalidated; None = still active), pair, lots (the £20-risk lots),
     net_r (None until resolved), per_lot (optional, GBP value of one lot; else from px) and lots_account (optional: a decision already stored at publish time, kept as is).

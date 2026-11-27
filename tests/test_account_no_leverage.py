@@ -237,3 +237,10 @@ def test_an_old_cached_dashboard_is_never_served_as_is_the_request_gets_a_fresh_
         S.build = orig
     assert "FRESH PAGE" in page and "OLD PAGE" not in page                      # 3 hours old: the first request already gets the new build
     S.STATE.update(html=None, built=0.0)
+
+
+def test_reduced_means_half_size_but_never_below_the_broker_minimum():
+    """Found in review of the reinforcement layer: half of 0.01 lots rounded to 0, so REDUCED silently behaved like NOT TAKEN in a small no-leverage account."""
+    assert A.scaled_lots(0.01, 0.5) == 0.01                                  # cannot halve the minimum: keeps it
+    assert A.scaled_lots(0.02, 0.5) == 0.01 and A.scaled_lots(0.05, 0.5) == 0.02 and A.scaled_lots(0.03, 0.5) == 0.01
+    assert A.scaled_lots(0.05, 1.0) == 0.05 and A.scaled_lots(0.05, 0.0) == 0.0 and A.scaled_lots(0.0, 0.5) == 0.0
