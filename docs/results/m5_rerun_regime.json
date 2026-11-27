@@ -1,0 +1,424 @@
+{
+ "version": "R0-M5_regime",
+ "n_trials": 27,
+ "period": [
+  "2023-11-01 00:00:00+00:00",
+  "2026-05-14 20:00:00+00:00"
+ ],
+ "summary": {
+  "v1_M15": {
+   "stressed": {
+    "signals": 4920,
+    "scored": 4568,
+    "pair_days": 2376,
+    "win": 0.3156742556917688,
+    "exp_r": -0.35375436545466954,
+    "ci95_cluster": [
+     -0.412,
+     -0.296
+    ],
+    "penalised_lo": -0.412,
+    "mde_r": 0.081,
+    "by_year": {
+     "2023": -0.283,
+     "2024": -0.376,
+     "2025": -0.372,
+     "2026": -0.25
+    },
+    "challenger_pct": 0.0,
+    "challenger_p95": -0.254,
+    "challenger_mean": -0.285,
+    "passes": false
+   },
+   "normal": {
+    "signals": 4920,
+    "scored": 4542,
+    "pair_days": 2362,
+    "win": 0.33575517393218846,
+    "exp_r": -0.22932984867290282,
+    "ci95_cluster": [
+     -0.288,
+     -0.174
+    ],
+    "penalised_lo": -0.288,
+    "mde_r": 0.082,
+    "by_year": {
+     "2023": -0.169,
+     "2024": -0.261,
+     "2025": -0.238,
+     "2026": -0.113
+    },
+    "challenger_pct": 2.9,
+    "challenger_p95": -0.159,
+    "challenger_mean": -0.193,
+    "passes": false
+   },
+   "measured": {
+    "signals": 4920,
+    "scored": 4551,
+    "pair_days": 2376,
+    "win": 0.2937815864645133,
+    "exp_r": -0.30970677594400464,
+    "ci95_cluster": [
+     -0.364,
+     -0.254
+    ],
+    "penalised_lo": -0.364,
+    "mde_r": 0.079,
+    "by_year": {
+     "2023": -0.258,
+     "2024": -0.318,
+     "2025": -0.333,
+     "2026": -0.239
+    },
+    "challenger_pct": 1.8,
+    "challenger_p95": -0.238,
+    "challenger_mean": -0.271,
+    "passes": false
+   }
+  },
+  "v1_H1": {
+   "stressed": {
+    "signals": 1672,
+    "scored": 1547,
+    "pair_days": 1187,
+    "win": 0.3354880413703943,
+    "exp_r": -0.18197604820285704,
+    "ci95_cluster": [
+     -0.285,
+     -0.087
+    ],
+    "penalised_lo": -0.285,
+    "mde_r": 0.116,
+    "by_year": {
+     "2023": 0.077,
+     "2024": -0.167,
+     "2025": -0.261,
+     "2026": -0.092
+    },
+    "challenger_pct": 2.9,
+    "challenger_p95": -0.061,
+    "challenger_mean": -0.117,
+    "passes": false
+   },
+   "normal": {
+    "signals": 1672,
+    "scored": 1542,
+    "pair_days": 1186,
+    "win": 0.3411154345006485,
+    "exp_r": -0.1302829676019746,
+    "ci95_cluster": [
+     -0.226,
+     -0.029
+    ],
+    "penalised_lo": -0.226,
+    "mde_r": 0.116,
+    "by_year": {
+     "2023": 0.109,
+     "2024": -0.105,
+     "2025": -0.217,
+     "2026": -0.044
+    },
+    "challenger_pct": 3.0,
+    "challenger_p95": -0.006,
+    "challenger_mean": -0.064,
+    "passes": false
+   },
+   "measured": {
+    "signals": 1672,
+    "scored": 1552,
+    "pair_days": 1191,
+    "win": 0.32667525773195877,
+    "exp_r": -0.15214829213647327,
+    "ci95_cluster": [
+     -0.253,
+     -0.056
+    ],
+    "penalised_lo": -0.253,
+    "mde_r": 0.114,
+    "by_year": {
+     "2023": 0.013,
+     "2024": -0.132,
+     "2025": -0.227,
+     "2026": -0.065
+    },
+    "challenger_pct": 5.6,
+    "challenger_p95": -0.043,
+    "challenger_mean": -0.099,
+    "passes": false
+   }
+  },
+  "E1_strength": {
+   "stressed": {
+    "signals": 236,
+    "scored": 231,
+    "pair_days": 226,
+    "win": 0.42424242424242425,
+    "exp_r": -0.09057758759105863,
+    "ci95_cluster": [
+     -0.286,
+     0.108
+    ],
+    "penalised_lo": -0.286,
+    "mde_r": 0.203,
+    "by_year": {
+     "2024": 0.078,
+     "2025": -0.236,
+     "2026": -0.092
+    },
+    "challenger_pct": 43.5,
+    "challenger_p95": 0.032,
+    "challenger_mean": -0.078,
+    "passes": false
+   },
+   "normal": {
+    "signals": 236,
+    "scored": 231,
+    "pair_days": 226,
+    "win": 0.4329004329004329,
+    "exp_r": -0.0758385727444598,
+    "ci95_cluster": [
+     -0.271,
+     0.123
+    ],
+    "penalised_lo": -0.271,
+    "mde_r": 0.202,
+    "by_year": {
+     "2024": 0.093,
+     "2025": -0.221,
+     "2026": -0.077
+    },
+    "challenger_pct": 44.1,
+    "challenger_p95": 0.045,
+    "challenger_mean": -0.064,
+    "passes": false
+   },
+   "measured": {
+    "signals": 236,
+    "scored": 231,
+    "pair_days": 226,
+    "win": 0.4329004329004329,
+    "exp_r": -0.08387074948563994,
+    "ci95_cluster": [
+     -0.28,
+     0.116
+    ],
+    "penalised_lo": -0.28,
+    "mde_r": 0.203,
+    "by_year": {
+     "2024": 0.09,
+     "2025": -0.233,
+     "2026": -0.086
+    },
+    "challenger_pct": 43.4,
+    "challenger_p95": 0.039,
+    "challenger_mean": -0.072,
+    "passes": false
+   }
+  },
+  "E2_donchian": {
+   "stressed": {
+    "signals": 201,
+    "scored": 200,
+    "pair_days": 198,
+    "win": 0.365,
+    "exp_r": -0.16496769237133507,
+    "ci95_cluster": [
+     -0.395,
+     0.065
+    ],
+    "penalised_lo": -0.395,
+    "mde_r": 0.235,
+    "by_year": {
+     "2024": 0.058,
+     "2025": -0.381,
+     "2026": -0.073
+    },
+    "challenger_pct": 19.3,
+    "challenger_p95": 0.045,
+    "challenger_mean": -0.095,
+    "passes": false
+   },
+   "normal": {
+    "signals": 201,
+    "scored": 200,
+    "pair_days": 198,
+    "win": 0.375,
+    "exp_r": -0.14431236717408086,
+    "ci95_cluster": [
+     -0.376,
+     0.088
+    ],
+    "penalised_lo": -0.376,
+    "mde_r": 0.234,
+    "by_year": {
+     "2024": 0.093,
+     "2025": -0.371,
+     "2026": -0.062
+    },
+    "challenger_pct": 23.8,
+    "challenger_p95": 0.053,
+    "challenger_mean": -0.086,
+    "passes": false
+   },
+   "measured": {
+    "signals": 201,
+    "scored": 200,
+    "pair_days": 198,
+    "win": 0.37,
+    "exp_r": -0.15728740881522266,
+    "ci95_cluster": [
+     -0.385,
+     0.073
+    ],
+    "penalised_lo": -0.385,
+    "mde_r": 0.234,
+    "by_year": {
+     "2024": 0.067,
+     "2025": -0.375,
+     "2026": -0.067
+    },
+    "challenger_pct": 23.1,
+    "challenger_p95": 0.041,
+    "challenger_mean": -0.098,
+    "passes": false
+   }
+  },
+  "E4_donchian_trail": {
+   "stressed": {
+    "signals": 178,
+    "scored": 177,
+    "pair_days": 176,
+    "win": 0.327683615819209,
+    "exp_r": -0.14319806797314785,
+    "ci95_cluster": [
+     -0.359,
+     0.114
+    ],
+    "penalised_lo": -0.359,
+    "mde_r": 0.241,
+    "by_year": {
+     "2024": 0.222,
+     "2025": -0.401,
+     "2026": -0.196
+    },
+    "challenger_pct": 18.1,
+    "challenger_p95": 0.05,
+    "challenger_mean": -0.073,
+    "passes": false
+   },
+   "normal": {
+    "signals": 178,
+    "scored": 177,
+    "pair_days": 176,
+    "win": 0.327683615819209,
+    "exp_r": -0.1311829859738,
+    "ci95_cluster": [
+     -0.347,
+     0.126
+    ],
+    "penalised_lo": -0.347,
+    "mde_r": 0.241,
+    "by_year": {
+     "2024": 0.234,
+     "2025": -0.389,
+     "2026": -0.184
+    },
+    "challenger_pct": 16.6,
+    "challenger_p95": 0.069,
+    "challenger_mean": -0.054,
+    "passes": false
+   },
+   "measured": {
+    "signals": 178,
+    "scored": 177,
+    "pair_days": 176,
+    "win": 0.327683615819209,
+    "exp_r": -0.13387915585367055,
+    "ci95_cluster": [
+     -0.35,
+     0.123
+    ],
+    "penalised_lo": -0.35,
+    "mde_r": 0.241,
+    "by_year": {
+     "2024": 0.234,
+     "2025": -0.394,
+     "2026": -0.187
+    },
+    "challenger_pct": 17.8,
+    "challenger_p95": 0.06,
+    "challenger_mean": -0.062,
+    "passes": false
+   }
+  },
+  "E5_strength_trail": {
+   "stressed": {
+    "signals": 178,
+    "scored": 174,
+    "pair_days": 172,
+    "win": 0.27011494252873564,
+    "exp_r": -0.03180629443652258,
+    "ci95_cluster": [
+     -0.387,
+     0.343
+    ],
+    "penalised_lo": -0.387,
+    "mde_r": 0.377,
+    "by_year": {
+     "2024": 0.451,
+     "2025": -0.35,
+     "2026": -0.272
+    },
+    "challenger_pct": 86.4,
+    "challenger_p95": 0.027,
+    "challenger_mean": -0.137,
+    "passes": false
+   },
+   "normal": {
+    "signals": 178,
+    "scored": 174,
+    "pair_days": 172,
+    "win": 0.27586206896551724,
+    "exp_r": -0.01613782241767431,
+    "ci95_cluster": [
+     -0.371,
+     0.359
+    ],
+    "penalised_lo": -0.371,
+    "mde_r": 0.377,
+    "by_year": {
+     "2024": 0.467,
+     "2025": -0.334,
+     "2026": -0.257
+    },
+    "challenger_pct": 84.6,
+    "challenger_p95": 0.049,
+    "challenger_mean": -0.114,
+    "passes": false
+   },
+   "measured": {
+    "signals": 178,
+    "scored": 174,
+    "pair_days": 172,
+    "win": 0.27586206896551724,
+    "exp_r": -0.019601825184904977,
+    "ci95_cluster": [
+     -0.375,
+     0.355
+    ],
+    "penalised_lo": -0.375,
+    "mde_r": 0.378,
+    "by_year": {
+     "2024": 0.467,
+     "2025": -0.34,
+     "2026": -0.262
+    },
+    "challenger_pct": 87.9,
+    "challenger_p95": 0.03,
+    "challenger_mean": -0.131,
+    "passes": false
+   }
+  }
+ }
+}

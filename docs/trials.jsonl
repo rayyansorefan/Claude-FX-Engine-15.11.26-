@@ -24,3 +24,4 @@
 {"name": "entry_filter_trend_pullback", "note": "entry-filter study, pre-registered in docs/EXPERIMENTS.md", "params": {"family": "12 single + 66 pairs", "split": 0.6}}
 {"name": "entry_filter_E1_strength", "note": "entry-filter study, pre-registered in docs/EXPERIMENTS.md", "params": {"family": "12 single + 66 pairs", "split": 0.6}}
 {"name": "entry_filter_E2_donchian", "note": "entry-filter study, pre-registered in docs/EXPERIMENTS.md", "params": {"family": "12 single + 66 pairs", "split": 0.6}}
+{"name": "R0_m5_rerun_regime_measured_cost", "note": "R0: same rules at M5 resolution + regime gate", "params": {"costs": ["stressed", "normal", "measured"], "gate": "regime", "resolution": "M5"}}
