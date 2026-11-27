@@ -1,17 +1,17 @@
-# Live positions (written 2026-11-27 17:55 UTC)
+# Live positions (written 2026-11-27 18:05 UTC)
 
 Unfinished setups: 5
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.16R, best so far +0.93R, worst -0.52R. Target is 2.16R away. Held 1606 of 1920 five-minute bars (26h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.16R, best so far +0.93R, worst -0.52R. Target is 2.15R away. Held 1608 of 1920 five-minute bars (26h until the time limit).
 - EURJPY LONG asia_breakout [TRIGGERED] created 2026-11-26 10:00
-  FILLED at 174.70500. entry 174.68200 stop 174.38115 target 175.28371. Unrealised -0.91R, best so far +0.89R, worst -1.04R. Target is 2.84R away. Held 380 of 384 five-minute bars (0h until the time limit).
+  FILLED at 174.70500. entry 174.68200 stop 174.38115 target 175.28371. Unrealised -0.92R, best so far +0.89R, worst -1.04R. Target is 2.84R away. Held 382 of 384 five-minute bars (0h until the time limit).
 - USDJPY LONG asia_breakout [TRIGGERED] created 2026-11-27 09:00
-  FILLED at 159.44900. entry 159.43500 stop 159.28606 target 159.73288. Unrealised +0.43R, best so far +0.95R, worst -0.54R. Target is 1.48R away. Held 106 of 384 five-minute bars (23h until the time limit).
+  FILLED at 159.44900. entry 159.43500 stop 159.28606 target 159.73288. Unrealised +0.40R, best so far +0.95R, worst -0.54R. Target is 1.51R away. Held 108 of 384 five-minute bars (23h until the time limit).
 - EURGBP SHORT asia_breakout [TRIGGERED] created 2026-11-27 09:00
-  FILLED at 0.83528. entry 0.83534 stop 0.83603 target 0.83396. Unrealised +0.48R, best so far +0.99R, worst -0.49R. Target is 1.43R away. Held 106 of 384 five-minute bars (23h until the time limit).
+  FILLED at 0.83528. entry 0.83534 stop 0.83603 target 0.83396. Unrealised +0.46R, best so far +0.99R, worst -0.49R. Target is 1.45R away. Held 108 of 384 five-minute bars (23h until the time limit).
 - USDCAD SHORT trend_pullback [PUBLISHED] created 2026-11-27 17:00
-  not filled yet. entry 1.42320 stop 1.42626 target 1.41708. Expires in 3.1h. Price is +0.45R from entry (positive = entry still ahead).
+  not filled yet. entry 1.42320 stop 1.42626 target 1.41708. Expires in 2.9h. Price is +0.39R from entry (positive = entry still ahead).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
