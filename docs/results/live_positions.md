@@ -1,15 +1,15 @@
-# Live positions (written 2026-11-27 18:25 UTC)
+# Live positions (written 2026-11-27 18:35 UTC)
 
 Unfinished setups: 4
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.17R, best so far +0.93R, worst -0.52R. Target is 2.16R away. Held 1612 of 1920 five-minute bars (26h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.16R, best so far +0.93R, worst -0.52R. Target is 2.15R away. Held 1614 of 1920 five-minute bars (26h until the time limit).
 - USDJPY LONG asia_breakout [TRIGGERED] created 2026-11-27 09:00
-  FILLED at 159.44900. entry 159.43500 stop 159.28606 target 159.73288. Unrealised +0.48R, best so far +0.95R, worst -0.54R. Target is 1.42R away. Held 112 of 384 five-minute bars (23h until the time limit).
+  FILLED at 159.44900. entry 159.43500 stop 159.28606 target 159.73288. Unrealised +0.53R, best so far +0.95R, worst -0.54R. Target is 1.38R away. Held 114 of 384 five-minute bars (22h until the time limit).
 - EURGBP SHORT asia_breakout [TRIGGERED] created 2026-11-27 09:00
-  FILLED at 0.83528. entry 0.83534 stop 0.83603 target 0.83396. Unrealised +0.38R, best so far +0.99R, worst -0.49R. Target is 1.54R away. Held 112 of 384 five-minute bars (23h until the time limit).
+  FILLED at 0.83528. entry 0.83534 stop 0.83603 target 0.83396. Unrealised +0.28R, best so far +0.99R, worst -0.49R. Target is 1.64R away. Held 114 of 384 five-minute bars (22h until the time limit).
 - USDCAD SHORT trend_pullback [PUBLISHED] created 2026-11-27 17:00
-  not filled yet. entry 1.42320 stop 1.42626 target 1.41708. Expires in 2.6h. Price is +0.39R from entry (positive = entry still ahead).
+  not filled yet. entry 1.42320 stop 1.42626 target 1.41708. Expires in 2.4h. Price is +0.38R from entry (positive = entry still ahead).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
