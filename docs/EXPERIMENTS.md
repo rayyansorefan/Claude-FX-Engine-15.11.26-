@@ -95,3 +95,26 @@ Per rule: earlier 60% = discovery (best mean net R keeping >= 40% of trades and 
 Pass (candidate): clustered lower bound of (kept mean - all mean) > 0 at alpha 0.05 / 5 under BOTH stressed and measured costs AND kept mean above the 95th percentile of random subsets of equal size.
 Reported honestly: a candidate may only make a losing rule LESS bad. A candidate is applied only by a deliberate, version-controlled switch (ops/filters.json) and announced; the live loop counts filtered setups.
 Registry: 5 trials (entry_filter_<rule>).
+
+## Profitability search (pre-registered 2026-11-27 BEFORE any result; reason: all 5 live strategies net-negative in research; cost kills edge on M15 stops)
+Problem: M15 stops = 10-12 pips = 0.1-0.2R cost per trade. All five live strategies have zero/negative gross edge at normal costs. Increasing live-trade volume will only confirm losers, not find winners.
+Solution: test regime/session/HTF-alignment filters to concentrate edge (fewer setups, higher win rate, wider stops/faster targets). Same data/holdout/gates as before. Trials: +3 (E8_regime, E9_session, E10_htf_align). Max Bonferroni alpha = 0.05/14.
+
+### E8 — volatility-regime gate (all five live strategies + R0 baseline re-tested through it)
+- Added to run_m5 as a data-collection filter (not changing entry rules).
+- Publish only setups on days where ATR(20, H1) is in the middle 50%-80% (avoid extreme chop and extreme spikes separately).
+- Expected: reject ~50% of setups, keep those in trend-favourable regimes. Average R should improve (or confirm: edge is zero everywhere).
+- Decision rule: stressed CI low > 0 (better than unfiltered baseline R0) on LATER half of trades (out-of-sample) AND same gate increases Sharpe by > 0.1.
+- If pass: apply to live; if fail: edge is in choppy days (counterintuitive) or doesn't exist in this regime.
+
+### E9 — session-time gate (per-pair optimal hours; same approach as E8)
+- Publish only setups during the pair's highest-volatility session (EURUSD/GBPUSD 08:00-11:00 UTC, USDJPY 21:00-00:00 or 00:00-09:00 UTC, etc.).
+- Expected: fewer setups, faster target-hits (volatility is higher). Average R should improve.
+- Decision rule: stressed CI low > 0 versus unfiltered baseline AND Sharpe improved.
+
+### E10 — higher-timeframe (H4) alignment gate
+- Publish breakout entries only when H4 is also in a breakout (highest high of 55 bars on H4). Range reversions only when H4 is consolidating.
+- Expected: fewer but higher-quality setups. Average R improves.
+- Decision rule: stressed CI low > 0 versus unfiltered AND win rate improves.
+
+### Registry: 3 trials (regime / session / htf_align). If all three fail: "cost and regime are the problem; strategy idea is not viable without higher timeframe or macro context." No further threshold-based tweaking tested.
