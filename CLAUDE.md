@@ -40,16 +40,21 @@ No code reused from the old ChatGPT engine.
 - Data: OANDA practice REST (read-only), bid/ask M5, 10 pairs. Dukascopy blocked (429); cTrader needs KYC (dropped).
   OANDA token + Telegram token live only in .env (never commit). Credentials via the secure form or `read -s`.
 
-## Status of research (2026-11-15)
-- 7 strategy variants ALL failed (docs/REJECTED.md). Holdout (>=2026-05-15) never opened. Live setups are labelled UNPROVEN.
-- Next work is in docs/HANDOVER.md. Run tests: `PYTHONPATH=src .venv/bin/pytest -q` (56 pass). Update the VM: `bash deploy/update_vm.sh`.
+## Status of research (2026-11-27)
+- 7 strategy variants ALL failed (docs/REJECTED.md). Holdout (>=2026-05-15) never opened. Live setups labelled UNPROVEN.
+- Reinforcement layer (live/learn/reinforce.py) now has starvation fix (round-robin 72h guarantee) and early-reacting gate (MIN_LIVE_TRADES=15). Both reversible, nightly recompute.
+- Learning pipeline fully automated (live loop runs 21:20 UTC nightly; monitor, postmortem, scorecard, reinforce all deterministic). New docs: AUTOMATION.md, EVIDENCE_GATES.md, LEARNING_PIPELINE.md.
+- Next: accumulate 2–4 weeks of live trades (30+ per strategy); post-mortem will identify SUPPORTED separators; at 60 pooled trades, exit promotion gate opens.
+- Run tests: `PYTHONPATH=src .venv/bin/pytest -q`. Update the VM: `bash deploy/update_vm.sh`.
 
 ## Layout
 - `src/fxengine/` package: data/, features/, setups/, engine/, backtest/, live/,
-  alerts/, dashboard/, audit/
+  learn/ (learning pipeline: monitor, postmortem, scorecard, reinforce), alerts/, dashboard/, audit/
 - `tests/` pytest. `data/` (gitignored) SQLite + Parquet. `docs/` plans, gates, logs.
 - `docs/PLAN.md` phase plan · `docs/GATES.md` pre-registered gates (lock in Phase 2)
+- `docs/EVIDENCE_GATES.md` decision thresholds · `docs/LEARNING_PIPELINE.md` automation guide
 - `docs/REJECTED.md` rejected indicators · `docs/DATA_SOURCES.md` sources + known gaps
+- `AUTOMATION.md` VM operations, ops runner, monitoring, alert meanings
 
 ## Workflow
 - Work on branch `engine`; commit often with tests passing.
