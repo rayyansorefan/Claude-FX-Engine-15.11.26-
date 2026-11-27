@@ -117,13 +117,18 @@ def publish(conn, env, send, cands, now, px=None):
     from . import account as ACC
     from ..learn import scorecard as SCORE
     susp = SCORE.suspended(conn)
+    from ..learn import reinforce as RF
+    try:
+        wts = RF.weights(conn)                                         # autonomous reinforcement: weights from history + live trades, recomputed every cycle
+    except Exception:
+        wts = {}                                                       # never block publishing
     free = None
     if px:
         try:
             free = ACC.free_cash_now(conn, px)
         except Exception:
             free = None                                                  # never block publishing because the account view failed
-    for c in sorted(cands, key=lambda x: -x["score"]):
+    for c in sorted(cands, key=(lambda x: RF.order_key(wts, x)) if wts else (lambda x: -x["score"])):
         if n_today >= MAX_PER_DAY or c["pair"] in active_pairs or not (PUBLISH_HOURS[0] <= now.hour < PUBLISH_HOURS[1]):
             continue
         c = dict(c, run_id=f"live-{c['type']}-{c['pair']}-{pd.Timestamp(c['created']):%Y%m%d%H%M}")
@@ -138,9 +143,13 @@ def publish(conn, env, send, cands, now, px=None):
             continue
         if c["type"] in susp:                                           # strategy on probation (live results clearly below zero, learn/scorecard.py): still published and scored, not taken in the account
             c["suspended"] = True
+        fac = RF.size_factor(wts, c["type"]) if wts else 1.0             # REDUCED = half size, NOT TAKEN = 0 (still published and scored)
+        c["reinforce"] = wts.get(c["type"], {}).get("action", "NORMAL") if wts else "NORMAL"
+        if fac == 0.0 and not c.get("suspended"):
+            c["suspended"] = True
         if free is not None:                                            # no leverage: how many lots the £2,500 account can really hold (0 = no free cash; still published and scored)
             pl = c.get("per_lot_gbp") or ACC.per_lot_gbp(c["pair"], px)
-            c["lots_account"] = 0.0 if c.get("suspended") else ACC.affordable_lots(float(c.get("lots_for_20gbp_risk") or 0), pl, free)
+            c["lots_account"] = 0.0 if c.get("suspended") else round(int(ACC.affordable_lots(float(c.get("lots_for_20gbp_risk") or 0), pl, free) * fac * 100) / 100, 2) if fac < 1.0 else ACC.affordable_lots(float(c.get("lots_for_20gbp_risk") or 0), pl, free)
             c["per_lot_gbp"] = None if pl is None else round(pl, 2)
             free -= c["lots_account"] * (pl or 0)
         champ = DB.kv_get(conn, "champion_exit")

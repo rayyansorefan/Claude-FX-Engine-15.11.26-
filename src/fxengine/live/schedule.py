@@ -49,12 +49,20 @@ def daily_jobs(conn, env, now, send=telegram.send, root=store.ROOT):
         try:
             from ..learn import review as LR
             LR.daily(conn, root, now)
+            try:
+                from ..learn import reinforce as RF
+                for m in RF.nightly(conn, now):                           # tell the owner when the engine changes how it treats a strategy, and why
+                    send(env, m)
+            except Exception:
+                pass                                                      # reinforcement must never break the learning job
             if now.day_of_week == 4:                                  # Friday = the scheduled weekly review (promotion / rollback decisions)
                 for m in LR.decide(conn, now):
                     send(env, m)
                 send(env, "\n".join(LR.summary_lines(conn)))
                 from ..learn import scorecard as SCORE, postmortem as PM
                 send(env, "\n".join(SCORE.summary_lines(conn)))
+                from ..learn import reinforce as RF2
+                send(env, "\n".join(RF2.summary_lines(conn)))
                 send(env, "\n".join(PM.summary_lines(PM.analyse(conn))))
             LR.write_report(conn, now)
             try:

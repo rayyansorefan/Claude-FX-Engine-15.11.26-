@@ -1013,6 +1013,21 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
                           "<p class='muted'>Judging starts at 15 trades; a strategy is only confirmed or put on probation at 30+ trades when its whole 95% range is above or below zero. Probation = still published and scored, not taken in the £2,500 account; reversible automatically. Nothing else about a strategy changes.</p></div>")
     except Exception:
         score_html = ""
+    rf_html = ""
+    try:
+        from ..learn import reinforce as RF
+        wt_ = RF.weights(dbc) if dbc else {}
+        ic_ = {"FAVOURED": "⬆ FAVOURED (first call on slots and cash)", "NORMAL": "➖ normal", "REDUCED": "⬇ REDUCED (half size)", "NOT TAKEN": "⛔ NOT TAKEN (still scored)"}
+        rrows = "".join(f"<tr><td><b>{e(STRATS.get(k, (k,))[0])}</b></td><td class='num'>{v['n']}</td><td class='num'>{'—' if v['live_mean'] is None else format(v['live_mean'], '+.2f') + 'R'}</td>"
+                        f"<td class='num'>{v['prior']:+.2f}R</td><td class='num {'up' if v['w'] > 0 else 'dn'}'>{v['w']:+.2f}R</td><td>{ic_[v['action']]}</td></tr>"
+                        for k, v in sorted(wt_.items(), key=lambda kv: -kv[1]['w']))
+        if rrows:
+            rf_html = ("<div class='card' style='margin-top:10px'><h3>Reinforcement · how the engine treats each strategy (updated every night)</h3><table class='tbl'><tr><th>Strategy</th><th class='r'>Live trades</th>"
+                       "<th class='r'>Live average</th><th class='r'>History</th><th class='r'>Weight</th><th>Treatment</th></tr>" + rrows + "</table>"
+                       "<p class='muted'>Weight = history plus live trades (40 trades of trust in history). Favoured strategies get the first call on the daily setup slots and the cash; reduced ones are taken at half size; "
+                       "not-taken ones are still published and scored. All strategies lose money in research, so 'favoured' means least bad, not proven profitable. Reversible every night; the £20 risk cap is never raised.</p></div>")
+    except Exception:
+        rf_html = ""
     pm_html = ""
     try:
         from ..learn import postmortem as PM
@@ -1047,7 +1062,7 @@ def build(root="data/candles", out="dashboard/index.html", now=None, banner=""):
     except Exception:
         learn_html = ""
     livetbl = (f"<p class='muted'>Published {len(live)} · resolved {len(done)} · target {wins} · stop {losses} · "
-               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><p class='muted'>Tap a finished trade (▸) to see its chart.</p><table class='tbl hist'><tr><th class='c1'>Published / filled / closed (UK)</th><th class='c2'>Setup</th><th class='hr'>Rule</th><th class='c3'>Result</th><th class='r c4'>P&amp;L</th></tr>{lr}</table>{lesson_html}{score_html}{pm_html}{learn_html}"
+               f"success rate {'n/a' if not (wins + losses) else f'{wins / (wins + losses) * 100:.0f}%'}</p><p class='muted'>Tap a finished trade (▸) to see its chart.</p><table class='tbl hist'><tr><th class='c1'>Published / filled / closed (UK)</th><th class='c2'>Setup</th><th class='hr'>Rule</th><th class='c3'>Result</th><th class='r c4'>P&amp;L</th></tr>{lr}</table>{lesson_html}{rf_html}{score_html}{pm_html}{learn_html}"
               if live else "<p class='muted'>No live setups recorded yet. This fills in once the live loop publishes its first setup.</p>")
     # --- research
     m5tab = "".join(f"<tr><td><b>{e(v)}</b></td><td>{k}</td><td class='num'>{n:,}</td><td class='num'>{pdays:,}</td><td class='num'>{w:.0f}%</td>"
