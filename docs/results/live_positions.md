@@ -1,15 +1,15 @@
-# Live positions (written 2026-11-27 16:35 UTC)
+# Live positions (written 2026-11-27 16:45 UTC)
 
 Unfinished setups: 4
 
 - GBPJPY SHORT E2_donchian [TRIGGERED] created 2026-11-20 04:00
-  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.22R, best so far +0.93R, worst -0.52R. Target is 2.21R away. Held 1590 of 1920 five-minute bars (28h until the time limit).
+  FILLED at 208.62100. entry 208.62700 stop 210.31726 target 205.24648. Unrealised -0.20R, best so far +0.93R, worst -0.52R. Target is 2.20R away. Held 1592 of 1920 five-minute bars (27h until the time limit).
 - EURJPY LONG asia_breakout [TRIGGERED] created 2026-11-26 10:00
-  FILLED at 174.70500. entry 174.68200 stop 174.38115 target 175.28371. Unrealised -0.70R, best so far +0.89R, worst -0.90R. Target is 2.62R away. Held 364 of 384 five-minute bars (2h until the time limit).
+  FILLED at 174.70500. entry 174.68200 stop 174.38115 target 175.28371. Unrealised -0.79R, best so far +0.89R, worst -0.90R. Target is 2.71R away. Held 366 of 384 five-minute bars (2h until the time limit).
 - USDJPY LONG asia_breakout [TRIGGERED] created 2026-11-27 09:00
-  FILLED at 159.44900. entry 159.43500 stop 159.28606 target 159.73288. Unrealised +0.60R, best so far +0.95R, worst -0.54R. Target is 1.30R away. Held 90 of 384 five-minute bars (24h until the time limit).
+  FILLED at 159.44900. entry 159.43500 stop 159.28606 target 159.73288. Unrealised +0.35R, best so far +0.95R, worst -0.54R. Target is 1.56R away. Held 92 of 384 five-minute bars (24h until the time limit).
 - EURGBP SHORT asia_breakout [TRIGGERED] created 2026-11-27 09:00
-  FILLED at 0.83528. entry 0.83534 stop 0.83603 target 0.83396. Unrealised +0.55R, best so far +0.99R, worst -0.49R. Target is 1.36R away. Held 90 of 384 five-minute bars (24h until the time limit).
+  FILLED at 0.83528. entry 0.83534 stop 0.83603 target 0.83396. Unrealised +0.62R, best so far +0.99R, worst -0.49R. Target is 1.29R away. Held 92 of 384 five-minute bars (24h until the time limit).
 
 Last 15 finished: reason, net R, best point reached (MFE), worst (MAE), why it lost (when it lost)
 
