@@ -128,8 +128,17 @@ def publish(conn, env, send, cands, now, px=None):
             free = ACC.free_cash_now(conn, px)
         except Exception:
             free = None                                                  # never block publishing because the account view failed
+    # Guarantee each strategy at least one slot every 72h (round-robin fallback; prevents starvation of reduced strategies)
+    last_pub = {}
+    for r in conn.execute("SELECT type, MAX(day) FROM setups GROUP BY type"):
+        last_pub[r[0]] = pd.Timestamp(r[1]) if r[1] else None
     for c in sorted(cands, key=(lambda x: RF.order_key(wts, x)) if wts else (lambda x: -x["score"])):
-        if n_today >= MAX_PER_DAY or c["pair"] in active_pairs or not (PUBLISH_HOURS[0] <= now.hour < PUBLISH_HOURS[1]):
+        if c["pair"] in active_pairs or not (PUBLISH_HOURS[0] <= now.hour < PUBLISH_HOURS[1]):
+            continue
+        # Round-robin guarantee: if a strategy hasn't published in 72h, give it a slot
+        last = last_pub.get(c["type"])
+        too_many = n_today >= MAX_PER_DAY and (last is None or (now - last).days < 3)
+        if too_many:
             continue
         c = dict(c, run_id=f"live-{c['type']}-{c['pair']}-{pd.Timestamp(c['created']):%Y%m%d%H%M}")
         from ..features import context as CTX

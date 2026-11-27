@@ -42,11 +42,14 @@ def weights(conn, prior: dict | None = None) -> dict[str, dict]:
     prior = prior or _prior()
     live = SC.collect(conn)
     out = {}
+    MIN_LIVE_TRADES = 15  # Match scorecard.py MIN_JUDGE; don't reduce/stop until we have enough data
     for t in set(prior) | set(live):
         pm = prior.get(t, DEFAULT_PRIOR)[0]
         rs = live.get(t, [])
         w = (pm * K_PRIOR + sum(rs)) / (K_PRIOR + len(rs))
-        out[t] = dict(w=w, n=len(rs), wins=sum(x > 0 for x in rs), live_mean=(sum(rs) / len(rs) if rs else None), prior=pm, action=action(w))
+        # With fewer than 15 live trades, treat as NORMAL (never REDUCED or NOT_TAKEN): early data is noisy
+        act = action(w) if len(rs) >= MIN_LIVE_TRADES else ("NORMAL" if action(w) in ("REDUCED", "NOT TAKEN") else action(w))
+        out[t] = dict(w=w, n=len(rs), wins=sum(x > 0 for x in rs), live_mean=(sum(rs) / len(rs) if rs else None), prior=pm, action=act)
     return out
 
 
