@@ -26,6 +26,8 @@ JOBS_ROOT = {                      # maintenance needing root (only honoured whe
 JOBS = {
     "history": ".venv/bin/python -m fxengine.data.oanda_cli --start 2023-11-01 && .venv/bin/python -m fxengine.data.build",
     "r0": ".venv/bin/python -m fxengine.backtest.run_m5",
+    "r0_regime": ".venv/bin/python -m fxengine.backtest.run_m5 regime",
+    "r0_session": ".venv/bin/python -m fxengine.backtest.run_m5 session",
     "batch3": "bash deploy/run_batch3.sh",
     "rates": ".venv/bin/python -m fxengine.data.rates",
     "tests": ".venv/bin/pytest -q",

@@ -117,7 +117,39 @@ def context_fields(d, pos, direction):
     return {k: v for k, v in c.items() if k not in ("hour_utc", "dow")}
 
 
-def run_variant(variant, tfname, frames_tf, m5s, use_invalidation=True, rng=None):
+def _gate_regime(d, pos, atr_col="atr"):
+    """Volatility regime gate: only trade in middle 25%-75% of ATR (avoid extreme chop and spikes)."""
+    atr = d[atr_col].values
+    if len(atr) < 100:
+        return True
+    p25, p75 = np.percentile(atr[-100:], [25, 75])
+    return p25 <= atr[pos] <= p75
+
+
+def _gate_session(d, sym, pos):
+    """Session gate: trade only during the pair's highest-volatility session (UTC hours)."""
+    hour = d.index[pos].hour
+    # Optimal hours per pair (volatility spikes / overlaps)
+    sessions = {
+        "EURUSD": range(8, 12),    # London open ramp
+        "GBPUSD": range(8, 12),    # London open
+        "USDJPY": range(21, 24),   # NY open
+        "USDCHF": range(8, 12),    # London
+        "AUDUSD": range(21, 4),    # Sydney/Asia (wraps midnight)
+        "USDCAD": range(13, 18),   # North American
+        "NZDUSD": range(20, 4),    # Wellington/Asia
+        "EURGBP": range(8, 11),    # London
+        "EURJPY": range(8, 12),    # London
+        "GBPJPY": range(8, 12),    # London
+    }
+    s = sessions.get(sym, range(24))
+    if len(s) > 12:  # wraps midnight (e.g., 21-24 and 0-4)
+        return hour >= s.start or hour < (s.stop % 24)
+    return hour in s
+
+
+def run_variant(variant, tfname, frames_tf, m5s, use_invalidation=True, rng=None, gate=None):
+    """gate: None, "regime", or "session" to filter setups by volatility regime or optimal session hours."""
     tf = tf_delta(tfname)
     sigs = signals_for(variant, frames_tf)
     trail = variant.endswith("_trail")
@@ -131,6 +163,11 @@ def run_variant(variant, tfname, frames_tf, m5s, use_invalidation=True, rng=None
             cur, arr = sym, bar_arrays(m5)
         free_until = pd.Timestamp.min.tz_localize("UTC")
         for row in sig.itertuples():
+            # Apply gates
+            if gate == "regime" and not _gate_regime(d, row.pos):
+                continue
+            if gate == "session" and not _gate_session(d, sym, row.pos):
+                continue
             created = d.index[row.pos] + tf
             if created < free_until:
                 continue
@@ -222,7 +259,8 @@ def render(res) -> str:
     return "\n".join(L) + "\n"
 
 
-def main(root="data/candles", reg=Path("docs/trials.jsonl"), out=Path("docs/results"), variants=VARIANTS):
+def main(root="data/candles", reg=Path("docs/trials.jsonl"), out=Path("docs/results"), variants=VARIANTS, gate=None):
+    """gate: None (baseline), "regime", or "session" to filter setups."""
     def load_m5(sym):
         d = store.load(sym, "M5", Path(root))
         if d.empty:
@@ -236,24 +274,26 @@ def main(root="data/candles", reg=Path("docs/trials.jsonl"), out=Path("docs/resu
     frames["H4"] = {s: prepare(resample(m5s[s], "H4", base="M5")) for s in PAIRS if n_rows[s]}      # small; E1/E5 need every pair at once
     trials.ensure_seed(reg)
     seen = {json.loads(l)["name"] for l in reg.open()} if reg.exists() else set()
-    pending = "R0_m5_rerun_measured_cost" not in seen                 # logged only AFTER a run that actually scored setups
+    gate_suffix = f"_{gate}" if gate else ""
+    pending = f"R0_m5_rerun{gate_suffix}_measured_cost" not in seen                 # logged only AFTER a run that actually scored setups
     n_trials = trials.count_trials(reg) + (1 if pending else 0)
-    res = dict(version="R0-M5", n_trials=n_trials, period=[str(min(f.index.min() for f in frames["H4"].values())), str(max(f.index.max() for f in frames["H4"].values()))], summary={})
+    res = dict(version=f"R0-M5{gate_suffix}", n_trials=n_trials, period=[str(min(f.index.min() for f in frames["H4"].values())), str(max(f.index.max() for f in frames["H4"].values()))], summary={})
     for variant, tfname in variants:
-        df, pool = run_variant(variant, tfname, frames[tfname], m5s)
+        df, pool = run_variant(variant, tfname, frames[tfname], m5s, gate=gate)
         res["summary"][variant] = summarise(df, pool, n_trials)
-        print(variant, {k: (s["scored"], s["exp_r"], s["passes"]) for k, s in res["summary"][variant].items()}, flush=True)
+        print(f"{variant}{gate_suffix}: {len(df)} signals → {df[f'trig_stressed'].sum()} scored (gate={'none' if not gate else gate})", flush=True)
         if len(df):
             Path("data").mkdir(exist_ok=True)
-            df.to_parquet(f"data/m5_rerun_{variant}.parquet")
+            df.to_parquet(f"data/m5_rerun{gate_suffix}_{variant}.parquet")
     if pending and any(s["scored"] for modes in res["summary"].values() for s in modes.values()):
-        trials.log_trial("R0_m5_rerun_measured_cost", {"resolution": "M5", "costs": list(COSTS)}, "R0: same rules at M5 resolution + measured-cost mode", reg=reg)
+        trials.log_trial(f"R0_m5_rerun{gate_suffix}_measured_cost", {"resolution": "M5", "gate": gate, "costs": list(COSTS)}, f"R0: same rules at M5 resolution + {gate or 'no'} gate", reg=reg)
     out.mkdir(parents=True, exist_ok=True)
-    json.dump(res, open(out / "m5_rerun.json", "w"), indent=1, default=str)
-    (out / "m5_rerun.md").write_text(render(res))
+    json.dump(res, open(out / f"m5_rerun{gate_suffix}.json", "w"), indent=1, default=str)
+    (out / f"m5_rerun{gate_suffix}.md").write_text(render(res))
     print(render(res))
     return res
 
 
 if __name__ == "__main__":
-    main()
+    gate = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] in ("regime", "session") else None
+    main(gate=gate)

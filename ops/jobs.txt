@@ -31,3 +31,5 @@
 035 exits
 036 diagnose
 037 entries
+038 r0_regime
+039 r0_session
